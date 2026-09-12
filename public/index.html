@@ -66,7 +66,7 @@ h1 input:hover,h1 input:focus{border-bottom-color:var(--line)}
 svg{display:block;font-family:"Atkinson Hyperlegible",system-ui,sans-serif;user-select:none}
 .cell{fill:transparent;cursor:copy}
 .cell:hover{fill:var(--paper-2)}
-.card{cursor:grab}
+.card{cursor:grab;touch-action:none}
 .card.dragging{cursor:grabbing;opacity:.85}
 .card .box{fill:var(--node);stroke-width:1.8}
 .card.done .box{stroke-width:1.8}
@@ -375,9 +375,9 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','
 
 // drag + click on cards
 function attachCard(g,t,svg){
-  let start=null,dragging=false;
+  let start=null,startAt=null,dragging=false;
   const toSvg=(ev)=>{const pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;return pt.matrixTransform(svg.getScreenCTM().inverse());};
-  g.addEventListener('pointerdown',ev=>{ if(ev.button!==0)return; start=toSvg(ev); g.setPointerCapture(ev.pointerId); });
+  g.addEventListener('pointerdown',ev=>{ if(ev.button!==0)return; start=toSvg(ev); startAt=start; try{g.setPointerCapture(ev.pointerId);}catch(e){} });
   g.addEventListener('pointermove',ev=>{
     if(!start)return; const p=toSvg(ev);
     if(!dragging&&Math.hypot(p.x-start.x,p.y-start.y)>6){dragging=true;g.classList.add('dragging');svg.appendChild(g);}
@@ -386,7 +386,8 @@ function attachCard(g,t,svg){
   const finish=ev=>{
     if(!start)return; const p=toSvg(ev); const wasDrag=dragging; start=null;dragging=false;g.classList.remove('dragging');
     if(wasDrag){
-      const L=layout(); const row=L.rows.find(r=>p.y>=r.y&&p.y<r.y+r.h); const s=Math.floor((p.x-G.start-G.label)/G.colW);
+      const P0=pos[t.id]; const cx=P0.x+G.cardW/2+(p.x-startAt.x), cy=P0.y+G.cardH/2+(p.y-startAt.y);
+      const L=layout(); const row=L.rows.find(r=>cy>=r.y&&cy<r.y+r.h); const s=Math.floor((cx-G.start-G.label)/G.colW);
       if(row&&s>=0&&s<12){
         if(s!==t.stage||row.goal.id!==t.goal){
           const bad=(t.deps||[]).some(d=>state.tasks[d]&&state.tasks[d].stage>s)||dependents(t.id).some(x=>x.stage<s);
