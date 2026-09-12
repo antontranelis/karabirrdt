@@ -283,6 +283,7 @@ function layout(){
   return {rows,height:Math.max(y,G.head+120),width:G.start+G.label+12*G.colW+G.end};
 }
 const pos={}; // taskId -> {x,y}
+const rowOf={}; // taskId -> row
 
 // ---------- render board ----------
 const NS='http://www.w3.org/2000/svg';
@@ -331,7 +332,7 @@ function renderBoard(){
       c.addEventListener('click',()=>{ if(state.linkFrom){state.linkFrom=null;render();return;} newTask(r.goal.id,s); });
       svg.appendChild(c);
       const list=tasksOf(r.goal.id,s);
-      list.forEach((t,k)=>{ pos[t.id]={x:colX(s)-G.cardW/2,y:r.y+G.rowPad+k*(G.cardH+G.gap)}; });
+      list.forEach((t,k)=>{ pos[t.id]={x:colX(s)-G.cardW/2,y:r.y+G.rowPad+k*(G.cardH+G.gap)}; rowOf[t.id]=r; });
     }
   });
   // start / goal nodes
@@ -347,7 +348,11 @@ function renderBoard(){
   allTasks.forEach(t=>{
     const P=pos[t.id]; const deps=(t.deps||[]).filter(d=>pos[d]);
     if(!deps.length) tl.appendChild(thread(G.start/2+20,midY,P.x,P.y+G.cardH/2,'thread edge'));
-    deps.forEach(d=>{const Q=pos[d]; const hl=state.sel===t.id||state.sel===d; tl.appendChild(thread(Q.x+G.cardW,Q.y+G.cardH/2,P.x,P.y+G.cardH/2,'thread'+(hl?' hl':'')));});
+    deps.forEach(d=>{const Q=pos[d]; const src=state.tasks[d]; const hl=state.sel===t.id||state.sel===d;
+      const y1=Q.y+G.cardH/2, y2=P.y+G.cardH/2, lo=Math.min(y1,y2)-G.cardH/2, hi=Math.max(y1,y2)+G.cardH/2;
+      const blockiert=allTasks.some(o=>o.id!==t.id&&o.id!==d&&o.stage>src.stage&&o.stage<t.stage&&pos[o.id].y+G.cardH>lo&&pos[o.id].y<hi);
+      let via=null; if(blockiert){const r=rowOf[d]; via=(y2>=y1)?r.y+r.h-5:r.y+5;}
+      tl.appendChild(thread(Q.x+G.cardW,y1,P.x,y2,'thread'+(hl?' hl':''),via));});
     if(!hasDependents.has(t.id)) tl.appendChild(thread(P.x+G.cardW,P.y+G.cardH/2,L.width-G.end/2-20,midY,'thread edge'));
   });
   // cards
@@ -365,8 +370,12 @@ function renderBoard(){
   });
   host.appendChild(svg);
 }
-function thread(x1,y1,x2,y2,cls){
+function thread(x1,y1,x2,y2,cls,via){
   const dx=Math.max(28,Math.abs(x2-x1)/2);
+  if(via!=null){ // Umweg über den Zeilenrand, damit der Faden nicht durch fremde Karten läuft
+    const xa=x1+Math.min(40,dx), xb=x2-Math.min(40,dx);
+    return el('path',{d:`M${x1},${y1} C${xa},${y1} ${xa},${via} ${(xa+xb)/2},${via} S${xb},${y2} ${x2},${y2}`,class:cls});
+  }
   const d= x2>=x1 ? `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`
                   : `M${x1},${y1} C${x1+40},${y1} ${x2-40},${y2} ${x2},${y2}`;
   return el('path',{d,class:cls});
