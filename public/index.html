@@ -266,7 +266,7 @@ function addDep(target,source){
 function dependents(id){return Object.values(state.tasks).filter(t=>(t.deps||[]).includes(id));}
 
 // ---------- geometry ----------
-const G={start:46,label:250,colW:116,cardW:102,cardH:60,gap:8,rowPad:12,head:76,end:46};
+const G={start:46,label:250,colW:116,cardW:102,cardH:60,gap:8,rowPad:16,head:76,end:46};
 let _m=null;
 function labelHeight(t){
   if(!_m){_m=document.createElement('div');_m.style.cssText=`position:absolute;visibility:hidden;left:-9999px;top:0;width:${G.label-12}px;font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-size:11.5px;line-height:1.25;font-weight:700;overflow-wrap:anywhere`;document.body.appendChild(_m);}
@@ -439,7 +439,8 @@ function renderSide(){
     <div style="margin-top:6px"><button id="bLink" class="small">Voraussetzung hinzufügen</button></div>
     <label class="f">Was danach kommt (Fäden hinaus)</label>
     <ul class="deps" id="outs"></ul>
-    <div class="row" style="margin-top:16px"><button id="bDone" class="${t.done?'':'primary'}">${t.done?'Wieder öffnen':'Erledigt, ausmalen'}</button><button id="bDel" class="danger">Karte löschen</button></div>`;
+    <div class="row" style="margin-top:16px"><button id="bDone" class="${t.done?'':'primary'}">${t.done?'Wieder öffnen':'Erledigt, ausmalen'}</button><button id="bDel" class="danger">Karte löschen</button></div>
+    <div style="margin-top:10px"><button id="bSibling" class="small">Weitere Karte in dieser Zelle</button></div>`;
   const save=()=>{persistTask(t);render();};
   $('fTitle').addEventListener('change',e=>{t.title=e.target.value.trim()||'Ohne Titel';save();});
   $('fTitle').addEventListener('keydown',e=>{if(e.key==='Enter'){e.target.blur();}});
@@ -460,6 +461,7 @@ function renderSide(){
   if(!ds.length){const li=document.createElement('li');li.className='muted';li.textContent='Keine. Läuft zum Ziel.';outs.appendChild(li);}
   $('bLink').onclick=()=>{state.linkFrom=t.id;render();};
   $('bDone').onclick=()=>{t.done=!t.done;save();};
+  $('bSibling').onclick=()=>newTask(t.goal,t.stage);
   $('bDel').onclick=()=>armed($('bDel'),'Wirklich löschen?',()=>{ Object.values(state.tasks).forEach(o=>{if((o.deps||[]).includes(t.id)){o.deps=o.deps.filter(x=>x!==t.id);persistTask(o);}}); delete state.tasks[t.id]; removeTask(t.id); state.sel=null; render(); });
 }
 
