@@ -351,6 +351,10 @@ function renderBoard(){
     deps.forEach(d=>{const Q=pos[d]; const src=state.tasks[d]; const hl=state.sel===t.id||state.sel===d;
       const y1=Q.y+G.cardH/2, y2=P.y+G.cardH/2, lo=Math.min(y1,y2)-G.cardH/2, hi=Math.max(y1,y2)+G.cardH/2;
       const blockiert=allTasks.some(o=>o.id!==t.id&&o.id!==d&&o.stage>src.stage&&o.stage<t.stage&&pos[o.id].y+G.cardH>lo&&pos[o.id].y<hi);
+      if(src.stage===t.stage){ // gleiche Spalte: senkrecht von Kante zu Kante
+        const x=Q.x+G.cardW/2, ya=(P.y>Q.y)?Q.y+G.cardH:Q.y, yb=(P.y>Q.y)?P.y:P.y+G.cardH, dy=(yb-ya)/2;
+        tl.appendChild(el('path',{d:`M${x},${ya} C${x+10},${ya+dy} ${x+10},${yb-dy} ${x},${yb}`,class:'thread'+(hl?' hl':'')}));
+        tl.appendChild(el('circle',{cx:x,cy:yb,r:3,fill:'var(--thread)'})); return; }
       let via=null; if(blockiert){const r=rowOf[d]; via=(y2>=y1)?r.y+r.h-5:r.y+5;}
       tl.appendChild(thread(Q.x+G.cardW,y1,P.x,y2,'thread'+(hl?' hl':''),via));});
     if(!hasDependents.has(t.id)) tl.appendChild(thread(P.x+G.cardW,P.y+G.cardH/2,L.width-G.end/2-20,midY,'thread edge'));
