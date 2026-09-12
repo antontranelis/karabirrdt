@@ -1,0 +1,26 @@
+# Vorlage für den Betrieb hinter Traefik (NixOS-Server, Auto-Update via Watchtower).
+# Auf dem Server liegt das unter /home/timo/apps/karabirrdt/docker-compose.yml.
+#
+# Der Hash für die Anmeldung wird auf dem Server erzeugt und steht NICHT im Repo:
+#   PW=$(openssl rand -base64 15); openssl passwd -apr1 "$PW"
+# Im Label muss jedes $ verdoppelt werden ($$), sonst frisst Compose es.
+services:
+  karabirrdt:
+    image: ghcr.io/antontranelis/karabirrdt:latest
+    container_name: karabirrdt
+    network_mode: bridge
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+    volumes:
+      - ./data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.karabirrdt.rule=Host(`karabirrdt.real-life.org`)"
+      - "traefik.http.routers.karabirrdt.entrypoints=websecure"
+      - "traefik.http.routers.karabirrdt.tls.certresolver=letsencrypt"
+      # Ohne Anmeldung könnte jeder mit der Adresse das Brett lesen und ändern.
+      - "traefik.http.routers.karabirrdt.middlewares=karabirrdt-auth"
+      - "traefik.http.middlewares.karabirrdt-auth.basicauth.users=kreis:HASH-HIER-EINSETZEN"
+      - "traefik.http.services.karabirrdt.loadbalancer.server.port=8124"
+      - "com.centurylinklabs.watchtower.enable=true"

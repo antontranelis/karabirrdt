@@ -1,0 +1,18 @@
+{
+  "name": "karabirrdt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Interaktives Karabirrdt für Dragon Dreaming: Ziele als Zeilen, zwölf Stufen als Spalten, Karten und Fäden, gemeinsam in Echtzeit",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

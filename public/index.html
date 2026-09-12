@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Karabirrdt</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Ccircle cx=%2216%22 cy=%2216%22 r=%2214%22 fill=%22%232C7A76%22/%3E%3Cpath d=%22M6 16h20M16 6v20M9 9l14 14M23 9L9 23%22 stroke=%22%23F3EEE2%22 stroke-width=%221.6%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#EAE3D2; --paper-2:#F3EEE2; --panel:#FBF8F1; --ink:#2A2521; --ink-2:#5E554C; --line:#C9BFAC; --thread:#4A423A; --thread-soft:#A89C88;
+  --dream:#6A4C9C; --plan:#2C7A76; --do:#BD5F1C; --fete:#B0355C;
+  --dream-soft:#DDD3EC; --plan-soft:#C9E1DE; --do-soft:#F2D8C0; --fete-soft:#F0CBD6;
+  --node:#FBF8F1; --sel:#2A2521; --warn:#B0355C; --ok:#2C7A76; --focus:#2C7A76;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#1E1A16; --paper-2:#27221D; --panel:#2E2823; --ink:#EFE8DA; --ink-2:#B5AA99; --line:#4A423A; --thread:#C8BCA8; --thread-soft:#6E6455;
+    --dream:#B39BE0; --plan:#6FC2BC; --do:#F09A5A; --fete:#EE7FA0;
+    --dream-soft:#3A2D55; --plan-soft:#1F4644; --do-soft:#4E2E16; --fete-soft:#4C1F30;
+    --node:#332C26; --sel:#EFE8DA; --warn:#EE7FA0; --ok:#6FC2BC; --focus:#6FC2BC;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#1E1A16; --paper-2:#27221D; --panel:#2E2823; --ink:#EFE8DA; --ink-2:#B5AA99; --line:#4A423A; --thread:#C8BCA8; --thread-soft:#6E6455;
+  --dream:#B39BE0; --plan:#6FC2BC; --do:#F09A5A; --fete:#EE7FA0;
+  --dream-soft:#3A2D55; --plan-soft:#1F4644; --do-soft:#4E2E16; --fete-soft:#4C1F30;
+  --node:#332C26; --sel:#EFE8DA; --warn:#EE7FA0; --ok:#6FC2BC; --focus:#6FC2BC;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+body{background:var(--paper);color:var(--ink);font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-size:15px;line-height:1.45;display:flex;flex-direction:column;min-height:100vh}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:6px 11px}
+button:hover{border-color:var(--ink-2)}
+button.primary{background:var(--ink);color:var(--paper-2);border-color:var(--ink)}
+button.ghost{background:transparent;border-color:transparent;padding:4px 8px}
+button.danger{color:var(--warn);border-color:var(--warn)}
+button.small{padding:3px 8px;font-size:13px}
+.btnlink{display:inline-block;text-align:center;text-decoration:none;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:6px 11px;color:var(--ink)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+input,textarea,select{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:6px 8px;width:100%}
+textarea{resize:vertical;min-height:60px}
+label.f{display:block;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin:12px 0 4px}
+.top{display:flex;align-items:flex-start;gap:20px;padding:16px 20px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.top .title{flex:1 1 380px;min-width:0}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
+h1{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:26px;line-height:1.1;margin:2px 0 4px}
+h1 input{font:inherit;background:transparent;border:0;border-bottom:1px dashed transparent;padding:0;border-radius:0}
+h1 input:hover,h1 input:focus{border-bottom-color:var(--line)}
+.dreamline{font-family:"Fraunces",Georgia,serif;font-style:italic;font-size:15.5px;color:var(--ink);max-width:70ch}
+.dreamline textarea{font:inherit;background:transparent;border:0;border-bottom:1px dashed transparent;padding:0;min-height:22px;border-radius:0}
+.dreamline textarea:hover,.dreamline textarea:focus{border-bottom-color:var(--line)}
+.horizon{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-2);display:flex;gap:8px;align-items:center;margin-top:4px}
+.horizon input{width:auto;padding:2px 6px;font-size:12.5px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sync{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--line);display:inline-block}
+.sync.live i{background:var(--ok)}
+.main{display:flex;flex:1;min-height:0}
+.boardwrap{flex:1;overflow:auto;padding:14px 16px 30px;min-width:0}
+.hint{position:sticky;left:0;top:0;z-index:2;display:none;background:var(--ink);color:var(--paper-2);padding:6px 12px;border-radius:5px;font-size:14px;margin-bottom:10px;width:max-content;max-width:100%}
+.hint.on{display:block}
+svg{display:block;font-family:"Atkinson Hyperlegible",system-ui,sans-serif;user-select:none}
+.cell{fill:transparent;cursor:copy}
+.cell:hover{fill:var(--paper-2)}
+.card{cursor:grab}
+.card.dragging{cursor:grabbing;opacity:.85}
+.card .box{fill:var(--node);stroke-width:1.8}
+.card.done .box{stroke-width:1.8}
+.card.selected .box{stroke:var(--sel);stroke-width:2.6}
+.card.linksrc .box{stroke-dasharray:4 3;stroke-width:2.6}
+.cardtxt{font-size:11px;line-height:1.2;color:var(--ink);padding:5px 6px 3px;height:100%;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;pointer-events:none}
+.cardtxt .t{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-weight:700}
+.card.done .cardtxt{color:var(--paper-2)}
+.cardtxt .w{font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card.done .cardtxt .w{color:var(--paper-2);opacity:.85}
+.cardtxt .w{display:flex;gap:3px;align-items:center;flex-wrap:nowrap}
+.cardtxt .w b{font-weight:400;white-space:nowrap}
+.wt{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:9px;line-height:1;padding:2px 4px;border-radius:3px;border:1.2px solid var(--ink);white-space:nowrap}
+.wt.can{background:var(--ink);color:var(--paper-2)}
+.wt.learn{background:transparent;color:var(--ink)}
+.card.done .wt{border-color:var(--paper-2)}
+.card.done .wt.can{background:var(--paper-2);color:var(--ink)}
+.card.done .wt.learn{color:var(--paper-2)}
+.chip.can{background:var(--ink);color:var(--paper-2);border-color:var(--ink)}
+.chip.can .x{color:var(--paper-2)}
+.chip.learn{background:transparent}
+.chip .k{font-size:10px;opacity:.75;cursor:pointer}
+.thread{fill:none;stroke:var(--thread);stroke-width:1.6;stroke-linecap:round;opacity:.85;pointer-events:none}
+.thread.edge{stroke:var(--thread-soft);stroke-dasharray:3 4;stroke-width:1.2}
+.thread.hl{stroke:var(--sel);stroke-width:2.6;opacity:1}
+.goallbl{cursor:pointer}
+.goallbl:hover rect{fill:var(--paper-2)}
+body.nosidebar .side{display:none}
+.side{width:330px;flex:0 0 330px;border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:14px 16px 30px}
+.side h2{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:19px;margin:0 0 6px}
+.side .muted{color:var(--ink-2);font-size:13.5px}
+.row{display:flex;gap:8px;align-items:center}
+.row > *{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:14px;padding:2px 8px 2px 6px;font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--paper-2)}
+.chip .d{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--ink);cursor:pointer}
+.chip .d.f{background:var(--ink)}
+.chip .x{cursor:pointer;color:var(--ink-2);padding:0 2px}
+.deps{list-style:none;padding:0;margin:6px 0 0}
+.deps li{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.deps li span{flex:1}
+.check{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.check h3{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin:10px 0 4px;font-weight:500}
+.check ul{margin:0;padding-left:18px;font-size:13.5px}
+.check li{margin:2px 0}
+.check .bad{color:var(--warn)}
+.cov{display:grid;grid-template-columns:auto repeat(4,1fr);gap:2px 6px;font-size:12.5px;font-family:"IBM Plex Mono",monospace}
+.cov span{text-align:center}
+.cov .g{text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
+.cov .z{color:var(--warn)}
+.stat{display:flex;gap:14px;font-family:"IBM Plex Mono",monospace;font-size:13px;margin-top:6px}
+.stat b{display:block;font-size:18px;font-weight:500}
+.goals-list{list-style:none;padding:0;margin:0}
+.goals-list li{display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.goals-list input.t{flex:1}
+.goals-list input.n{width:52px;text-align:center;font-family:"IBM Plex Mono",monospace}
+.empty{padding:40px 20px;max-width:56ch;color:var(--ink-2)}
+.empty h2{font-family:"Fraunces",Georgia,serif;color:var(--ink);font-size:22px;margin:0 0 8px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--paper-2);padding:8px 14px;border-radius:6px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+.toast.on{opacity:1}
+@media (prefers-reduced-motion: reduce){.toast{transition:none}}
+@media (max-width:820px){.main{flex-direction:column}.side{width:auto;flex:none;border-left:0;border-top:1px solid var(--line);max-height:50vh}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="title">
+    <div class="eyebrow">Karabirrdt · Dragon Dreaming</div>
+    <h1><input id="mName" placeholder="Name des Projekts" aria-label="Projektname"></h1>
+    <div class="dreamline"><textarea id="mDream" rows="1" placeholder="Traumsatz aus dem Traumkreis: „Es ist … und wir …“" aria-label="Traumsatz"></textarea></div>
+    <div class="horizon">Traumhorizont <input id="mHorizon" placeholder="September 2027" aria-label="Traumhorizont"></div>
+  </div>
+  <div class="tools">
+    <span class="sync" id="sync" title="Verbindung zum Server"><i></i><span>verbinde …</span></span>
+    <button id="bBoard" title="Anderes Brett öffnen">Brett: <span id="boardName"></span></button>
+    <button id="bGoals">Ziele</button>
+    <button id="bCheck">Prüfung</button>
+    <button id="bData">Daten</button>
+    <button id="bSide" title="Seitenleiste ein- oder ausklappen">Leiste ⇥</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="boardwrap" id="boardwrap">
+    <div class="hint" id="hint"></div>
+    <div id="boardhost"></div>
+  </div>
+  <aside class="side" id="side"></aside>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+const PHASES=[
+  {name:'Träumen',key:'dream',stages:['Bewusstsein','Motivation','Information']},
+  {name:'Planen',key:'plan',stages:['Alternativen','Strategie','Testen']},
+  {name:'Handeln',key:'do',stages:['Umsetzen','Verwalten','Beobachten']},
+  {name:'Feiern',key:'fete',stages:['Anerkennen','Auswerten','Weisheit']}
+];
+const STAGES=PHASES.flatMap(p=>p.stages);          // 12 names, index 0..11
+const phaseOfStage=s=>PHASES[Math.floor(s/3)];
+const STARTER_GOALS=[
+  'Team-Organisation: Aus einem Dokument heraus ist der Ablauf aller Team-Prozesse klar definiert.',
+  'Übersicht Arbeitskreise: Die Arbeitskreise sind als variable Module auf einem Board zu sehen, inklusive aller wesentlichen Informationen.',
+  'Wirtschaftliche Tragfähigkeit: Wir teilen Bedürfnisse und Ressourcen und entwickeln gemeinsame Geschäftsmodelle, die unsere Netzwerke tragen, mit und ohne Geld.',
+  'App: Eine vollständige und funktionierende App für alle Plattformen auf Basis eines vollständigen UI/UX-Konzepts.',
+  'Entwicklungs-Ökosystem: Entwickler, Vibe-Coder und KI-Agenten entwickeln, testen und verbessern laufend Module.',
+  'Medien: Ein Portfolio aus unterschiedlichen Medien spricht mit Vision, Konzepten und Werkzeugen gezielt verschiedene Zielgruppen an.',
+  'Interoperabilität: Klare, dokumentierte Schnittstellen, Bibliotheken und offene Standards erlauben anderen Apps, Entwicklern und Netzwerken das Andocken.',
+  'Onboarding: Ein gut definierter Onboarding- und Community-Prozess begleitet Menschen so, dass sie unsere Werkzeuge in ihrem Sinne nutzen und uns verstärken.'
+];
+
+// ---------- state ----------
+const state={meta:{name:'',dream:'',horizon:''},goals:{},tasks:{},sel:null,linkFrom:null,view:'card'};
+const uid=()=>Math.random().toString(36).slice(2,10);
+const $=id=>document.getElementById(id);
+function armed(btn,label,fn){ if(btn.dataset.armed){ delete btn.dataset.armed; fn(); return; } btn.dataset.armed='1'; const old=btn.textContent; btn.textContent=label; btn.classList.add('primary'); setTimeout(()=>{ if(btn.isConnected){ delete btn.dataset.armed; btn.textContent=old; btn.classList.remove('primary'); } },4000); }
+const toast=(m)=>{const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2600);};
+
+// ---------- persistence ----------
+const LS='karabirrdt-v1:'+(location.pathname.replace(/^\/+|\/+$/g,'')||'haupt').toLowerCase();
+let store=null; // {saveMeta,saveGoal,delGoal,saveTask,delTask}
+function localSnapshot(){return {meta:state.meta,goals:state.goals,tasks:state.tasks};}
+function saveLocal(){try{localStorage.setItem(LS,JSON.stringify(localSnapshot()));}catch(e){}}
+function loadLocal(){try{const j=JSON.parse(localStorage.getItem(LS)||'null');if(j){state.meta=Object.assign({name:'',dream:'',horizon:''},j.meta||{});state.goals=j.goals||{};state.tasks=j.tasks||{};}}catch(e){}}
+const localStore={saveMeta:saveLocal,saveGoal:saveLocal,delGoal:saveLocal,saveTask:saveLocal,delTask:saveLocal};
+
+function persistMeta(){store.saveMeta();}
+function persistGoal(g){store.saveGoal(g);}
+function removeGoal(id){store.delGoal(id);}
+function persistTask(t){store.saveTask(t);}
+function removeTask(id){store.delTask(id);}
+
+const BRETT=(location.pathname.replace(/^\/+|\/+$/g,'')||'haupt').toLowerCase();
+const API='/api/b/'+encodeURIComponent(BRETT);
+function setSync(ok,text){const e=$('sync');e.classList.toggle('live',ok);e.querySelector('span').textContent=text;}
+async function schreibe(pfad,methode,daten){
+  try{
+    const r=await fetch(API+pfad,{method:methode,headers:{'content-type':'application/json'},body:daten===undefined?undefined:JSON.stringify(daten)});
+    if(!r.ok){const j=await r.json().catch(()=>({}));toast('Server lehnt ab: '+(j.error||r.status));}
+  }catch(e){setSync(false,'getrennt, lokal gespeichert');}
+}
+function connectServer(){
+  store={
+    saveMeta:()=>{saveLocal();return schreibe('/meta','PUT',state.meta);},
+    saveGoal:g=>{saveLocal();return schreibe('/goals/'+g.id,'PUT',g);},
+    delGoal:id=>{saveLocal();return schreibe('/goals/'+id,'DELETE');},
+    saveTask:t=>{saveLocal();return schreibe('/tasks/'+t.id,'PUT',t);},
+    delTask:id=>{saveLocal();return schreibe('/tasks/'+id,'DELETE');}
+  };
+  let ws=null, wieder=1000;
+  const lade=async()=>{
+    try{
+      const r=await fetch(API,{cache:'no-store'}); if(!r.ok) throw 0;
+      const j=await r.json();
+      state.meta=Object.assign({name:'',dream:'',horizon:''},j.meta||{}); state.goals=j.goals||{}; state.tasks=j.tasks||{};
+      if(state.sel&&!state.tasks[state.sel])state.sel=null;
+      saveLocal(); render();
+    }catch(e){ setSync(false,'Server nicht erreichbar, lokale Kopie'); }
+  };
+  const verbinde=()=>{
+    ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws/'+encodeURIComponent(BRETT));
+    ws.onopen=()=>{wieder=1000;setSync(true,'gemeinsam, live');lade();};
+    ws.onmessage=ev=>{
+      let m; try{m=JSON.parse(ev.data);}catch(e){return;}
+      if(m.type==='meta'){state.meta=Object.assign({name:'',dream:'',horizon:''},m.data||{});renderMeta();}
+      else if(m.type==='goal'){ if(m.data) state.goals[m.id]=m.data; else delete state.goals[m.id]; }
+      else if(m.type==='task'){ if(m.data) state.tasks[m.id]=m.data; else { delete state.tasks[m.id]; if(state.sel===m.id) state.sel=null; } }
+      else if(m.type==='reset'){ state.meta=Object.assign({name:'',dream:'',horizon:''},m.data.meta||{}); state.goals=m.data.goals||{}; state.tasks=m.data.tasks||{}; state.sel=null; }
+      else return;
+      // Das eigene Formular nicht unter den Fingern neu bauen: nur das Brett, wenn gerade getippt wird.
+      const tippt=document.activeElement&&/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)&&$('side').contains(document.activeElement);
+      saveLocal(); if(tippt) renderBoard(); else render();
+    };
+    ws.onclose=()=>{setSync(false,'getrennt, verbinde neu …');setTimeout(verbinde,wieder);wieder=Math.min(wieder*2,15000);};
+    ws.onerror=()=>{try{ws.close();}catch(e){}};
+  };
+  verbinde();
+}
+
+// ---------- model helpers ----------
+const goalsSorted=()=>Object.values(state.goals).sort((a,b)=>(b.dots||0)-(a.dots||0)||(a.order||0)-(b.order||0)||a.title.localeCompare(b.title));
+const tasksOf=(goalId,stage)=>Object.values(state.tasks).filter(t=>t.goal===goalId&&t.stage===stage).sort((a,b)=>(a.order||0)-(b.order||0)||a.title.localeCompare(b.title));
+function newTask(goal,stage){
+  const t={id:uid(),title:'Neue Karte',goal,stage,who:[],hours:0,euros:0,done:false,deps:[],note:'',order:Date.now()};
+  state.tasks[t.id]=t; persistTask(t); state.sel=t.id; state.view='card'; setSide(true); render();
+  setTimeout(()=>{const i=document.getElementById('fTitle'); if(i){i.focus();i.select();}},0);
+}
+function addDep(target,source){
+  if(target===source) return toast('Eine Karte kann nicht von sich selbst abhängen.');
+  const t=state.tasks[target],s=state.tasks[source]; if(!t||!s) return;
+  if(s.stage>t.stage) return toast('Fäden laufen nur nach rechts. Die Voraussetzung muss in einer früheren oder gleichen Stufe liegen.');
+  if((s.deps||[]).includes(target)) return toast('Das wäre ein Kreis.');
+  t.deps=Array.from(new Set([...(t.deps||[]),source])); persistTask(t); toast('Faden gezogen.');
+}
+function dependents(id){return Object.values(state.tasks).filter(t=>(t.deps||[]).includes(id));}
+
+// ---------- geometry ----------
+const G={start:46,label:250,colW:116,cardW:102,cardH:60,gap:8,rowPad:12,head:76,end:46};
+let _m=null;
+function labelHeight(t){
+  if(!_m){_m=document.createElement('div');_m.style.cssText=`position:absolute;visibility:hidden;left:-9999px;top:0;width:${G.label-12}px;font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-size:11.5px;line-height:1.25;font-weight:700;overflow-wrap:anywhere`;document.body.appendChild(_m);}
+  _m.textContent=t||''; return _m.offsetHeight||14;
+}
+const colX=s=>G.start+G.label+s*G.colW+G.colW/2;
+function layout(){
+  const goals=goalsSorted(); let y=G.head; const rows=[];
+  goals.forEach(g=>{
+    let maxStack=1; for(let s=0;s<12;s++) maxStack=Math.max(maxStack,tasksOf(g.id,s).length);
+    const h=Math.max(maxStack*(G.cardH+G.gap)-G.gap+G.rowPad*2, labelHeight(g.title)+34);
+    rows.push({goal:g,y,h}); y+=h;
+  });
+  return {rows,height:Math.max(y,G.head+120),width:G.start+G.label+12*G.colW+G.end};
+}
+const pos={}; // taskId -> {x,y}
+
+// ---------- render board ----------
+const NS='http://www.w3.org/2000/svg';
+const el=(tag,attrs,txt)=>{const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(txt!=null)e.textContent=txt;return e;};
+function renderBoard(){
+  const host=$('boardhost'); host.innerHTML='';
+  const goals=goalsSorted();
+  if(!goals.length){
+    const d=document.createElement('div'); d.className='empty';
+    d.innerHTML='<h2>Das Brett ist leer.</h2><p>Ein Karabirrdt beginnt mit den Zielen aus dem Traumkreis. Jedes Ziel wird eine Zeile, die zwölf Stufen sind die Spalten, und jede Karte hängt in einer Zelle.</p>';
+    const b1=document.createElement('button');b1.className='primary';b1.textContent='Eure acht Ziele vom Whiteboard laden';
+    b1.onclick=()=>{STARTER_GOALS.forEach((t,i)=>{const g={id:uid(),title:t,dots:0,order:i};state.goals[g.id]=g;persistGoal(g);});render();};
+    const b2=document.createElement('button');b2.textContent='Mit leeren Zielen starten';b2.style.marginLeft='8px';
+    b2.onclick=()=>{state.view='goals';render();};
+    d.appendChild(b1);d.appendChild(b2);host.appendChild(d);return;
+  }
+  const L=layout();
+  const svg=el('svg',{viewBox:`0 0 ${L.width} ${L.height}`,width:L.width,height:L.height});
+  // phase bands + stage headers
+  PHASES.forEach((p,i)=>{
+    const x0=colX(i*3)-G.colW/2+3,x1=colX(i*3+2)+G.colW/2-3;
+    svg.appendChild(el('rect',{x:x0,y:8,width:x1-x0,height:26,rx:4,fill:`var(--${p.key})`}));
+    svg.appendChild(el('text',{x:(x0+x1)/2,y:26,'text-anchor':'middle',fill:'var(--paper-2)','font-size':13.5,'font-weight':700,'letter-spacing':'.04em'},p.name));
+    p.stages.forEach((s,j)=>{const x=colX(i*3+j);
+      svg.appendChild(el('rect',{x:x-G.colW/2+3,y:40,width:G.colW-6,height:24,rx:3,fill:`var(--${p.key}-soft)`}));
+      svg.appendChild(el('text',{x,y:56,'text-anchor':'middle',fill:'var(--ink)','font-size':11},s));
+    });
+  });
+  // rows
+  L.rows.forEach((r,ri)=>{
+    svg.appendChild(el('line',{x1:G.start,y1:r.y,x2:L.width-G.end,y2:r.y,stroke:'var(--line)','stroke-width':1}));
+    // goal label
+    const lg=el('g',{class:'goallbl',tabindex:0,role:'button','aria-label':'Ziel bearbeiten'});
+    lg.appendChild(el('rect',{x:G.start,y:r.y,width:G.label,height:r.h,fill:'transparent'}));
+    const fo=el('foreignObject',{x:G.start+6,y:r.y+6,width:G.label-12,height:r.h-12});
+    const div=document.createElement('div'); div.setAttribute('xmlns','http://www.w3.org/1999/xhtml');
+    div.style.cssText='font-size:11.5px;line-height:1.25;color:var(--ink);overflow:hidden;height:100%;display:flex;flex-direction:column;gap:3px;pointer-events:none';
+    const dots='●'.repeat(r.goal.dots||0);
+    div.innerHTML=`<div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-2);letter-spacing:.06em">${dots||'<span style="opacity:.5">keine Punkte</span>'}</div><div style="font-weight:700;overflow-wrap:anywhere">${esc(r.goal.title)}</div>`;
+    fo.appendChild(div); lg.appendChild(fo);
+    lg.addEventListener('click',()=>{state.view='goals';state.selGoal=r.goal.id;setSide(true);render();});
+    svg.appendChild(lg);
+    // cells
+    for(let s=0;s<12;s++){
+      const c=el('rect',{class:'cell',x:colX(s)-G.colW/2,y:r.y,width:G.colW,height:r.h});
+      c.addEventListener('click',()=>{ if(state.linkFrom){state.linkFrom=null;render();return;} newTask(r.goal.id,s); });
+      svg.appendChild(c);
+      const list=tasksOf(r.goal.id,s);
+      list.forEach((t,k)=>{ pos[t.id]={x:colX(s)-G.cardW/2,y:r.y+G.rowPad+k*(G.cardH+G.gap)}; });
+    }
+  });
+  // start / goal nodes
+  const midY=(G.head+L.height)/2;
+  svg.appendChild(el('circle',{cx:G.start/2+4,cy:midY,r:16,fill:'var(--ink)'}));
+  svg.appendChild(el('text',{x:G.start/2+4,y:midY+3.5,'text-anchor':'middle',fill:'var(--paper-2)','font-size':9,'font-weight':700},'Start'));
+  svg.appendChild(el('circle',{cx:L.width-G.end/2-4,cy:midY,r:16,fill:'var(--fete)'}));
+  svg.appendChild(el('text',{x:L.width-G.end/2-4,y:midY+3.5,'text-anchor':'middle',fill:'var(--paper-2)','font-size':9,'font-weight':700},'Ziel'));
+  // threads
+  const tl=el('g',{}); svg.appendChild(tl);
+  const allTasks=Object.values(state.tasks).filter(t=>pos[t.id]);
+  const hasDependents=new Set(); allTasks.forEach(t=>(t.deps||[]).forEach(d=>hasDependents.add(d)));
+  allTasks.forEach(t=>{
+    const P=pos[t.id]; const deps=(t.deps||[]).filter(d=>pos[d]);
+    if(!deps.length) tl.appendChild(thread(G.start/2+20,midY,P.x,P.y+G.cardH/2,'thread edge'));
+    deps.forEach(d=>{const Q=pos[d]; const hl=state.sel===t.id||state.sel===d; tl.appendChild(thread(Q.x+G.cardW,Q.y+G.cardH/2,P.x,P.y+G.cardH/2,'thread'+(hl?' hl':'')));});
+    if(!hasDependents.has(t.id)) tl.appendChild(thread(P.x+G.cardW,P.y+G.cardH/2,L.width-G.end/2-20,midY,'thread edge'));
+  });
+  // cards
+  allTasks.forEach(t=>{
+    const P=pos[t.id], ph=phaseOfStage(t.stage).key;
+    const g=el('g',{class:'card'+(t.done?' done':'')+(state.sel===t.id?' selected':'')+(state.linkFrom===t.id?' linksrc':''),transform:`translate(${P.x},${P.y})`,tabindex:0,role:'button'});
+    g.appendChild(el('rect',{class:'box',x:0,y:0,width:G.cardW,height:G.cardH,rx:5,fill:t.done?`var(--${ph})`:'var(--node)',stroke:`var(--${ph})`}));
+    const fo=el('foreignObject',{x:0,y:0,width:G.cardW,height:G.cardH});
+    const div=document.createElement('div'); div.setAttribute('xmlns','http://www.w3.org/1999/xhtml'); div.className='cardtxt';
+    const who=(t.who||[]).map(w=>`<span class="wt ${w.can?'can':'learn'}" title="${w.can?'kann ich':'will ich lernen'}">${esc(w.ini)}</span>`).join('');
+    div.innerHTML=`<div class="t">${t.done?'✓ ':''}${esc(t.title)}</div><div class="w">${who}${t.hours?`<b>${t.hours}h</b>`:''}</div>`;
+    fo.appendChild(div); g.appendChild(fo);
+    attachCard(g,t,svg);
+    svg.appendChild(g);
+  });
+  host.appendChild(svg);
+}
+function thread(x1,y1,x2,y2,cls){
+  const dx=Math.max(28,Math.abs(x2-x1)/2);
+  const d= x2>=x1 ? `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`
+                  : `M${x1},${y1} C${x1+40},${y1} ${x2-40},${y2} ${x2},${y2}`;
+  return el('path',{d,class:cls});
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+// drag + click on cards
+function attachCard(g,t,svg){
+  let start=null,dragging=false;
+  const toSvg=(ev)=>{const pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;return pt.matrixTransform(svg.getScreenCTM().inverse());};
+  g.addEventListener('pointerdown',ev=>{ if(ev.button!==0)return; start=toSvg(ev); g.setPointerCapture(ev.pointerId); });
+  g.addEventListener('pointermove',ev=>{
+    if(!start)return; const p=toSvg(ev);
+    if(!dragging&&Math.hypot(p.x-start.x,p.y-start.y)>6){dragging=true;g.classList.add('dragging');svg.appendChild(g);}
+    if(dragging){const P=pos[t.id];g.setAttribute('transform',`translate(${P.x+p.x-start.x},${P.y+p.y-start.y})`);}
+  });
+  const finish=ev=>{
+    if(!start)return; const p=toSvg(ev); const wasDrag=dragging; start=null;dragging=false;g.classList.remove('dragging');
+    if(wasDrag){
+      const L=layout(); const row=L.rows.find(r=>p.y>=r.y&&p.y<r.y+r.h); const s=Math.floor((p.x-G.start-G.label)/G.colW);
+      if(row&&s>=0&&s<12){
+        if(s!==t.stage||row.goal.id!==t.goal){
+          const bad=(t.deps||[]).some(d=>state.tasks[d]&&state.tasks[d].stage>s)||dependents(t.id).some(x=>x.stage<s);
+          if(bad){toast('So würde ein Faden nach links laufen. Erst die Fäden anpassen.');render();return;}
+          t.stage=s;t.goal=row.goal.id;t.order=Date.now();persistTask(t);
+        }
+      }
+      render(); return;
+    }
+    // click
+    if(state.linkFrom&&state.linkFrom!==t.id){ const target=state.linkFrom; addDep(target,t.id); state.linkFrom=null; state.sel=target; render(); return; }
+    state.sel=t.id; state.view='card'; state.linkFrom=null; setSide(true); render();
+  };
+  g.addEventListener('pointerup',finish);
+  g.addEventListener('pointercancel',()=>{start=null;dragging=false;render();});
+  g.addEventListener('keydown',ev=>{ if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();state.sel=t.id;state.view='card';setSide(true);render();} });
+}
+
+// ---------- side panel ----------
+function renderSide(){
+  const side=$('side'); side.innerHTML='';
+  const hint=$('hint');
+  if(state.linkFrom){hint.textContent='Faden ziehen: Klicke die Karte, die VORHER fertig sein muss. Esc bricht ab.';hint.classList.add('on');}else hint.classList.remove('on');
+  if(state.view==='goals') return renderGoals(side);
+  if(state.view==='check') return renderCheck(side);
+  if(state.view==='data') return renderData(side);
+  if(state.view==='board') return renderBoardSwitch(side);
+  const t=state.sel&&state.tasks[state.sel];
+  if(!t){
+    side.innerHTML=`<h2>Karte wählen</h2><p class="muted">Klick auf eine leere Zelle legt dort eine neue Karte an. Klick auf eine Karte öffnet sie hier. Karten lassen sich in andere Zellen ziehen.</p>
+    <p class="muted">Fäden ziehst du aus der geöffneten Karte heraus: „Voraussetzung hinzufügen“, dann die Karte anklicken, die vorher fertig sein muss.</p>
+    <p class="muted">Gestrichelte Fäden zu Start und Ziel setzt das Brett von selbst, solange eine Karte keine Voraussetzung oder keine Nachfolgerin hat.</p>`;
+    return;
+  }
+  const ph=phaseOfStage(t.stage);
+  const goal=state.goals[t.goal];
+  side.innerHTML=`
+    <div class="eyebrow" style="color:var(--${ph.key})">${ph.name} · ${STAGES[t.stage]}</div>
+    <div class="muted" style="font-size:12.5px;margin-top:2px">${esc(goal?goal.title.split(':')[0]:'')} · Zeile und Spalte änderst du durch Ziehen der Karte.</div>
+    <label class="f" for="fTitle">Aufgabe</label><input id="fTitle" value="${esc(t.title)}">
+    <div class="muted" style="font-size:12.5px;margin-top:4px">Probe: Kann eine Person das übernehmen, und merkt man, wenn es fertig ist?</div>
+    <label class="f">Wer</label>
+    <div class="row"><input id="fIni" placeholder="Initialen, z. B. AT" maxlength="4" style="flex:2"><button id="bCan" class="small">● kann ich</button><button id="bLearn" class="small">○ will lernen</button></div>
+    <div class="chips" id="chips"></div>
+    <div class="muted" style="font-size:12px;margin-top:4px">Gefüllt = kann ich, umrandet = will ich lernen. Klick auf das Wort schaltet um.</div>
+    <div class="row" style="margin-top:12px"><div><label class="f" style="margin-top:0">Stunden</label><input id="fH" type="number" min="0" step="1" value="${t.hours||0}"></div><div><label class="f" style="margin-top:0">Euro</label><input id="fE" type="number" min="0" step="10" value="${t.euros||0}"></div></div>
+    <label class="f">Notiz</label><textarea id="fNote">${esc(t.note||'')}</textarea>
+    <label class="f">Voraussetzungen (Fäden hinein)</label>
+    <ul class="deps" id="deps"></ul>
+    <div style="margin-top:6px"><button id="bLink" class="small">Voraussetzung hinzufügen</button></div>
+    <label class="f">Was danach kommt (Fäden hinaus)</label>
+    <ul class="deps" id="outs"></ul>
+    <div class="row" style="margin-top:16px"><button id="bDone" class="${t.done?'':'primary'}">${t.done?'Wieder öffnen':'Erledigt, ausmalen'}</button><button id="bDel" class="danger">Karte löschen</button></div>`;
+  const save=()=>{persistTask(t);render();};
+  $('fTitle').addEventListener('change',e=>{t.title=e.target.value.trim()||'Ohne Titel';save();});
+  $('fTitle').addEventListener('keydown',e=>{if(e.key==='Enter'){e.target.blur();}});
+  $('fH').addEventListener('change',e=>{t.hours=Math.max(0,+e.target.value||0);save();});
+  $('fE').addEventListener('change',e=>{t.euros=Math.max(0,+e.target.value||0);save();});
+  $('fNote').addEventListener('change',e=>{t.note=e.target.value;persistTask(t);});
+  const addWho=can=>{const ini=$('fIni').value.trim().toUpperCase();if(!ini)return $('fIni').focus();t.who=[...(t.who||[]).filter(w=>w.ini!==ini),{ini,can}];save();};
+  $('bCan').onclick=()=>addWho(true); $('bLearn').onclick=()=>addWho(false);
+  $('fIni').addEventListener('keydown',e=>{if(e.key==='Enter')addWho(true);});
+  const chips=$('chips');
+  (t.who||[]).forEach(w=>{const c=document.createElement('span');c.className='chip '+(w.can?'can':'learn');c.innerHTML=`${esc(w.ini)} <span class="k" title="umschalten">${w.can?'kann':'lernt'}</span><span class="x" title="entfernen">×</span>`;
+    c.querySelector('.k').onclick=()=>{w.can=!w.can;save();}; c.querySelector('.x').onclick=()=>{t.who=t.who.filter(x=>x!==w);save();}; chips.appendChild(c);});
+  const deps=$('deps');
+  (t.deps||[]).filter(d=>state.tasks[d]).forEach(d=>{const li=document.createElement('li');li.innerHTML=`<span>${esc(state.tasks[d].title)}</span><button class="small ghost" title="Faden lösen">×</button>`;li.querySelector('button').onclick=()=>{t.deps=t.deps.filter(x=>x!==d);save();};deps.appendChild(li);});
+  if(!(t.deps||[]).length){const li=document.createElement('li');li.className='muted';li.textContent='Keine. Hängt am Start.';deps.appendChild(li);}
+  const outs=$('outs'); const ds=dependents(t.id);
+  ds.forEach(o=>{const li=document.createElement('li');li.innerHTML=`<span>${esc(o.title)}</span><button class="small ghost" title="Faden lösen">×</button>`;li.querySelector('button').onclick=()=>{o.deps=o.deps.filter(x=>x!==t.id);persistTask(o);render();};outs.appendChild(li);});
+  if(!ds.length){const li=document.createElement('li');li.className='muted';li.textContent='Keine. Läuft zum Ziel.';outs.appendChild(li);}
+  $('bLink').onclick=()=>{state.linkFrom=t.id;render();};
+  $('bDone').onclick=()=>{t.done=!t.done;save();};
+  $('bDel').onclick=()=>armed($('bDel'),'Wirklich löschen?',()=>{ Object.values(state.tasks).forEach(o=>{if((o.deps||[]).includes(t.id)){o.deps=o.deps.filter(x=>x!==t.id);persistTask(o);}}); delete state.tasks[t.id]; removeTask(t.id); state.sel=null; render(); });
+}
+
+function renderGoals(side){
+  side.innerHTML=`<h2>Ziele</h2><p class="muted">Jedes Ziel ist eine Zeile. Punkte = Priorisierung aus der Klebepunkt-Runde; die Zeilen sortieren sich danach.</p><ul class="goals-list" id="gl"></ul><div style="margin-top:10px" class="row"><button id="gAdd">Ziel hinzufügen</button><button id="gBack" class="ghost">Zurück</button></div>`;
+  const ul=$('gl');
+  goalsSorted().forEach(g=>{
+    const li=document.createElement('li');
+    li.innerHTML=`<input class="n" type="number" min="0" max="99" value="${g.dots||0}" title="Punkte"><input class="t" value="${esc(g.title)}"><button class="small ghost" title="löschen">×</button>`;
+    const [n,t,x]=li.children;
+    n.addEventListener('change',()=>{g.dots=Math.max(0,+n.value||0);persistGoal(g);render();});
+    t.addEventListener('change',()=>{g.title=t.value.trim()||'Ohne Titel';persistGoal(g);render();});
+    if(state.selGoal===g.id){setTimeout(()=>t.focus(),0);state.selGoal=null;}
+    x.onclick=()=>{const n=Object.values(state.tasks).filter(k=>k.goal===g.id).length; armed(x,n?`${n} Karten mit löschen?`:'Löschen?',()=>{ Object.values(state.tasks).filter(k=>k.goal===g.id).forEach(k=>{delete state.tasks[k.id];removeTask(k.id);}); delete state.goals[g.id]; removeGoal(g.id); render();});};
+    ul.appendChild(li);
+  });
+  $('gAdd').onclick=()=>{const g={id:uid(),title:'Neues Ziel',dots:0,order:Date.now()};state.goals[g.id]=g;persistGoal(g);state.selGoal=g.id;render();};
+  $('gBack').onclick=()=>{state.view='card';render();};
+}
+
+function renderCheck(side){
+  const tasks=Object.values(state.tasks), goals=goalsSorted();
+  const H=tasks.reduce((a,t)=>a+(+t.hours||0),0), E=tasks.reduce((a,t)=>a+(+t.euros||0),0), done=tasks.filter(t=>t.done).length;
+  const noOwner=tasks.filter(t=>!(t.who||[]).length);
+  const loose=tasks.filter(t=>!(t.deps||[]).length&&!dependents(t.id).length);
+  const degree=tasks.map(t=>({t,d:(t.deps||[]).length+dependents(t.id).length})).filter(x=>x.d>=3).sort((a,b)=>b.d-a.d).slice(0,5);
+  const li=(arr,f)=>arr.length?arr.map(f).join(''):'<li class="muted">nichts</li>';
+  let cov='<div class="cov"><span></span><span>Tr</span><span>Pl</span><span>Ha</span><span>Fe</span>';
+  goals.forEach(g=>{cov+=`<span class="g" title="${esc(g.title)}">${esc(g.title.split(':')[0].slice(0,18))}</span>`;PHASES.forEach((p,i)=>{const n=tasks.filter(t=>t.goal===g.id&&Math.floor(t.stage/3)===i).length;cov+=`<span class="${n?'':'z'}">${n||'–'}</span>`;});});
+  cov+='</div>';
+  side.innerHTML=`<h2>Prüfung</h2>
+    <div class="stat"><div><b>${tasks.length}</b>Karten</div><div><b>${done}</b>erledigt</div><div><b>${H}</b>Stunden</div><div><b>${E}</b>Euro</div></div>
+    <div class="check"><h3>Phasen je Ziel</h3>${cov}<p class="muted" style="font-size:12.5px;margin:6px 0 0">Ein Strich heißt: diese Phase hat für das Ziel noch keine Karte. Feiern und Träumen fehlen erfahrungsgemäß zuerst.</p></div>
+    <div class="check"><h3>Ohne Namen</h3><ul>${li(noOwner,t=>`<li class="bad">${esc(t.title)}</li>`)}</ul></div>
+    <div class="check"><h3>Ohne Fäden</h3><ul>${li(loose,t=>`<li class="bad">${esc(t.title)}</li>`)}</ul><p class="muted" style="font-size:12.5px;margin:4px 0 0">Karten, die nur an Start und Ziel hängen. Gehört wirklich nichts davor oder danach?</p></div>
+    <div class="check"><h3>Hebelpunkte</h3><ul>${li(degree,x=>`<li>${esc(x.t.title)} <span class="muted">(${x.d} Fäden)</span></li>`)}</ul></div>
+    <div style="margin-top:14px"><button id="cBack" class="ghost">Zurück</button></div>`;
+  $('cBack').onclick=()=>{state.view='card';render();};
+}
+
+function renderBoardSwitch(side){
+  side.innerHTML=`<h2>Bretter</h2><p class="muted">Jedes Brett hat eine eigene Adresse: <code>/name</code>. Kleinbuchstaben, Ziffern und Bindestriche.</p>
+    <label class="f" for="bName">Brett öffnen oder anlegen</label><div class="row"><input id="bName" placeholder="z. B. real-life-2027" value="${esc(BRETT)}"><button id="bGo" class="primary">Öffnen</button></div>
+    <label class="f">Vorhandene Bretter</label><ul class="deps" id="bList"><li class="muted">lade …</li></ul>
+    <div style="margin-top:14px"><button id="bBack" class="ghost">Zurück</button></div>`;
+  const go=()=>{const n=$('bName').value.trim().toLowerCase(); if(!/^[a-z0-9][a-z0-9-]{0,63}$/.test(n)) return toast('Nur Kleinbuchstaben, Ziffern und Bindestriche.'); location.href='/'+n;};
+  $('bGo').onclick=go; $('bName').addEventListener('keydown',e=>{if(e.key==='Enter')go();});
+  $('bBack').onclick=()=>{state.view='card';render();};
+  fetch('/api/bretter').then(r=>r.json()).then(list=>{const ul=$('bList');ul.innerHTML='';
+    if(!list.length){ul.innerHTML='<li class="muted">noch keins gespeichert</li>';return;}
+    list.forEach(b=>{const li=document.createElement('li');li.innerHTML=`<a href="/${esc(b.brett)}" style="color:inherit">${esc(b.brett)}</a><span class="muted" style="flex:0">${esc((b.geaendert||'').slice(0,10))}</span>`;ul.appendChild(li);});
+  }).catch(()=>{$('bList').innerHTML='<li class="muted">Server nicht erreichbar</li>';});
+}
+function renderData(side){
+  side.innerHTML=`<h2>Daten</h2><p class="muted">Zum Sichern oder Weitergeben: JSON kopieren. Einfügen ersetzt das ganze Brett.</p>
+    <textarea id="dJson" rows="10" style="font-family:'IBM Plex Mono',monospace;font-size:11.5px"></textarea>
+    <div class="row" style="margin-top:8px"><button id="dCopy">In Zwischenablage</button><a id="dSave" class="btnlink" download="karabirrdt-${BRETT}.json">Als Datei speichern</a></div>
+    <div class="row" style="margin-top:8px"><button id="dImport" class="danger">Einfügen und ersetzen</button><button id="dBack" class="ghost">Zurück</button></div>`;
+  const ta=$('dJson'); ta.value=JSON.stringify(localSnapshot(),null,1);
+  $('dCopy').onclick=async()=>{try{await navigator.clipboard.writeText(ta.value);toast('Kopiert.');}catch(e){ta.select();toast('Bitte manuell kopieren (Strg+C).');}};
+  $('dImport').onclick=()=>{let j;try{j=JSON.parse(ta.value);if(!j||typeof j!=='object')throw 0;}catch(e){toast('Das ist kein gültiges JSON.');return;} armed($('dImport'),'Brett wirklich ersetzen?',()=>{
+    state.meta=Object.assign({name:'',dream:'',horizon:''},j.meta||{}); state.goals=j.goals||{}; state.tasks=j.tasks||{};
+    saveLocal(); state.sel=null; state.view='card'; render();
+    schreibe('/import','POST',{meta:state.meta,goals:state.goals,tasks:state.tasks}).then(()=>toast('Brett ersetzt.'));
+  });};
+  $('dBack').onclick=()=>{state.view='card';render();};
+  $('dSave').href='data:application/json;charset=utf-8,'+encodeURIComponent(ta.value);
+}
+
+// ---------- meta ----------
+let metaBound=false;
+function renderMeta(){
+  const n=$('mName'),d=$('mDream'),h=$('mHorizon');
+  if(document.activeElement!==n)n.value=state.meta.name||'';
+  if(document.activeElement!==d){d.value=state.meta.dream||'';autosize(d);}
+  if(document.activeElement!==h)h.value=state.meta.horizon||'';
+  if(!metaBound){metaBound=true;
+    n.addEventListener('change',()=>{state.meta.name=n.value.trim();persistMeta();});
+    d.addEventListener('input',()=>autosize(d));
+    d.addEventListener('change',()=>{state.meta.dream=d.value.trim();persistMeta();});
+    h.addEventListener('change',()=>{state.meta.horizon=h.value.trim();persistMeta();});
+  }
+}
+function autosize(t){t.style.height='auto';t.style.height=(t.scrollHeight+2)+'px';}
+
+function render(){renderMeta();renderBoard();renderSide();}
+
+// ---------- global UI ----------
+function setSide(open){document.body.classList.toggle('nosidebar',!open);$('bSide').textContent=open?'Leiste ⇥':'Leiste ⇤';try{localStorage.setItem('karabirrdt-side',open?'1':'0');}catch(e){}}
+$('bSide').onclick=()=>setSide(document.body.classList.contains('nosidebar'));
+try{setSide(localStorage.getItem('karabirrdt-side')!=='0');}catch(e){}
+$('bGoals').onclick=()=>{state.view=state.view==='goals'?'card':'goals';setSide(true);render();};
+$('bCheck').onclick=()=>{state.view=state.view==='check'?'card':'check';setSide(true);render();};
+$('bData').onclick=()=>{state.view=state.view==='data'?'card':'data';setSide(true);render();};
+document.addEventListener('keydown',e=>{ if(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName)&&e.key!=='Escape')return; if(e.key==='Escape'){ if(state.linkFrom){state.linkFrom=null;render();} else if(state.view!=='card'){state.view='card';render();} } });
+
+store=localStore; loadLocal(); render(); connectServer();
+$('boardName').textContent=BRETT;
+$('bBoard').onclick=()=>{state.view=state.view==='board'?'card':'board';setSide(true);render();};
+})();
+</script>
+</body>
+</html>

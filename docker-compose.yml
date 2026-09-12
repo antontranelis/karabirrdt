@@ -1,0 +1,11 @@
+services:
+  karabirrdt:
+    image: ghcr.io/antontranelis/karabirrdt:latest
+    # Zum Selberbauen stattdessen: build: .
+    ports:
+      - "8124:8124"
+    volumes:
+      - ./data:/data   # die SQLite-Datei, hier auf der Platte
+    environment:
+      TZ: Europe/Berlin
+    restart: unless-stopped
