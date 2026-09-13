@@ -1,7 +1,6 @@
 import type { Item, RelationRecord, User } from "@real-life-stack/data-interface"
 import {
   Button,
-  ItemComposer,
   ItemDetailBody,
   ItemDetailView,
   ItemPreview,
@@ -12,8 +11,8 @@ import {
   useCurrentUser,
   useMembers,
 } from "@real-life-stack/toolkit"
-import { KARTEN_VORLAGE, LERNT_VORLAGE, karteMapper, karteVorbelegung, lerntMapper, useComposerProps } from "../content-types"
-import { LERNT_PRAEDIKAT, ohnePraefix, stufeVon, zielVonKarte, zugewiesen } from "../../../modell.mjs"
+import { KARTEN_VORLAGE, karteMapper, karteVorbelegung, useComposerProps } from "../content-types"
+import { ohnePraefix, stufeVon, zielVonKarte } from "../../../modell.mjs"
 
 interface Props {
   karte: Item
@@ -61,7 +60,6 @@ export function KartenDetail({
           onFadenSuchen={onFadenSuchen}
           onFadenLoesen={onFadenLoesen}
           onNachbarKarte={onNachbarKarte}
-          composerProps={composerProps}
         />
       )}
       contentTypes={[KARTEN_VORLAGE]}
@@ -82,7 +80,6 @@ function Leseansicht({
   onFadenSuchen,
   onFadenLoesen,
   onNachbarKarte,
-  composerProps,
 }: {
   item: Item
   actions: React.ReactNode
@@ -92,7 +89,6 @@ function Leseansicht({
   onFadenSuchen: () => void
   onFadenLoesen: (id: string) => void
   onNachbarKarte: (id: string) => void
-  composerProps: ReturnType<typeof useComposerProps>
 }) {
   const { data: mitglieder } = useMembers(null)
   const { data: ich } = useCurrentUser()
@@ -104,8 +100,7 @@ function Leseansicht({
   const hinaus = faeden.filter((f) => ohnePraefix(f.from) === item.id)
 
   return (
-    <>
-      <ItemDetailBody
+    <ItemDetailBody
         item={item}
         author={finde(item.createdBy)}
         headerAdornment={<ItemTypeBadge type={item.type} />}
@@ -137,27 +132,7 @@ function Leseansicht({
             )}
           </>
         }
-      />
-
-      {/* Zweites Zuweisungsfeld. Es steht hier, weil `ItemDetailView` den
-          Bearbeiten-Composer selbst besitzt und dort kein Platz für ein
-          zweites Personen-Feld vorgesehen ist (siehe docs/rls-kompatibel.md,
-          Lücke 10). Es ist dieselbe Komponente des Toolkits, nur mit anderem
-          Prädikat. */}
-      <div className="px-4 pb-2">
-        <ItemComposer
-          key={`lernt-${item.id}`}
-          contentTypes={[LERNT_VORLAGE]}
-          initialContentType={LERNT_VORLAGE.id}
-          existingItem={item}
-          initialData={{ people: zugewiesen(item, LERNT_PRAEDIKAT) }}
-          mapper={lerntMapper}
-          composerProps={{ ...composerProps, liveUpdate: true }}
-          onDone={() => {}}
-          onCancel={() => {}}
-        />
-      </div>
-    </>
+    />
   )
 }
 

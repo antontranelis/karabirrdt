@@ -1,5 +1,6 @@
 import { useMemo } from "react"
-import { GraduationCap, ListTodo, Target, Timer } from "lucide-react"
+import type { Relation } from "@real-life-stack/data-interface"
+import { ListTodo, Target, Timer } from "lucide-react"
 import {
   Input,
   Label,
@@ -11,6 +12,8 @@ import {
   type CustomWidgetDefinition,
   type ItemEditorMapper,
   type PersonOption,
+  peopleRelationsFromWidgetData,
+  peopleRelationsToWidgetData,
   type WidgetComponentProps,
 } from "@real-life-stack/toolkit"
 import {
@@ -20,8 +23,6 @@ import {
   VOCAB,
   ZIEL_TYP,
   mitZiel,
-  mitZuweisungen,
-  zugewiesen,
 } from "../../modell.mjs"
 
 /**
@@ -65,7 +66,6 @@ export function useComposerProps() {
   )
 }
 
-const alsListe = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : [])
 
 export interface Aufwand {
   hours: number
@@ -126,8 +126,13 @@ export const KARTEN_VORLAGE: ContentTypeConfig = {
   label: "Karte",
   icon: ListTodo,
   defaultWidgets: ["title", "text", "status", "people", "aufwand", "tags"],
-  widgetLabels: { title: "Aufgabe", text: "Notiz", status: "Stand", people: "Kann ich", aufwand: "Aufwand" },
-  peopleRelation: { predicate: KANN_PRAEDIKAT },
+  widgetLabels: { title: "Aufgabe", text: "Notiz", status: "Stand", aufwand: "Aufwand" },
+  // Zwei Personenfelder am selben Typ: dasselbe Widget, zwei Prädikate
+  // (toolkit 0.1.7, `peopleRelations`).
+  peopleRelations: [
+    { predicate: KANN_PRAEDIKAT, label: "Kann ich" },
+    { predicate: LERNT_PRAEDIKAT, label: "Will lernen" },
+  ],
   statusOptions: [
     { id: "open", label: "offen" },
     { id: "done", label: "erledigt, ausgemalt" },
@@ -135,34 +140,6 @@ export const KARTEN_VORLAGE: ContentTypeConfig = {
   defaultStatus: "open",
   submitLabel: "Karte anlegen",
   editLabel: "Speichern",
-}
-
-/**
- * „Will lernen" — dasselbe Personen-Feld des Composers wie „kann ich", nur
- * mit anderer Beschriftung und anderem Prädikat. Es steht in einer EIGENEN
- * Vorlage, weil `ContentTypeConfig` genau ein `peopleRelation` je Typ kennt
- * und der Composer sein `people`-Feld genau einmal rendert (siehe
- * docs/rls-kompatibel.md). Dieselbe Komponente, zweimal deklariert — kein
- * Nachbau.
- */
-export const LERNT_VORLAGE: ContentTypeConfig = {
-  id: KARTEN_TYP,
-  label: "Will lernen",
-  icon: GraduationCap,
-  defaultWidgets: ["people"],
-  widgetLabels: { people: "Will lernen" },
-  peopleRelation: { predicate: LERNT_PRAEDIKAT },
-}
-
-/** Schreibt nur die Lern-Zuweisungen; alles andere an der Karte bleibt. */
-export const lerntMapper: ItemEditorMapper = (eingabe, ctx) => {
-  const vorhanden = ctx.existingItem
-  if (!vorhanden) return null
-  return {
-    type: KARTEN_TYP,
-    data: vorhanden.data,
-    relations: mitZuweisungen(vorhanden, zugewiesen(vorhanden, KANN_PRAEDIKAT), alsListe(eingabe.data.people)),
-  }
 }
 
 export const ZIEL_VORLAGE: ContentTypeConfig = {
@@ -198,13 +175,10 @@ export function karteMapper(zelle: { zielId: string; stufe: number; order: numbe
         order: ctx.existingItem ? Number(alt.order) || 0 : zelle.order,
       },
       tags: eingabe.data.tags,
-      // „will lernen" schreibt das zweite Personen-Feld (s. u.); hier bleibt es
-      // stehen, damit ein Speichern der Karte es nicht abräumt.
-      relations: mitZuweisungen(
-        { relations: mitZiel(vorhanden, zielId) },
-        alsListe(d.people),
-        zugewiesen(vorhanden, LERNT_PRAEDIKAT),
-      ),
+      // Beide Personenfelder auf einmal: der Helfer ersetzt je eingereichtem
+      // Feld die Relationen SEINES Prädikats und lässt alle anderen stehen —
+      // auch die Zeile (`partOf`).
+      relations: peopleRelationsFromWidgetData(KARTEN_VORLAGE, d, mitZiel(vorhanden, zielId)) ?? mitZiel(vorhanden, zielId),
     }
   }
 }
@@ -215,12 +189,12 @@ function zielVonOderZelle(item: { relations?: { predicate: string; target: strin
 }
 
 /** Die Composer-Eingaben einer bestehenden Karte. */
-export function karteVorbelegung(item: { data: Record<string, unknown>; relations?: { predicate: string; target: string }[] }) {
+export function karteVorbelegung(item: { data: Record<string, unknown>; relations?: Relation[] }) {
   return {
     title: String(item.data.title ?? ""),
     text: String(item.data.description ?? ""),
     status: String(item.data.status ?? "open"),
-    people: zugewiesen(item, KANN_PRAEDIKAT),
+    ...peopleRelationsToWidgetData(KARTEN_VORLAGE, item.relations),
     aufwand: { hours: Number(item.data.hours) || 0, euros: Number(item.data.euros) || 0 },
   }
 }

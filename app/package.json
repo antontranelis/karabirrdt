@@ -9,9 +9,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@real-life-stack/data-interface": "0.1.4",
-    "@real-life-stack/mock-connector": "0.1.4",
-    "@real-life-stack/toolkit": "0.1.6",
+    "@real-life-stack/data-interface": "0.2.0",
+    "@real-life-stack/mock-connector": "0.1.5",
+    "@real-life-stack/toolkit": "0.1.7",
     "lucide-react": "0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

@@ -88,16 +88,14 @@ beiden Signalen (`prefers-color-scheme` **und** `.dark`/`[data-theme]`).
 
 ## Upstream-Lücken
 
-**0. `npm run dev` bricht mit den veröffentlichten Paketen sofort ab.** Alle
-sechs Pakete tragen in `exports` eine `development`-Bedingung, die auf
-`./src/index.ts` zeigt; `src` ist aber nicht im Paket (`files: dist`). Vite
-wählt im Dev-Modus genau diese Bedingung: „Failed to resolve entry for package
-@real-life-stack/toolkit“. Der Build läuft, weil er `development` nicht
-benutzt. Bis zum Fix setzt `app/vite.config.ts` `resolve.conditions` ohne
-`development`. Vorschlag upstream: `publishConfig.exports` ohne die
-Bedingung, damit das Monorepo weiter aus `src` entwickelt und das Paket
-sauber auflöst (PR im Stack).
-
+**0. ✅ BEHOBEN (toolkit 0.1.7, data-interface 0.2.0, mock-connector 0.1.5).**
+Die Pakete trugen in `exports` eine `development`-Bedingung, die auf
+`./src/index.ts` zeigte; `src` lag aber nicht im Paket, und Vite wählte im
+Dev-Modus genau diese Bedingung („Failed to resolve entry for package
+@real-life-stack/toolkit"). Die veröffentlichten `exports` haben sie jetzt
+nicht mehr — nur noch `types` und `import`. Die Sonderregel
+`resolve.conditions` in `app/vite.config.ts` ist entfernt, `npm run dev`
+läuft ohne sie.
 
 Was gefehlt hat, mit konkretem Vorschlag. Nichts davon wurde durch einen Fork
 umgangen.
@@ -148,20 +146,22 @@ umgangen.
    „bearbeiten"-Knopf ruhiger.
    *Vorschlag:* `ItemDetailBody` ist genau das — in einer künftigen Fassung
    dieser App der bessere Inhalt des Panels.
-7. **Die Kamera der Graph-Ansicht ist nicht wiederverwendbar.** `GraphCamera`,
-   `fitCamera`, `focusCamera` und `interpolateCamera` liegen in
-   `components/graph/force-layout.ts` und werden weder von
-   `components/graph/index.ts` noch vom Paket-Root exportiert; `GraphView`
-   gibt nur `fitView`/`focusNode` nach außen. Zoomen und Schwenken ist aber
-   keine Graph-Eigenschaft, sondern die Geste jeder Fläche, die größer ist als
-   das Fenster — Karte, Graph, Karabirrdt. Wir haben sie darum im selben
-   Muster nachgebaut (`modell.mjs` → Kamera, `app/src/board/kamera-flaeche.tsx`
-   → Gesten); die Rechnung ist mit `node --test` geprüft.
-   *Vorschlag:* die vier Funktionen exportieren und eine `CameraSurface`
-   (oder `useCamera`) im Toolkit anbieten: Welt-Maße hinein, Kamera und
-   Gesten heraus, `fit`/`zoom` über einen Handle wie bei `GraphViewHandle`.
-   Dann teilen sich alle Flächen dieselbe Geste — heute unterscheiden sich
-   Karte und Graph schon voneinander.
+7. **Die Graph-Kamera ist exportiert, passt aber nicht auf eine Fläche mit
+   Rändern (teilweise behoben, toolkit 0.1.7).** `GraphCamera`, `fitCamera`,
+   `focusCamera` und `interpolateCamera` kommen jetzt aus
+   `components/graph/index` — der Export, der vorher fehlte, ist da. Für unser
+   Einpassen taugt `fitCamera` trotzdem nicht, und zwar aus drei Gründen, die
+   in seiner Rechnung stehen (Bundle `index-CYotuxXr.js`, Funktion `uX`):
+   es fasst eine **Punktwolke** zusammen statt eines Rechtecks bekannter
+   Größe, es polstert mit einem **festen Faktor 0.82** auf allen vier Seiten,
+   und es klemmt den Zoom auf `0.08…1.6` bei einer Mindestausdehnung von 120.
+   Wir brauchen **seitenweise Ränder** (oben die schwebende Kopfzeile, unten
+   die Ecke mit Filter-Pille und Kamera-Knöpfen, beide am DOM gemessen) und
+   die Regel „nie über 1 vergrößern". Die Umrechnung Mitte ↔ Ursprung wäre
+   trivial; die Polster- und Klemm-Regeln sind es nicht.
+   *Vorschlag:* `fitCamera(rect, viewport, insets?)` — ein Rechteck statt
+   einer Punktwolke, Ränder je Seite statt eines festen Faktors, Zoomgrenzen
+   als Parameter. Dann fällt unsere Kamera-Rechnung weg.
 8. **`GroupManager.createGroup` vergibt die Id selbst.** `MockConnector`
    schreibt `group-<zeit>` und nimmt keine Id entgegen. Ein Connector, der
    den MockConnector benutzt (siehe Lücke 9) kann eine vom Server oder von
@@ -186,37 +186,19 @@ umgangen.
    Beiträge nebeneinander setzen statt übereinander. Außerdem fehlt eine
    Angabe, wieviel Platz die Ecke belegt — das Einpassen einer Fläche muss
    das heute schätzen (`SCHWEBEND` in `App.tsx`).
-11. **Ein Composer kann nur EIN Personen-Feld rendern.** Nachgesehen im
-   ausgelieferten Paket (`dist/index-BkQTwNfj.js`, `ContentComposer`): die
-   eingebauten Felder entstehen aus `Ly.map(V => …)` über die
-   modul-globale Konstante
-   `Ly = ["group","status","title","text","media","date","location","people","tags"]`,
-   und der Zweig lautet
-   `V === "people" && <PeopleWidget value={O.people} onChange={v => Pe("people", v)} label={…} options={…} suggestions={…} quickSuggestions={…} />`.
-   Also: ein fester Platz, ein fester Datenschlüssel `data.people`, der
-   React-Key ist die Widget-Id — „people" kann in einem Composer nicht
-   zweimal vorkommen. Das Widget nimmt **kein** Prädikat entgegen; das
-   Prädikat steht in `ContentTypeConfig.peopleRelation` (Einzahl) und wirkt
-   erst im Submission-Mapper. `PeopleWidget` selbst ist nicht exportiert
-   (`composer/index.d.ts` gibt nur `ContentComposer`,
-   `ComposerFullscreenShell`, `ItemComposer` und `type PersonOption` heraus).
-   Auch der Prädikat-Katalog (`KnownPredicate`) hat nichts fürs Lernen:
-   `assignedTo`, `childOf`, `blocks`, `relatedTo`, `invited`, `commentOn`,
-   `reactsTo`, `votesOn`.
-
-   Unsere Antwort ohne Eigenbau: **zwei Vorlagen, zweimal dasselbe Widget.**
-   „Kann ich" steht in `KARTEN_VORLAGE` (`peopleRelation: assignedTo`),
-   „Will lernen" in einer zweiten `ContentTypeConfig` auf demselben Typ
-   (`peopleRelation: wantsToLearn`), gerendert von einem zweiten
-   `ItemComposer` mit `liveUpdate: true` — dadurch fällt sein Fußbereich weg
-   und es liest sich als Feld, nicht als zweites Formular. Es ist dieselbe
-   Komponente des Toolkits, nur zweimal deklariert.
-   *Vorschlag für Upstream:* `peopleRelations: readonly { predicate, label }[]`
-   statt des einen `peopleRelation`, gerendert als je ein `people`-Feld mit
-   eigenem Datenschlüssel; dazu im Task-Manifest die zweite Affordance
-   `{ predicate: "wantsToLearn", itemRole: "from", otherKind: "person" }`.
-   Beteiligung ist selten nur Zuständigkeit — wer etwas lernen will, ist
-   genauso beteiligt.
+11. **✅ BEHOBEN (toolkit 0.1.7).** Ein Typ kann jetzt MEHRERE Personenfelder
+   führen: `ContentTypeConfig.peopleRelations: readonly { predicate, label,
+   dataKey? }[]`, dazu die Helfer `resolvePeopleFields`,
+   `peopleRelationsFromWidgetData` und `peopleRelationsToWidgetData` aus
+   `components/composer`. Die Karten-Vorlage deklariert damit
+   `{ assignedTo, "Kann ich" }` und `{ wantsToLearn, "Will lernen" }`; beide
+   Felder rendern dasselbe `people`-Widget im **selben** Composer, in Anlegen
+   wie in Bearbeiten. Der Umweg über einen zweiten `ItemComposer` mit
+   `liveUpdate` ist ersatzlos entfernt.
+   Offen bleibt nur das Typ-Manifest: `wantsToLearn` steht weiterhin nicht als
+   Affordance beim Typ `task`. *Vorschlag:*
+   `{ predicate: "wantsToLearn", itemRole: "from", otherKind: "person" }`
+   im `CORE_TYPE_MANIFEST`.
 12. **Der MockConnector nimmt nach dem Seed keine Menschen mehr auf.**
    `users` ist privat, `inviteMember(groupId, userId)` kennt nur Kennungen,
    und `injectSeedItems` gilt nur für Items. Ein Connector, der ihn benutzt,
