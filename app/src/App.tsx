@@ -226,7 +226,18 @@ export default function App() {
         </ModuleFrame>
       </AppShellMain>
 
-      <AdaptivePanel open={!!ansicht} onClose={() => setAnsicht(null)} allowedModes={["sidebar", "drawer"]}>
+      {/* Die schwebende Detail-Karte. `floating` ist der Modus des Toolkits
+          dafür; `resolveAdaptivePanelMode` wählt ihn auf breiten Schirmen vor
+          `sidebar` und auf schmalen den Drawer. Die Maße sind die der
+          Reference-App (ModulePanelHost). */}
+      <AdaptivePanel
+        open={!!ansicht}
+        onClose={() => setAnsicht(null)}
+        allowedModes={["floating", "sidebar", "drawer"]}
+        sidebarWidth="420px"
+        sidebarMinWidth="300px"
+        sidebarMaxWidth="70vw"
+      >
         {offeneKarte && (
           <KartenDetail
             karte={offeneKarte}

@@ -75,7 +75,7 @@ liegen daneben in `modell.d.mts`.
 | `ItemPreview` + `ItemAssignees` + `ItemCommentCount` | **jede** Karte auf dem Brett — dieselben Aufrufe wie `KanbanBoard` |
 | `ItemComposer` + `ContentTypeConfig` + eigene `widgets` | Karte anlegen **und** bearbeiten — eine Form für beides |
 | `ItemDetailView` + `ItemDetailBody` + `ItemDetailActions` | die geöffnete Karte und das geöffnete Ziel: Lesen ↔ Bearbeiten, ⋮-Menü mit Bearbeiten und Löschen, Diskussion |
-| `AdaptivePanel` | eine Fläche für alle Panels (Karte, Ziele, Prüfung, Daten, Bretter) |
+| `AdaptivePanel` (`allowedModes: ["floating","sidebar","drawer"]`) | die schwebende Detail-Karte; auf schmalen Schirmen der Drawer |
 | `DeleteConfirmDialog` | Löschen in zwei Schritten |
 | `EmptyState` | das leere Brett |
 | `useItems`, `useRelationRecords`, `useCreateItem/useUpdateItem/useDeleteItem`, `useCurrentGroup`, `useUpdateGroup`, `useConnector` | alle Lese- und Schreibwege |
@@ -292,6 +292,11 @@ umgangen.
   heißt, ist im Stack eine Group. Dann erledigen `WorkspaceSwitcher` und
   `GroupDialog` Wechseln, Anlegen, Umbenennen und Löschen, ohne dass die App
   eine eigene Verwaltung baut — die wir in Runde 1 noch hatte.
+- **`floating` ist die Detail-Karte.** `AdaptivePanel` heißt per Vorgabe
+  `["modal","sidebar","drawer"]` — dann steht das Detail als flache Spalte am
+  Fensterrand. Die schwebende Karte, die der Stack überall zeigt, ist der
+  vierte Modus `floating`, und `resolveAdaptivePanelMode` wählt ihn auf
+  breiten Schirmen vor `sidebar`. Er muss ausdrücklich erlaubt werden.
 - **Lesen zuerst, Bearbeiten auf Wunsch.** `ItemDetailView` besitzt den
   Wechsel, das ⋮-Menü und den Lösch-Dialog. Eine App, die gleich den Composer
   aufmacht, verliert die Leseansicht und baut sich ihre eigenen Knöpfe
