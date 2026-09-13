@@ -122,7 +122,11 @@ export declare function recordVonRelationItem(item: Item | null | undefined): Re
 export declare function istRlsFormat(json: unknown): boolean
 export declare function leeresRls(brett?: string): RlsBrett
 export declare function altNachRls(brett: Partial<AltesBrett>, optionen?: Optionen): Promise<RlsBrett>
-export declare function rlsNachAlt(brett: Partial<RlsBrett>, mitglieder?: readonly { id: string; displayName?: string }[]): AltesBrett
+export declare function rlsNachAlt(
+  brett: Partial<RlsBrett>,
+  mitglieder?: readonly { id: string; displayName?: string }[],
+  tabelle?: Record<string, string>,
+): AltesBrett
 export declare function normalisiereRls(json: unknown, optionen?: Optionen): Promise<RlsBrett>
 
 export declare const GLOBAL: "global:"
@@ -139,4 +143,20 @@ export declare function mitZuweisungen(
 export declare function migriereWho(
   item: Item,
   mitglieder?: readonly { id: string; displayName?: string }[],
+  tabelle?: Record<string, string>,
 ): { item: Item; unbekannt: string[] }
+
+export declare const WER_NOTIZ: string
+export declare function initialenTabelle(
+  mitglieder: readonly { id: string; displayName?: string }[],
+  tabelle?: Record<string, string>,
+): Map<string, string>
+export declare function kuerzelFuer(
+  mitglieder: readonly { id: string; displayName?: string }[],
+  tabelle?: Record<string, string>,
+): Map<string, string>
+export declare function nachmigriereNotiz(
+  item: Item,
+  mitglieder?: readonly { id: string; displayName?: string }[],
+  tabelle?: Record<string, string>,
+): { item: Item; geaendert: boolean; offen: string[] }

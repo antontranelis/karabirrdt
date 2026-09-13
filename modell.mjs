@@ -361,11 +361,11 @@ export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = AUTO
 }
 
 /** `{group, items, relations}` → altes Brett, für die alte Seite und alte Exporte. */
-export function rlsNachAlt({ group, items = [], relations = [] } = {}, mitglieder = []) {
+export function rlsNachAlt({ group, items = [], relations = [] } = {}, mitglieder = [], tabelle = {}) {
   const d = group?.data ?? {};
   const goals = {};
   const tasks = {};
-  const ini = initialenFuer(mitglieder);
+  const ini = kuerzelFuer(mitglieder, tabelle);
   for (const i of items) {
     if (istZiel(i)) goals[i.id] = { id: i.id, title: text(i.data?.title), dots: zahl(i.data?.dots), order: zahl(i.data?.order) };
     else if (istKarte(i))
@@ -459,15 +459,42 @@ export function mitZuweisungen(item, kann = [], lernt = []) {
   ];
 }
 
+/** Die Zeile, unter der unaufgelöste Kürzel in der Notiz stehen. */
+export const WER_NOTIZ = "Wer (noch ohne Mitglied): ";
+
+/**
+ * Kürzel → Mitglied. Zuerst gilt die Tabelle am Space
+ * (`Group.data.initialen`, die gewachsenen Kürzel des Teams), danach die
+ * Ableitung aus den Namen. Einträge auf Nicht-Mitglieder werden übergangen.
+ */
+export function initialenTabelle(mitglieder = [], tabelle = {}) {
+  const auf = new Map([...initialenFuer(mitglieder)].map(([id, ini]) => [ini, id]));
+  const bekannt = new Set(mitglieder.map((m) => m.id));
+  for (const [ini, id] of Object.entries(tabelle ?? {})) {
+    if (bekannt.has(id)) auf.set(String(ini).toUpperCase(), id);
+  }
+  return auf;
+}
+
+/** Mitglied → Kürzel, mit derselben Rangfolge. */
+export function kuerzelFuer(mitglieder = [], tabelle = {}) {
+  const abgeleitet = initialenFuer(mitglieder);
+  const bekannt = new Set(mitglieder.map((m) => m.id));
+  for (const [ini, id] of Object.entries(tabelle ?? {})) {
+    if (bekannt.has(id)) abgeleitet.set(id, String(ini).toUpperCase());
+  }
+  return abgeleitet;
+}
+
 /**
  * Das alte Feld `who` (freie Initialen mit „kann/lernt") auf die beiden
  * Zuweisungen abbilden. Was sich keinem Mitglied zuordnen lässt, wird an die
  * Notiz gehängt und zurückgemeldet — es verschwindet nicht still.
  */
-export function migriereWho(item, mitglieder = []) {
+export function migriereWho(item, mitglieder = [], tabelle = {}) {
   const who = item?.data?.who;
   if (!Array.isArray(who) || !who.length) return { item, unbekannt: [] };
-  const nachIni = new Map([...initialenFuer(mitglieder)].map(([id, ini]) => [ini, id]));
+  const nachIni = initialenTabelle(mitglieder, tabelle);
   const kann = [];
   const lernt = [];
   const unbekannt = [];
@@ -481,8 +508,73 @@ export function migriereWho(item, mitglieder = []) {
   }
   const { who: _weg, ...daten } = item.data;
   if (unbekannt.length) {
-    const hinweis = `Wer (noch ohne Mitglied): ${unbekannt.join(", ")}`;
+    const hinweis = WER_NOTIZ + unbekannt.join(", ");
     daten.description = daten.description ? `${daten.description}\n\n${hinweis}` : hinweis;
   }
   return { item: { ...item, data: daten, relations: mitZuweisungen(item, kann, lernt) }, unbekannt };
+}
+
+/**
+ * Nachmigration: Karten, an denen noch Kürzel hängen, bekommen ihre
+ * Zuweisungen. Zwei Quellen, in dieser Reihenfolge:
+ *
+ * 1. ein noch vorhandenes `who` — dort steht die Rolle (kann/lernt) mit dabei,
+ * 2. die Notizzeile `Wer (noch ohne Mitglied): …` aus einem früheren Lauf —
+ *    sie trägt nur Kürzel, also gilt „kann ich".
+ *
+ * Angefasst wird ausschließlich diese eine Zeile; jeder andere Text der Notiz
+ * bleibt Wort für Wort stehen (ein Vermerk wie „vorgesehen für Holger" ist
+ * eine Absicht, keine Zuweisung). Kürzel, die weiterhin zu niemandem gehören,
+ * bleiben in der Zeile. Zweimal laufen ändert nichts.
+ */
+export function nachmigriereNotiz(item, mitglieder = [], tabelle = {}) {
+  if (!istKarte(item)) return { item, geaendert: false, offen: [] };
+  const nachIni = initialenTabelle(mitglieder, tabelle);
+  const kann = new Set(zugewiesen(item, KANN_PRAEDIKAT));
+  const lernt = new Set(zugewiesen(item, LERNT_PRAEDIKAT));
+  const offen = [];
+  let geaendert = false;
+
+  for (const w of Array.isArray(item.data?.who) ? item.data.who : []) {
+    const id = nachIni.get(String(w?.ini ?? "").toUpperCase());
+    if (!id) offen.push(String(w?.ini ?? ""));
+    else (w?.can ? kann : lernt).add(id);
+    geaendert = true;
+  }
+
+  const text = typeof item.data?.description === "string" ? item.data.description : "";
+  const zeile = text.split("\n").find((z) => z.trim().startsWith(WER_NOTIZ));
+  if (zeile) {
+    for (const roh of zeile.trim().slice(WER_NOTIZ.length).split(",")) {
+      const k = roh.trim().toUpperCase();
+      if (!k) continue;
+      const id = nachIni.get(k);
+      if (id) kann.add(id);
+      else offen.push(k);
+    }
+    geaendert = true;
+  }
+
+  if (!geaendert) return { item, geaendert: false, offen: [] };
+
+  const rest = offen.length ? WER_NOTIZ + [...new Set(offen)].join(", ") : null;
+  const ohneZeile = text
+    .split("\n")
+    .filter((z) => !z.trim().startsWith(WER_NOTIZ))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  const beschreibung = rest ? (ohneZeile ? `${ohneZeile}\n\n${rest}` : rest) : ohneZeile;
+
+  const { who: _weg, ...daten } = item.data ?? {};
+  const neu = {
+    ...item,
+    data: { ...daten, description: beschreibung },
+    relations: mitZuweisungen(item, [...kann], [...lernt]),
+  };
+  // Nichts bewegt? Dann auch nichts schreiben — der zweite Lauf ist ruhig.
+  const gleich =
+    JSON.stringify(neu.data) === JSON.stringify(item.data) &&
+    JSON.stringify(neu.relations) === JSON.stringify(item.relations ?? []);
+  return gleich ? { item, geaendert: false, offen } : { item: neu, geaendert: true, offen };
 }

@@ -346,3 +346,108 @@ test("zurück ins alte Format werden die Zuweisungen wieder zu who", () => {
     { ini: "EM", can: false },
   ]);
 });
+
+// ------------------------------------------------- Kürzel-Tabelle am Space
+
+import { WER_NOTIZ, initialenTabelle, nachmigriereNotiz } from "../modell.mjs";
+
+const TABELLE = {
+  AT: "user:anton",
+  DEK: "user:emil",
+  JR: "user:janosch",
+  AB: "user:agnes",
+  JL: "user:jonathan",
+  TM: "user:timo",
+  HT: "user:holger",
+};
+
+test("die Tabelle am Space geht vor der Ableitung aus den Namen", () => {
+  const auf = initialenTabelle(MITGLIEDER, TABELLE);
+  // aus der Tabelle
+  assert.equal(auf.get("DEK"), "user:emil");
+  assert.equal(auf.get("JR"), "user:janosch");
+  // abgeleitet, weil die Tabelle nichts sagt
+  assert.equal(auf.get("JN"), "user:janis");
+  // Groß-/Kleinschreibung ist egal
+  assert.equal(initialenTabelle(MITGLIEDER, { at: "user:anton" }).get("AT"), "user:anton");
+  // eine Tabelle auf ein unbekanntes Mitglied wird ignoriert
+  assert.equal(initialenTabelle(MITGLIEDER, { XX: "user:niemand" }).get("XX"), undefined);
+});
+
+test("altes who nimmt zuerst die Tabelle", () => {
+  const karte = {
+    id: "k",
+    type: KARTEN_TYP,
+    data: { title: "K", stage: 0, who: [{ ini: "DEK", can: true }, { ini: "JR", can: false }] },
+    relations: [],
+  };
+  const { item, unbekannt } = migriereWho(karte, MITGLIEDER, TABELLE);
+  assert.deepEqual(zugewiesen(item, KANN_PRAEDIKAT), ["user:emil"]);
+  assert.deepEqual(zugewiesen(item, LERNT_PRAEDIKAT), ["user:janosch"]);
+  assert.deepEqual(unbekannt, []);
+});
+
+test("zurück ins alte Format gewinnt ebenfalls die Tabelle", () => {
+  const karte = {
+    id: "k",
+    type: KARTEN_TYP,
+    data: { title: "K", stage: 0 },
+    relations: [{ predicate: KANN_PRAEDIKAT, target: `${GLOBAL}user:emil` }],
+  };
+  const alt = rlsNachAlt({ group: { id: "b", name: "", data: {} }, items: [karte], relations: [] }, MITGLIEDER, TABELLE);
+  assert.deepEqual(alt.tasks.k.who, [{ ini: "DEK", can: true }]);
+});
+
+test("die Nachmigration löst die Kürzel aus der Notiz auf und räumt sie weg", () => {
+  const karte = {
+    id: "k",
+    type: KARTEN_TYP,
+    data: { title: "K", stage: 0, description: `Etwas Wichtiges\n\n${WER_NOTIZ}AT, DEK, QQ` },
+    relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z" }],
+  };
+  const { item, geaendert, offen } = nachmigriereNotiz(karte, MITGLIEDER, TABELLE);
+  assert.equal(geaendert, true);
+  assert.deepEqual(zugewiesen(item, KANN_PRAEDIKAT), ["user:anton", "user:emil"]);
+  assert.equal(zielVonKarte(item), "z", "die Zeile bleibt");
+  assert.match(item.data.description, /Etwas Wichtiges/);
+  // Was sich weiterhin niemandem zuordnen lässt, bleibt als Notiz stehen
+  assert.ok(item.data.description.includes(`${WER_NOTIZ}QQ`));
+  assert.deepEqual(offen, ["QQ"]);
+
+  // idempotent: ein zweiter Lauf ändert nichts mehr
+  const zweiter = nachmigriereNotiz(item, MITGLIEDER, TABELLE);
+  assert.equal(zweiter.geaendert, false);
+  assert.equal(zweiter.item, item);
+});
+
+test("die Nachmigration lässt alles in Ruhe, was keine Wer-Notiz trägt", () => {
+  const karte = { id: "k", type: KARTEN_TYP, data: { title: "K", description: "vorgesehen für Holger" }, relations: [] };
+  const { item, geaendert } = nachmigriereNotiz(karte, MITGLIEDER, TABELLE);
+  assert.equal(geaendert, false);
+  assert.equal(item, karte);
+  assert.equal(item.data.description, "vorgesehen für Holger", "der Vermerk bleibt");
+  // auch wenn beides dasteht, wird nur die Wer-Zeile angefasst
+  const beides = {
+    id: "b",
+    type: KARTEN_TYP,
+    data: { title: "B", description: `vorgesehen für Holger\n\n${WER_NOTIZ}AT` },
+    relations: [],
+  };
+  const r = nachmigriereNotiz(beides, MITGLIEDER, TABELLE);
+  assert.deepEqual(zugewiesen(r.item, KANN_PRAEDIKAT), ["user:anton"]);
+  assert.equal(r.item.data.description.trim(), "vorgesehen für Holger");
+});
+
+test("die Nachmigration nimmt ein noch vorhandenes who mit seinen Rollen", () => {
+  const karte = {
+    id: "k",
+    type: KARTEN_TYP,
+    data: { title: "K", who: [{ ini: "AT", can: true }, { ini: "TM", can: false }] },
+    relations: [],
+  };
+  const { item, geaendert } = nachmigriereNotiz(karte, MITGLIEDER, TABELLE);
+  assert.equal(geaendert, true);
+  assert.deepEqual(zugewiesen(item, KANN_PRAEDIKAT), ["user:anton"]);
+  assert.deepEqual(zugewiesen(item, LERNT_PRAEDIKAT), ["user:timo"]);
+  assert.equal(item.data.who, undefined);
+});

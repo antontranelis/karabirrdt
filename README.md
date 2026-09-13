@@ -111,6 +111,22 @@ Danach ist die RLS-Form die Wahrheit; die alten Endpunkte bedienen `/alt`.
 Letzter Schreiber gewinnt. Ein Brett ist Kilobytes groß, Konflikte sind bei
 einer Gruppe am Tisch praktisch keine.
 
+## Nachmigration
+
+Karten aus der alten Fassung tragen „Wer" als freie Kürzel. Die Zuordnung
+Kürzel → Mitglied steht als Daten am Brett (`Group.data.initialen`), nicht im
+Code. Sobald sie gesetzt ist, löst dieses Skript die Kürzel auf:
+
+```bash
+npm run nachmigration -- --brett real-life          # schreibt
+npm run nachmigration -- --brett real-life --probe  # zeigt nur, was wäre
+```
+
+Es fasst nur die Zeile „Wer (noch ohne Mitglied): …" an; jeder andere
+Notiztext bleibt stehen (ein Vermerk wie „vorgesehen für Holger" ist eine
+Absicht, keine Zuweisung). Zweimal laufen ändert nichts. Der Server muss dabei
+gestoppt sein oder das Skript bekommt mit `--db` eine eigene Datei.
+
 ## Tests
 
 ```bash

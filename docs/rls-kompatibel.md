@@ -30,6 +30,7 @@ im Stack entstanden; die Lesereihenfolge steht in [`AGENTS.md`](../AGENTS.md).
 | „kann ich" | **eingebettete Relation** `assignedTo` → `global:<userId>` | die normale Task-Zuweisung aus `TaskRelations.forward` |
 | „will lernen" | **eingebettete Relation** `wantsToLearn` → `global:<userId>` | zweites Zuweisungsprädikat, siehe Lücke 11 |
 | Mitglied | **User** des Spaces (`{id: "user:anton", displayName}`) | eigene Tabelle je Brett, `GET/PUT/DELETE /members` |
+| Kürzel eines Mitglieds | `Group.data.initialen: { AT: "user:anton", … }` | gewachsene Kürzel des Teams, als Daten am Space statt im Code |
 | Karte → Zeile | **eingebettete Relation** `partOf` → `item:<zielId>` | |
 | Faden | **RelationRecord** `blocks`, `from` = Voraussetzung, `to` = abhängige Karte | |
 

@@ -4,7 +4,7 @@ import { ItemAssignees, ItemCommentCount, ItemPreview, cn } from "@real-life-sta
 import { KANN_PRAEDIKAT, LERNT_PRAEDIKAT, MASSE, phaseVonStufe, stufeVon, zieleSortiert, zugewiesen } from "../../../modell.mjs"
 import { raster as bauRaster, zelleBei } from "./raster"
 import { ThreadsOverlay } from "./threads-overlay"
-import { RasterKopf } from "./raster-kopf"
+import { LUFT, RasterKopf } from "./raster-kopf"
 
 /**
  * Die vier Phasenfarben als `#rrggbb` — `ItemPreview` gibt sie über
@@ -227,8 +227,8 @@ export function KarabirrdtBoard({
             trägt die Spalte, damit die absolute Anordnung unberührt bleibt. */}
         <div data-kb-spalte className="sticky left-0 z-10 h-0 w-0">
           <div
-            className="absolute left-0 top-0 border-r border-border bg-background"
-            style={{ width: MASSE.start + MASSE.label, height: r.hoehe }}
+            className="absolute left-0 border-r border-border bg-background"
+            style={{ top: MASSE.head, width: MASSE.start + MASSE.label, height: r.hoehe - MASSE.head }}
           />
           {r.zeilen.map((z) => (
             <div
@@ -244,17 +244,20 @@ export function KarabirrdtBoard({
 
         {/* Die Kopfzeile klebt oben: senkrecht stehen bleiben, waagerecht
             mit den Spalten wandern. */}
-        <div data-kb-kopf className="sticky top-0 z-20 h-0">
+        {/* Vom oberen Rand des Scrollbereichs bis unter die Stufenzeile ist
+            alles undurchsichtig — kein Streifen, durch den Karten scheinen.
+            Über Karten, Fäden UND der Zielspalte. */}
+        <div data-kb-kopf className="sticky top-0 z-30 h-0">
           <div
             className="absolute left-0 top-0 border-b border-border bg-background"
-            style={{ width: r.breite, height: MASSE.head }}
+            style={{ width: r.breite, height: MASSE.head, paddingTop: LUFT }}
           >
             <RasterKopf raster={r} />
           </div>
         </div>
 
         {/* Die Ecke gehört beiden und klebt in beide Richtungen. */}
-        <div data-kb-ecke className="sticky left-0 top-0 z-30 h-0 w-0">
+        <div data-kb-ecke className="sticky left-0 top-0 z-40 h-0 w-0">
           <div
             className="absolute left-0 top-0 border-b border-r border-border bg-background"
             style={{ width: MASSE.start + MASSE.label, height: MASSE.head }}
