@@ -10,6 +10,16 @@ Gelesen und befolgt: [`docs/templates/AGENTS.md`](https://github.com/real-life-o
 Spec [06 Schema-Composition](https://github.com/real-life-org/real-life-stack/blob/master/docs/spec/06-schema-composition.md)
 und [08 Relation Records](https://github.com/real-life-org/real-life-stack/blob/master/docs/spec/08-relation-records.md).
 
+**Was zuerst hätte gelesen werden müssen** und beim ersten Bau fehlte:
+[01 App Composition](https://github.com/real-life-org/real-life-stack/blob/master/docs/spec/01-app-composition.md)
+(Modulfläche mit Kopf, Filter-Pille, Erstellen-Knopf, Panel-Ebenen) und
+[Shared Module Components](https://github.com/real-life-org/real-life-stack/blob/master/docs/spec/modules/shared-components.md)
+(`ItemDetailView`: erst lesen, Löschen im Menü). Rund fünfzehn Korrekturen in
+fünf Runden gingen darauf zurück, dazu ein 41 Commits alter lokaler Checkout
+des Stacks. Daraus ist die Seite
+[Anatomie eines Moduls](https://github.com/real-life-org/real-life-stack/blob/master/docs/anatomie-eines-moduls.md)
+im Stack entstanden; die Lesereihenfolge steht in [`AGENTS.md`](../AGENTS.md).
+
 ## Die Abbildung
 
 | Karabirrdt | RLS | Felder |

@@ -10,7 +10,8 @@ Es gibt die App zweimal: unter `/` die Fassung auf dem
 (React + Toolkit-Komponenten, Daten als Items und Relationen), unter `/alt`
 die ursprüngliche Seite aus einer Datei. Beide zeigen dasselbe Brett.
 Wie die Abbildung auf RLS aussieht, steht in
-[`docs/rls-kompatibel.md`](docs/rls-kompatibel.md).
+[`docs/rls-kompatibel.md`](docs/rls-kompatibel.md); die Regeln und die
+Lesereihenfolge für alle, die hier bauen, in [`AGENTS.md`](AGENTS.md).
 
 ## Starten
 
