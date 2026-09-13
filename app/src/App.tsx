@@ -35,7 +35,7 @@ import {
   type GroupDialogMode,
   type Workspace,
 } from "@real-life-stack/toolkit"
-import { Settings2, Sparkles } from "lucide-react"
+import { Moon, Settings2, Sparkles, Sun } from "lucide-react"
 import { KarabirrdtBoard } from "./board/karabirrdt-board"
 import { KartenDetail } from "./panels/karten-detail"
 import { ZielDetail } from "./panels/ziel-detail"
@@ -86,6 +86,7 @@ export default function App() {
   const [meldung, setMeldung] = useState<string | null>(null)
   const [gruppenDialog, setGruppenDialog] = useState(false)
   const [spaceDialog, setSpaceDialog] = useState(false)
+  const [dunkel, setDunkel] = useState(false)
   const [dialogModus, setDialogModus] = useState<GroupDialogMode>({ type: "create" })
 
   useEffect(() => {
@@ -185,6 +186,23 @@ export default function App() {
           </Button>
         </NavbarStart>
         <NavbarEnd>
+          {/* Genau die Zusammensetzung der Reference-App: das Toolkit hat
+              keinen Umschalter, nur die Leser `resolveColorScheme` und
+              `observeColorScheme` (siehe docs/rls-kompatibel.md). Die
+              `dark`-Klasse an <html> ist das einzige Signal. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            title={dunkel ? "Heller Modus" : "Dunkler Modus"}
+            aria-label={dunkel ? "Heller Modus" : "Dunkler Modus"}
+            onClick={() => {
+              setDunkel(!dunkel)
+              document.documentElement.classList.toggle("dark")
+            }}
+          >
+            {dunkel ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
           <UserMenu user={{ id: nutzer?.id ?? TISCH.id, name: nutzer?.displayName ?? TISCH.displayName }} />
         </NavbarEnd>
       </Navbar>

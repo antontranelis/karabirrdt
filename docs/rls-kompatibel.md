@@ -224,7 +224,19 @@ umgangen.
    `NavbarEnd`, wenn `hasMessaging(connector)` wahr ist. Unser Connector hat
    keine `MessagingCapable`-Fähigkeit, also gibt es dafür keinen Platz — die
    Anzeige ist entfernt und nicht ersetzt.
-16. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
+16. **Kein Umschalter für den Dunkelmodus.** Das Toolkit liefert nur die
+   **Leser** `resolveColorScheme` und `observeColorScheme`
+   (`lib/color-scheme.d.ts`) — ausdrücklich „for consumers that cannot express
+   their theme in CSS" (eine WebGL-Karte), und die Doku hält fest: „The app
+   shell does not seed the class from the OS preference". Den Schalter baut
+   jede App selbst; die Reference-App tut es in `App.tsx` mit `useState` plus
+   `document.documentElement.classList.toggle("dark")` und einem
+   `Button variant="ghost" size="icon"` mit Mond/Sonne in `NavbarEnd`. Genau
+   diese Zusammensetzung ist hier übernommen.
+   *Vorschlag:* ein `ColorSchemeToggle` im Toolkit, der die `dark`-Klasse
+   führt, die Wahl merkt und beim ersten Besuch `prefers-color-scheme` liest —
+   sonst schreibt jede App diese fünf Zeilen neu und sie laufen auseinander.
+17. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
    Mock-Connector ist speicherflüchtig, der Local-Connector einsam, Supabase
    und WoT bringen Identität mit. Diese App braucht dazwischen einen
    geteilten Raum ohne Konten — deshalb `ServerConnector`.

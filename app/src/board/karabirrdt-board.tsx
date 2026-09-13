@@ -4,6 +4,7 @@ import { ItemAssignees, ItemCommentCount, ItemPreview, cn } from "@real-life-sta
 import { KANN_PRAEDIKAT, LERNT_PRAEDIKAT, MASSE, phaseVonStufe, stufeVon, zieleSortiert, zugewiesen } from "../../../modell.mjs"
 import { raster as bauRaster, zelleBei } from "./raster"
 import { ThreadsOverlay } from "./threads-overlay"
+import { RasterKopf } from "./raster-kopf"
 
 /**
  * Die vier Phasenfarben als `#rrggbb` — `ItemPreview` gibt sie über
@@ -221,6 +222,44 @@ export function KarabirrdtBoard({
                 </div>
               )
             })}
+        {/* Die Zielspalte klebt am linken Rand: waagerecht stehen bleiben,
+            senkrecht mitscrollen. Ein Element ohne eigene Höhe im Fluss
+            trägt die Spalte, damit die absolute Anordnung unberührt bleibt. */}
+        <div data-kb-spalte className="sticky left-0 z-10 h-0 w-0">
+          <div
+            className="absolute left-0 top-0 border-r border-border bg-background"
+            style={{ width: MASSE.start + MASSE.label, height: r.hoehe }}
+          />
+          {r.zeilen.map((z) => (
+            <div
+              key={z.ziel.id}
+              data-karte
+              className="absolute"
+              style={{ left: MASSE.start, top: z.y + MASSE.rowPad, width: MASSE.label }}
+            >
+              <Karte item={z.ziel} mitglieder={mitglieder} aktiv={aktiv === z.ziel.id} onClick={() => onZiel(z.ziel.id)} />
+            </div>
+          ))}
+        </div>
+
+        {/* Die Kopfzeile klebt oben: senkrecht stehen bleiben, waagerecht
+            mit den Spalten wandern. */}
+        <div data-kb-kopf className="sticky top-0 z-20 h-0">
+          <div
+            className="absolute left-0 top-0 border-b border-border bg-background"
+            style={{ width: r.breite, height: MASSE.head }}
+          >
+            <RasterKopf raster={r} />
+          </div>
+        </div>
+
+        {/* Die Ecke gehört beiden und klebt in beide Richtungen. */}
+        <div data-kb-ecke className="sticky left-0 top-0 z-30 h-0 w-0">
+          <div
+            className="absolute left-0 top-0 border-b border-r border-border bg-background"
+            style={{ width: MASSE.start + MASSE.label, height: MASSE.head }}
+          />
+        </div>
       </div>
     </div>
   )
