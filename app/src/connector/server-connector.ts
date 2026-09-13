@@ -10,7 +10,15 @@ import {
   type ReactiveObservable,
   type User,
 } from "@real-life-stack/data-interface"
-import { AUTOR, KENNUNG, freieKennung, relationItemVonRecord, recordVonRelationItem, leeresRls } from "../../../modell.mjs"
+import {
+  AUTOR,
+  KENNUNG,
+  freieKennung,
+  kaskade,
+  leeresRls,
+  recordVonRelationItem,
+  relationItemVonRecord,
+} from "../../../modell.mjs"
 
 /**
  * Der Connector dieser App: ein `MockConnector` als Gedächtnis im Browser,
@@ -203,13 +211,32 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
       void sendeItem(item)
       return item
     },
+    /**
+     * Löschen nimmt mit, was ohne das Gelöschte keinen Halt mehr hat: ein Ziel
+     * seine Zeile (Karten samt Fäden), eine Karte ihre Fäden. Sonst blieben
+     * Karten ohne Zeile und Fäden ins Leere in den Daten stehen — unsichtbar,
+     * aber da. Das gilt für JEDEN Weg zum Löschen, auch den des Toolkits
+     * (`ItemDetailActions` löscht selbst über den Connector).
+     */
     deleteItem: async (id: string) => {
-      const vorher = await mock.getItem(id)
-      await mock.deleteItem(id)
-      const record = vorher ? recordVonRelationItem(vorher) : null
-      const art = record ? "relations" : "items"
-      merke(`${record ? "relation" : "item"}:${id}`, null)
-      await schreibe(`/${art}/${encodeURIComponent(id)}`, "DELETE")
+      const alle = await mock.getItems()
+      const faeden = alle.map(recordVonRelationItem).filter((r): r is RelationRecord => !!r)
+      const weg = kaskade(alle, faeden, id)
+
+      for (const rid of weg.relations) {
+        await mock.deleteItem(rid)
+        merke(`relation:${rid}`, null)
+        await schreibe(`/relations/${encodeURIComponent(rid)}`, "DELETE")
+      }
+      for (const iid of weg.items) {
+        const vorher = await mock.getItem(iid)
+        if (!vorher) continue
+        await mock.deleteItem(iid)
+        const record = recordVonRelationItem(vorher)
+        const art = record ? "relations" : "items"
+        merke(`${record ? "relation" : "item"}:${iid}`, null)
+        await schreibe(`/${art}/${encodeURIComponent(iid)}`, "DELETE")
+      }
     },
     createRelationRecord: async (eingabe: RelationRecordInput) => {
       const record = await mock.createRelationRecord(eingabe)

@@ -7,7 +7,7 @@
 //   npm run nachmigration -- --brett real-life [--db pfad] [--probe]
 import path from "node:path";
 import { Speicher, gueltigeKennung } from "../speicher.mjs";
-import { WER_NOTIZ, istKarte, nachmigriereNotiz } from "../modell.mjs";
+import { WER_NOTIZ, istKarte, nachmigriereNotiz, verwaisteFaeden } from "../modell.mjs";
 
 const argumente = new Map();
 for (let i = 2; i < process.argv.length; i++) {
@@ -57,6 +57,15 @@ for (const item of daten.items) {
 }
 
 console.log(`${geaendert} Karten ${probe ? "wären geändert" : "geändert"}.`);
+
+// Reste früherer Löschungen: Fäden, deren Enden es nicht mehr gibt.
+const verwaist = verwaisteFaeden(speicher.rlsBrett(brett).items, daten.relations);
+if (verwaist.length) {
+  if (!probe) for (const id of verwaist) speicher.relationLoeschen(brett, id);
+  console.log(`${verwaist.length} Fäden ins Leere ${probe ? "wären entfernt" : "entfernt"}.`);
+} else {
+  console.log("Keine Fäden ins Leere.");
+}
 if (offeneKarten.length) {
   console.log(`${offeneKarten.length} Karten tragen weiterhin eine Wer-Notiz:`);
   for (const k of offeneKarten) console.log(`  ${k.id}  ${k.titel.slice(0, 48)}  (${k.offen.join(", ")})`);

@@ -160,3 +160,10 @@ export declare function nachmigriereNotiz(
   mitglieder?: readonly { id: string; displayName?: string }[],
   tabelle?: Record<string, string>,
 ): { item: Item; geaendert: boolean; offen: string[] }
+
+export declare function kaskade(
+  items: readonly Item[],
+  relations: readonly RelationRecord[],
+  id: string,
+): { items: string[]; relations: string[] }
+export declare function verwaisteFaeden(items: readonly Item[], relations: readonly RelationRecord[]): string[]

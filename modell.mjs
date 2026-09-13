@@ -584,3 +584,30 @@ export function nachmigriereNotiz(item, mitglieder = [], tabelle = {}) {
     JSON.stringify(neu.relations) === JSON.stringify(item.relations ?? []);
   return gleich ? { item, geaendert: false, offen } : { item: neu, geaendert: true, offen };
 }
+
+// -------------------------------------------------------- Löschen mit Anhang
+
+/**
+ * Was mit diesem Item verschwinden muss, damit das Brett heil bleibt.
+ *
+ * Ein Ziel ist eine Zeile: mit ihm gehen die Karten dieser Zeile und deren
+ * Fäden. Eine Karte nimmt ihre Fäden mit. Sonst blieben Karten ohne Zeile
+ * (unsichtbar, aber in den Daten) und Fäden ins Leere zurück.
+ */
+export function kaskade(items, relations, id) {
+  const item = items.find((i) => i.id === id);
+  const weg = new Set([id]);
+  if (item && istZiel(item)) {
+    for (const k of items) if (istKarte(k) && zielVonKarte(k) === id) weg.add(k.id);
+  }
+  const faeden = relations
+    .filter((r) => weg.has(ohnePraefix(r.from)) || weg.has(ohnePraefix(r.to)))
+    .map((r) => r.id);
+  return { items: [...weg], relations: [...new Set(faeden)] };
+}
+
+/** Fäden, deren Enden es nicht mehr gibt — Reste früherer Löschungen. */
+export function verwaisteFaeden(items, relations) {
+  const da = new Set(items.map((i) => i.id));
+  return relations.filter((r) => !da.has(ohnePraefix(r.from)) || !da.has(ohnePraefix(r.to))).map((r) => r.id);
+}

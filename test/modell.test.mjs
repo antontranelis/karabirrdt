@@ -472,3 +472,49 @@ test("die Nachmigration nimmt ein noch vorhandenes who mit seinen Rollen", () =>
   assert.deepEqual(zugewiesen(item, LERNT_PRAEDIKAT), ["user:timo"]);
   assert.equal(item.data.who, undefined);
 });
+
+// ------------------------------------------------------- Löschen mit Anhang
+
+import { kaskade, verwaisteFaeden } from "../modell.mjs";
+
+const brettZumLoeschen = () => {
+  const ziel = (id) => ({ id, type: ZIEL_TYP, data: { title: id, dots: 0, order: 0 } });
+  const karte = (id, zielId) => ({
+    id,
+    type: KARTEN_TYP,
+    data: { title: id, stage: 0, order: 0 },
+    relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: `item:${zielId}` }],
+  });
+  const faden = (id, von, nach) => ({ id, predicate: FADEN_PRAEDIKAT, from: `item:${von}`, to: `item:${nach}` });
+  return {
+    items: [ziel("z1"), ziel("z2"), karte("a", "z1"), karte("b", "z1"), karte("c", "z2")],
+    relations: [faden("r1", "a", "b"), faden("r2", "b", "c"), faden("r3", "c", "c")],
+  };
+};
+
+test("ein Ziel nimmt seine Zeile mit: Karten und deren Fäden", () => {
+  const { items, relations } = brettZumLoeschen();
+  const weg = kaskade(items, relations, "z1");
+  assert.deepEqual(weg.items.sort(), ["a", "b", "z1"]);
+  // r1 hängt zwischen a und b, r2 hängt an b — beide gehen mit; r3 bleibt
+  assert.deepEqual(weg.relations.sort(), ["r1", "r2"]);
+});
+
+test("eine Karte nimmt nur ihre eigenen Fäden mit", () => {
+  const { items, relations } = brettZumLoeschen();
+  const weg = kaskade(items, relations, "b");
+  assert.deepEqual(weg.items, ["b"]);
+  assert.deepEqual(weg.relations.sort(), ["r1", "r2"]);
+});
+
+test("was es nicht gibt, nimmt nichts mit", () => {
+  const { items, relations } = brettZumLoeschen();
+  assert.deepEqual(kaskade(items, relations, "gibtsnicht"), { items: ["gibtsnicht"], relations: [] });
+});
+
+test("Fäden ins Leere lassen sich benennen", () => {
+  const { items, relations } = brettZumLoeschen();
+  assert.deepEqual(verwaisteFaeden(items, relations), []);
+  const ohneB = items.filter((i) => i.id !== "b");
+  assert.deepEqual(verwaisteFaeden(ohneB, relations).sort(), ["r1", "r2"]);
+});
