@@ -64,7 +64,7 @@ liegen daneben in `modell.d.mts`.
 | `ModuleControls` | schwebende Ecke unten links: kleiner / größer / einpassen |
 | `ItemPreview` (`density="compact"`, `footerAdornment`) | **jede** Karte auf dem Brett |
 | `ItemComposer` + `ContentTypeConfig` + eigene `widgets` | Karte anlegen **und** bearbeiten — eine Form für beides |
-| `ItemDetailPanel` | die geöffnete Karte, inklusive Diskussion |
+| `ItemDetailView` + `ItemDetailBody` + `ItemDetailActions` | die geöffnete Karte und das geöffnete Ziel: Lesen ↔ Bearbeiten, ⋮-Menü mit Bearbeiten und Löschen, Diskussion |
 | `AdaptivePanel` | eine Fläche für alle Panels (Karte, Ziele, Prüfung, Daten, Bretter) |
 | `DeleteConfirmDialog` | Löschen in zwei Schritten |
 | `EmptyState` | das leere Brett |
@@ -202,7 +202,23 @@ umgangen.
    *Vorschlag:* ein `sections`-Slot im `GroupDialog` (oder Tabs, in die eine
    App eigene Abschnitte hängt) und ein `actions`-Slot je Space-Eintrag im
    Switcher.
-13. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
+13. **Kein Baustein für Flächen-Bedienelemente oben rechts.** Gesucht in
+   0.1.6 nach `ModuleMenu`, `MapControls`, `ZoomControls`, `LocateButton` —
+   nichts davon existiert; `components/map/index.d.ts` exportiert nur die
+   Adapter-Typen, `LocationPickProvider`, `MapView` und die Marker, und
+   `ModuleControls` ist ausdrücklich die Ecke UNTEN LINKS („Heimat der
+   Filter-Pille"). Der einzige vorgesehene Ort für Modul-Aktionen ist
+   `ModuleToolbar.trailingActions`; dort stehen unsere Kamera-Knöpfe.
+   *Vorschlag:* den Baustein, den die Karte für Zoom und Ortung benutzt
+   (rls#321/#324), exportieren — dann teilen sich Karte, Graph und Karabirrdt
+   dieselben Knöpfe an derselben Stelle.
+14. **Kein Ort für den Verbindungsstand außerhalb der Kontakte.** Das Toolkit
+   hat `RelayStatusBadge` (`components/contacts/relay-status-badge.d.ts`) und
+   den Hook `useRelayStatus`; die Reference-App rendert das Abzeichen in
+   `NavbarEnd`, wenn `hasMessaging(connector)` wahr ist. Unser Connector hat
+   keine `MessagingCapable`-Fähigkeit, also gibt es dafür keinen Platz — die
+   Anzeige ist entfernt und nicht ersetzt.
+15. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
    Mock-Connector ist speicherflüchtig, der Local-Connector einsam, Supabase
    und WoT bringen Identität mit. Diese App braucht dazwischen einen
    geteilten Raum ohne Konten — deshalb `ServerConnector`.
@@ -246,6 +262,10 @@ umgangen.
   heißt, ist im Stack eine Group. Dann erledigen `WorkspaceSwitcher` und
   `GroupDialog` Wechseln, Anlegen, Umbenennen und Löschen, ohne dass die App
   eine eigene Verwaltung baut — die wir in Runde 1 noch hatte.
+- **Lesen zuerst, Bearbeiten auf Wunsch.** `ItemDetailView` besitzt den
+  Wechsel, das ⋮-Menü und den Lösch-Dialog. Eine App, die gleich den Composer
+  aufmacht, verliert die Leseansicht und baut sich ihre eigenen Knöpfe
+  („Erledigt", „Löschen") daneben — genau das hatten wir.
 - **Core-Typen präsentieren sich selbst.** `registerTypePresentation` haben
   wir NICHT benutzt: `project` und `task` sind Core-Typen, ihre Darstellung
   liefert das Toolkit mit, und ein zweiter Eintrag für dieselbe Id ist nach

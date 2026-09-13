@@ -1,50 +1,50 @@
-import { useState } from "react"
 import type { Item } from "@real-life-stack/data-interface"
-import { Button, DeleteConfirmDialog, ItemComposer, ItemDetailPanel, useDeleteItem } from "@real-life-stack/toolkit"
+import {
+  ItemDetailBody,
+  ItemDetailView,
+  ItemTypeBadge,
+  renderTypeFooter,
+  resolveTypePresentation,
+  useCurrentUser,
+  useMembers,
+} from "@real-life-stack/toolkit"
 import { ZIEL_VORLAGE, useComposerProps, zielMapper, zielVorbelegung } from "../content-types"
 
 interface Props {
   ziel: Item
-  onLoeschen: () => Promise<void>
   onGeschlossen: () => void
 }
 
-/** Ein Ziel ist ein Item wie jedes andere: dieselbe Form, dasselbe Panel. */
-export function ZielDetail({ ziel, onLoeschen, onGeschlossen }: Props) {
-  const { mutate: loesche } = useDeleteItem()
-  const [offen, setOffen] = useState(false)
+/** Ein Ziel ist ein Item wie jedes andere: dieselbe Lese- und Bearbeiten-Ansicht. */
+export function ZielDetail({ ziel, onGeschlossen }: Props) {
   const composerProps = useComposerProps()
-
   return (
-    <ItemDetailPanel itemId={ziel.id}>
-      <div className="space-y-4 p-4">
-        <ItemComposer
-          key={ziel.id}
-          contentTypes={[ZIEL_VORLAGE]}
-          initialContentType={ZIEL_VORLAGE.id}
-          existingItem={ziel}
-          initialData={zielVorbelegung(ziel.data)}
-          mapper={zielMapper(Number(ziel.data?.order) || 0)}
-          composerProps={composerProps}
-          onDone={() => {}}
-          onCancel={onGeschlossen}
-        />
+    <ItemDetailView
+      key={ziel.id}
+      itemId={ziel.id}
+      renderRead={(item, actions) => <Leseansicht item={item} actions={actions} />}
+      contentTypes={[ZIEL_VORLAGE]}
+      mapper={zielMapper(Number(ziel.data?.order) || 0)}
+      editInitialData={(item) => zielVorbelegung(item.data)}
+      composerProps={composerProps}
+      onClose={onGeschlossen}
+    />
+  )
+}
 
-        <Button variant="destructive" onClick={() => setOffen(true)}>
-          Ziel löschen
-        </Button>
-      </div>
-
-      <DeleteConfirmDialog
-        open={offen}
-        onOpenChange={setOffen}
-        title={String(ziel.data?.title ?? "")}
-        onConfirm={async () => {
-          await onLoeschen()
-          await loesche(ziel.id)
-          onGeschlossen()
-        }}
-      />
-    </ItemDetailPanel>
+function Leseansicht({ item, actions }: { item: Item; actions: React.ReactNode }) {
+  const { data: mitglieder } = useMembers(null)
+  const { data: ich } = useCurrentUser()
+  const autor = mitglieder.find((m) => m.id === item.createdBy) ?? (ich?.id === item.createdBy ? ich : undefined)
+  const TypMeta = resolveTypePresentation(item.type).detail
+  return (
+    <ItemDetailBody
+      item={item}
+      author={autor}
+      headerAdornment={<ItemTypeBadge type={item.type} />}
+      actions={actions}
+      meta={<TypMeta item={item} />}
+      footer={renderTypeFooter(item)}
+    />
   )
 }

@@ -1,18 +1,19 @@
-import { useState } from "react"
-import type { Item, RelationRecord } from "@real-life-stack/data-interface"
+import type { Item, RelationRecord, User } from "@real-life-stack/data-interface"
 import {
   Button,
-  DeleteConfirmDialog,
   ItemComposer,
-  ItemDetailPanel,
+  ItemDetailBody,
+  ItemDetailView,
   ItemPreview,
+  ItemTypeBadge,
   Label,
-  Separator,
-  useDeleteItem,
-  useUpdateItem,
+  renderTypeFooter,
+  resolveTypePresentation,
+  useCurrentUser,
+  useMembers,
 } from "@real-life-stack/toolkit"
 import { KARTEN_VORLAGE, LERNT_VORLAGE, karteMapper, karteVorbelegung, lerntMapper, useComposerProps } from "../content-types"
-import { LERNT_PRAEDIKAT, stufeVon, istErledigt, ohnePraefix, zielVonKarte, zugewiesen } from "../../../modell.mjs"
+import { LERNT_PRAEDIKAT, ohnePraefix, stufeVon, zielVonKarte, zugewiesen } from "../../../modell.mjs"
 
 interface Props {
   karte: Item
@@ -23,14 +24,14 @@ interface Props {
   onFadenSuchen: () => void
   onFadenLoesen: (id: string) => void
   onNachbarKarte: (id: string) => void
-  onWeitereKarte: () => void
   onGeschlossen: () => void
 }
 
 /**
- * Die geöffnete Karte: dieselbe Form wie beim Anlegen (`ItemComposer` im
- * Bearbeiten-Modus), eingefasst in `ItemDetailPanel`, das darunter die
- * Diskussion mitbringt. Die Fäden stehen als Listen daneben.
+ * Die geöffnete Karte: `ItemDetailView` des Toolkits. Es besitzt den Wechsel
+ * zwischen Lesen und Bearbeiten, das ⋮-Menü mit Bearbeiten und Löschen samt
+ * Bestätigung, und die Diskussion darunter. Diese Datei liefert nur, was am
+ * Typ hängt: die Fäden in der Fakten-Box und den Knopf, einen zu ziehen.
  */
 export function KartenDetail({
   karte,
@@ -41,100 +42,126 @@ export function KartenDetail({
   onFadenSuchen,
   onFadenLoesen,
   onNachbarKarte,
-  onWeitereKarte,
   onGeschlossen,
 }: Props) {
-  const { mutate: aendere } = useUpdateItem()
   const composerProps = useComposerProps()
-  const { mutate: loesche } = useDeleteItem()
-  const [loeschenOffen, setLoeschenOffen] = useState(false)
-
   const ziel = ziele.find((z) => z.id === zielVonKarte(karte))
-  const hinein = faeden.filter((f) => ohnePraefix(f.to) === karte.id)
-  const hinaus = faeden.filter((f) => ohnePraefix(f.from) === karte.id)
-
-  const alleFaeden = () => faeden.filter((f) => ohnePraefix(f.from) === karte.id || ohnePraefix(f.to) === karte.id)
 
   return (
-    <ItemDetailPanel itemId={karte.id}>
-      <div className="space-y-4 p-4">
-        <ItemComposer
-          key={karte.id}
-          contentTypes={[KARTEN_VORLAGE]}
-          initialContentType={KARTEN_VORLAGE.id}
-          existingItem={karte}
-          initialData={karteVorbelegung(karte)}
-          mapper={karteMapper({ zielId: ziel?.id ?? "", stufe: stufeVon(karte), order: Number(karte.data?.order) || 0 })}
+    <ItemDetailView
+      key={karte.id}
+      itemId={karte.id}
+      renderRead={(item, actions) => (
+        <Leseansicht
+          item={item}
+          actions={actions}
+          karten={karten}
+          faeden={faeden}
+          fadenSchreibbar={fadenSchreibbar}
+          onFadenSuchen={onFadenSuchen}
+          onFadenLoesen={onFadenLoesen}
+          onNachbarKarte={onNachbarKarte}
           composerProps={composerProps}
-          onDone={() => {}}
-          onCancel={onGeschlossen}
         />
+      )}
+      contentTypes={[KARTEN_VORLAGE]}
+      mapper={karteMapper({ zielId: ziel?.id ?? "", stufe: stufeVon(karte), order: Number(karte.data?.order) || 0 })}
+      editInitialData={(item) => karteVorbelegung(item)}
+      composerProps={composerProps}
+      onClose={onGeschlossen}
+    />
+  )
+}
 
-        {/* Zweites Zuweisungsfeld: dasselbe Personen-Widget des Composers,
-            nur auf dem Prädikat `wantsToLearn`. `liveUpdate` blendet den
-            eigenen Fußbereich aus, damit es als Feld und nicht als zweites
-            Formular wirkt. */}
+function Leseansicht({
+  item,
+  actions,
+  karten,
+  faeden,
+  fadenSchreibbar,
+  onFadenSuchen,
+  onFadenLoesen,
+  onNachbarKarte,
+  composerProps,
+}: {
+  item: Item
+  actions: React.ReactNode
+  karten: Item[]
+  faeden: RelationRecord[]
+  fadenSchreibbar: boolean
+  onFadenSuchen: () => void
+  onFadenLoesen: (id: string) => void
+  onNachbarKarte: (id: string) => void
+  composerProps: ReturnType<typeof useComposerProps>
+}) {
+  const { data: mitglieder } = useMembers(null)
+  const { data: ich } = useCurrentUser()
+  const finde = (id: string): User | undefined =>
+    mitglieder.find((m) => m.id === id) ?? (ich?.id === id ? ich : undefined)
+  const darstellung = resolveTypePresentation(item.type)
+  const TypMeta = darstellung.detail
+  const hinein = faeden.filter((f) => ohnePraefix(f.to) === item.id)
+  const hinaus = faeden.filter((f) => ohnePraefix(f.from) === item.id)
+
+  return (
+    <>
+      <ItemDetailBody
+        item={item}
+        author={finde(item.createdBy)}
+        headerAdornment={<ItemTypeBadge type={item.type} />}
+        actions={actions}
+        meta={
+          <>
+            <TypMeta item={item} />
+            {!!hinein.length && (
+              <div className="space-y-2">
+                <Label>Voraussetzungen</Label>
+                <FadenListe faeden={hinein} seite="from" karten={karten} onOeffnen={onNachbarKarte} onLoesen={onFadenLoesen} />
+              </div>
+            )}
+            {!!hinaus.length && (
+              <div className="space-y-2">
+                <Label>Was danach kommt</Label>
+                <FadenListe faeden={hinaus} seite="to" karten={karten} onOeffnen={onNachbarKarte} onLoesen={onFadenLoesen} />
+              </div>
+            )}
+          </>
+        }
+        footer={
+          <>
+            {renderTypeFooter(item)}
+            {fadenSchreibbar && (
+              <Button size="sm" variant="outline" onClick={onFadenSuchen}>
+                Voraussetzung hinzufügen
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      {/* Zweites Zuweisungsfeld. Es steht hier, weil `ItemDetailView` den
+          Bearbeiten-Composer selbst besitzt und dort kein Platz für ein
+          zweites Personen-Feld vorgesehen ist (siehe docs/rls-kompatibel.md,
+          Lücke 10). Es ist dieselbe Komponente des Toolkits, nur mit anderem
+          Prädikat. */}
+      <div className="px-4 pb-2">
         <ItemComposer
-          key={`lernt-${karte.id}`}
+          key={`lernt-${item.id}`}
           contentTypes={[LERNT_VORLAGE]}
           initialContentType={LERNT_VORLAGE.id}
-          existingItem={karte}
-          initialData={{ people: zugewiesen(karte, LERNT_PRAEDIKAT) }}
+          existingItem={item}
+          initialData={{ people: zugewiesen(item, LERNT_PRAEDIKAT) }}
           mapper={lerntMapper}
           composerProps={{ ...composerProps, liveUpdate: true }}
           onDone={() => {}}
           onCancel={() => {}}
         />
-
-        <Separator />
-
-        <section className="space-y-2">
-          <Label>Voraussetzungen</Label>
-          <FadenListe faeden={hinein} seite="from" karten={karten} onOeffnen={onNachbarKarte} onLoesen={onFadenLoesen} />
-          {fadenSchreibbar && (
-            <Button size="sm" variant="outline" onClick={onFadenSuchen}>
-              Voraussetzung hinzufügen
-            </Button>
-          )}
-        </section>
-
-        <section className="space-y-2">
-          <Label>Was danach kommt</Label>
-          <FadenListe faeden={hinaus} seite="to" karten={karten} onOeffnen={onNachbarKarte} onLoesen={onFadenLoesen} />
-        </section>
-
-        <div className="flex flex-wrap gap-2 pt-2">
-          <Button
-            variant={istErledigt(karte) ? "outline" : "default"}
-            onClick={() => void aendere(karte.id, { data: { ...karte.data, status: istErledigt(karte) ? "open" : "done" } })}
-          >
-            {istErledigt(karte) ? "Wieder öffnen" : "Erledigt, ausmalen"}
-          </Button>
-          <Button variant="outline" onClick={onWeitereKarte}>
-            Weitere Karte in dieser Zelle
-          </Button>
-          <Button variant="destructive" onClick={() => setLoeschenOffen(true)}>
-            Karte löschen
-          </Button>
-        </div>
       </div>
-
-      <DeleteConfirmDialog
-        open={loeschenOffen}
-        onOpenChange={setLoeschenOffen}
-        title={String(karte.data?.title ?? "")}
-        onConfirm={async () => {
-          // Erst die Fäden, dann die Karte — sonst blieben Kanten ins Leere stehen.
-          for (const f of alleFaeden()) await onFadenLoesen(f.id)
-          await loesche(karte.id)
-          onGeschlossen()
-        }}
-      />
-    </ItemDetailPanel>
+    </>
   )
 }
 
-/** Die Fäden als Karten — dieselbe `ItemPreview` wie überall, kein eigener Stil. */
+/** Die Fäden als Karten — dieselbe `ItemPreview` wie überall. */
 function FadenListe({
   faeden,
   seite,
@@ -148,7 +175,6 @@ function FadenListe({
   onOeffnen: (id: string) => void
   onLoesen: (id: string) => void
 }) {
-  if (!faeden.length) return null
   return (
     <div className="space-y-2">
       {faeden.map((f) => {
@@ -163,7 +189,15 @@ function FadenListe({
             density="compact"
             onClick={() => onOeffnen(anderer)}
             actions={
-              <Button size="icon-sm" variant="ghost" title="Faden lösen" onClick={(e) => { e.stopPropagation(); onLoesen(f.id) }}>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                title="Faden lösen"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onLoesen(f.id)
+                }}
+              >
                 ×
               </Button>
             }

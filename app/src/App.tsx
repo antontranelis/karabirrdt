@@ -18,14 +18,12 @@ import {
   NavbarStart,
   UserMenu,
   WorkspaceSwitcher,
-  cn,
   useConnector,
   useCreateGroup,
   useCreateItem,
   useCurrentGroup,
   useCurrentUser,
   useDeleteGroup,
-  useDeleteItem,
   useGroups,
   useInviteMember,
   useItems,
@@ -38,7 +36,7 @@ import {
   type GroupDialogMode,
   type Workspace,
 } from "@real-life-stack/toolkit"
-import { Maximize2, Minus, Plus, Settings2, Sparkles } from "lucide-react"
+import { Maximize2, Settings2, Sparkles, ZoomIn, ZoomOut } from "lucide-react"
 import { KarabirrdtBoard } from "./board/karabirrdt-board"
 import type { FlaechenSteuerung } from "./board/kamera-flaeche"
 import { KartenDetail } from "./panels/karten-detail"
@@ -55,7 +53,6 @@ import {
   ZIEL_TYP,
   fadenFehler,
   mitZiel,
-  ohnePraefix,
   verschiebenFehler,
   zielVonKarte,
 } from "../../modell.mjs"
@@ -68,11 +65,7 @@ type Ansicht =
   | { art: "pruefung" }
   | null
 
-interface Props {
-  aufZustand: (hoerer: (live: boolean) => void) => () => void
-}
-
-export default function App({ aufZustand }: Props) {
+export default function App() {
   const connector = useConnector()
   const group = useCurrentGroup()
   const brett = group?.id ?? "haupt"
@@ -84,7 +77,6 @@ export default function App({ aufZustand }: Props) {
   const { faeden, schreibbar: fadenSchreibbar, ziehe, loese } = useFaeden()
   const { mutate: anlegen } = useCreateItem()
   const { mutate: aendere } = useUpdateItem()
-  const { mutate: loesche } = useDeleteItem()
   const gruppeAnlegen = useCreateGroup()
   const gruppeAendern = useUpdateGroup()
   const gruppeLoeschen = useDeleteGroup()
@@ -94,13 +86,11 @@ export default function App({ aufZustand }: Props) {
   const [ansicht, setAnsicht] = useState<Ansicht>(null)
   const [fadenVon, setFadenVon] = useState<string | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
-  const [live, setLive] = useState(false)
   const [gruppenDialog, setGruppenDialog] = useState(false)
   const [spaceDialog, setSpaceDialog] = useState(false)
   const [dialogModus, setDialogModus] = useState<GroupDialogMode>({ type: "create" })
   const kamera = useRef<FlaechenSteuerung>(null)
 
-  useEffect(() => aufZustand(setLive), [aufZustand])
   useEffect(() => {
     if (!meldung) return
     const t = setTimeout(() => setMeldung(null), 3200)
@@ -143,13 +133,6 @@ export default function App({ aufZustand }: Props) {
 
   // --------------------------------------------------------------- Brett
 
-  const karteLoeschen = useCallback(
-    async (id: string) => {
-      for (const f of faeden.filter((f) => ohnePraefix(f.from) === id || ohnePraefix(f.to) === id)) await loese(f.id)
-      await loesche(id)
-    },
-    [faeden, loese, loesche],
-  )
 
   const kartenKlick = async (id: string) => {
     if (!fadenVon) return setAnsicht({ art: "karte", id })
@@ -221,7 +204,6 @@ export default function App({ aufZustand }: Props) {
               mitglieder={mitglieder}
               aktiv={aktiv}
               fadenVon={fadenVon}
-              live={live}
               brett={brett}
               ansicht={ansicht}
               kamera={kamera}
@@ -258,20 +240,11 @@ export default function App({ aufZustand }: Props) {
             }}
             onFadenLoesen={loese}
             onNachbarKarte={(id) => setAnsicht({ art: "karte", id })}
-            onWeitereKarte={() =>
-              setAnsicht({ art: "neu", zielId: zielVonKarte(offeneKarte) ?? "", stufe: Number(offeneKarte.data?.stage) || 0 })
-            }
             onGeschlossen={() => setAnsicht(null)}
           />
         )}
         {offenesZiel && (
-          <ZielDetail
-            ziel={offenesZiel}
-            onLoeschen={async () => {
-              for (const k of karten.filter((k) => zielVonKarte(k) === offenesZiel.id)) await karteLoeschen(k.id)
-            }}
-            onGeschlossen={() => setAnsicht(null)}
-          />
+          <ZielDetail ziel={offenesZiel} onGeschlossen={() => setAnsicht(null)} />
         )}
         {(ansicht?.art === "neu" || ansicht?.art === "anlegen") && (
           <Anlegen
@@ -365,7 +338,6 @@ interface ModulProps {
   mitglieder: User[]
   aktiv: string | null
   fadenVon: string | null
-  live: boolean
   brett: string
   ansicht: Ansicht
   kamera: RefObject<FlaechenSteuerung | null>
@@ -389,7 +361,6 @@ function BrettModul({
   mitglieder,
   aktiv,
   fadenVon,
-  live,
   brett,
   ansicht,
   kamera,
@@ -415,27 +386,26 @@ function BrettModul({
         searchLabel="Karten durchsuchen"
         trailingActions={
           <>
-            <span
-              className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground"
-              title={live ? "gemeinsam, live" : "getrennt — Änderungen bleiben lokal"}
-            >
-              <i className={cn("inline-block h-2 w-2 rounded-full", live ? "bg-primary" : "bg-muted-foreground/40")} />
-              {live ? "live" : "getrennt"}
-            </span>
             <Button
-              variant={ansicht?.art === "pruefung" ? "secondary" : "ghost"}
+              variant={ansicht?.art === "pruefung" ? "secondary" : "outline"}
               size="sm"
               onClick={() => onAnsicht(ansicht?.art === "pruefung" ? null : { art: "pruefung" })}
             >
               Prüfung
             </Button>
-            <Button variant="ghost" size="icon-sm" title="Kleiner" onClick={() => kamera.current?.zoomen(1 / 1.25)}>
-              <Minus className="h-4 w-4" />
+            {/* Die Modul-Aktionen oben rechts: `ModuleToolbar.trailingActions`
+                ist der dafür vorgesehene Platz. Einen eigenen Baustein für
+                Zoom-Knöpfe (wie ihn die Karte hat) gibt es in 0.1.6 nicht —
+                `components/map/index.d.ts` exportiert nur Adapter, `MapView`
+                und Marker. Darum die Knopf-Varianten des Toolkits, `outline`,
+                damit sie auf der schwebenden Leiste als Knöpfe lesbar sind. */}
+            <Button variant="outline" size="icon-sm" title="Verkleinern" aria-label="Verkleinern" onClick={() => kamera.current?.zoomen(1 / 1.25)}>
+              <ZoomOut className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon-sm" title="Größer" onClick={() => kamera.current?.zoomen(1.25)}>
-              <Plus className="h-4 w-4" />
+            <Button variant="outline" size="icon-sm" title="Vergrößern" aria-label="Vergrößern" onClick={() => kamera.current?.zoomen(1.25)}>
+              <ZoomIn className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon-sm" title="Einpassen" onClick={() => kamera.current?.einpassen()}>
+            <Button variant="outline" size="icon-sm" title="Einpassen" aria-label="Einpassen" onClick={() => kamera.current?.einpassen()}>
               <Maximize2 className="h-4 w-4" />
             </Button>
           </>

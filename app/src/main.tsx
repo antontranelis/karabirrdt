@@ -10,11 +10,11 @@ async function start() {
   const brett = brettAusPfad()
   const wurzel = createRoot(document.getElementById("root")!)
   try {
-    const { connector, aufZustand } = await erstelleServerConnector(brett)
+    const { connector } = await erstelleServerConnector(brett)
     wurzel.render(
       <StrictMode>
         <ConnectorProvider connector={connector}>
-          <App aufZustand={aufZustand} />
+          <App />
         </ConnectorProvider>
       </StrictMode>,
     )
