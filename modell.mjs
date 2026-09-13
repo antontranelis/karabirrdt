@@ -182,10 +182,13 @@ export const MASSE = {
 
 export const spaltenX = (s) => MASSE.start + MASSE.label + s * MASSE.colW + MASSE.colW / 2;
 
-/** Grobe Höhe der Ziel-Beschriftung, ohne DOM: rund 28 Zeichen je Zeile. */
+/**
+ * Startwert für die Höhe einer Zielkarte, solange sie noch nicht gemessen ist:
+ * rund 30 Zeichen je Zeile, dazu Polster und Rahmen der `ItemPreview`.
+ */
 export function labelHoehe(titel) {
-  const zeilen = Math.max(1, Math.ceil(text(titel).length / 28));
-  return zeilen * 16 + 34;
+  const zeilen = Math.max(1, Math.ceil(text(titel).length / 30));
+  return zeilen * 20 + 52;
 }
 
 /**
@@ -208,7 +211,10 @@ export function layout(ziele, karten, hoehen = {}) {
       const summe = liste.reduce((a, k) => a + hoehe(k.id), 0) + (liste.length - 1) * MASSE.gap;
       stapel = Math.max(stapel, summe);
     }
-    const h = Math.max(stapel + MASSE.rowPad * 2, labelHoehe(z.data?.title));
+    // Die Zielkarte ist eine Karte wie jede andere und wird genauso gemessen;
+    // `labelHoehe` ist nur der Startwert, solange noch nichts gemessen wurde.
+    const zielHoehe = Number(hoehen[z.id]) || labelHoehe(z.data?.title);
+    const h = Math.max(stapel, zielHoehe) + MASSE.rowPad * 2;
     const zeile = { ziel: z, y, h };
     for (let s = 0; s < 12; s++) {
       let oben = y + MASSE.rowPad;

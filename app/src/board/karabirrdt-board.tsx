@@ -237,7 +237,13 @@ export function KarabirrdtBoard({
               className="absolute"
               style={{ left: MASSE.start, top: z.y + MASSE.rowPad, width: MASSE.label }}
             >
-              <Karte item={z.ziel} mitglieder={mitglieder} aktiv={aktiv === z.ziel.id} onClick={() => onZiel(z.ziel.id)} />
+              <Karte
+                item={z.ziel}
+                mitglieder={mitglieder}
+                aktiv={aktiv === z.ziel.id}
+                messen={messen}
+                onClick={() => onZiel(z.ziel.id)}
+              />
             </div>
           ))}
         </div>

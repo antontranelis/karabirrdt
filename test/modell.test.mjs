@@ -207,6 +207,27 @@ test("Raster: Spalten, Zeilenhöhen und Gesamtmaße", () => {
   assert.equal(L.pos.k1.x, spaltenX(0) - MASSE.cardW / 2);
 });
 
+test("die Zeilenhöhe folgt der gemessenen Zielkarte, wenn diese höher ist", () => {
+  const ziele = [{ id: "z1", type: ZIEL_TYP, data: { title: "Z", dots: 0, order: 0 } }];
+  const karten = [
+    { id: "a", type: KARTEN_TYP, data: { title: "a", stage: 0, order: 0 }, relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z1" }] },
+  ];
+  // Ziel höher als der Stapel → die Zeile richtet sich nach dem Ziel
+  const hoch = layout(ziele, karten, { a: 90, z1: 300 });
+  assert.equal(hoch.zeilen[0].h, 300 + MASSE.rowPad * 2);
+  // Stapel höher als das Ziel → umgekehrt
+  const flach = layout(ziele, karten, { a: 400, z1: 80 });
+  assert.equal(flach.zeilen[0].h, 400 + MASSE.rowPad * 2);
+  // Zwischen zwei Zielen bleibt der Abstand: die nächste Zeile beginnt erst
+  // hinter der ganzen Höhe der vorigen.
+  const zwei = layout(
+    [...ziele, { id: "z2", type: ZIEL_TYP, data: { title: "Z2", dots: 0, order: 1 } }],
+    karten,
+    { a: 90, z1: 300 },
+  );
+  assert.equal(zwei.zeilen[1].y, zwei.zeilen[0].y + zwei.zeilen[0].h);
+});
+
 test("gemessene Kartenhöhen bestimmen Stapel und Zeilenhöhe", () => {
   const ziele = [{ id: "z1", type: ZIEL_TYP, data: { title: "Z", dots: 0, order: 0 } }];
   const k = (id) => ({ id, type: KARTEN_TYP, data: { title: id, stage: 0, order: id }, relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z1" }] });
