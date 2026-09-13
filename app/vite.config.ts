@@ -8,6 +8,15 @@ import tailwindcss from "@tailwindcss/vite"
 // jedem Bau rauscht; der Server liefert es ohnehin mit `no-cache` aus.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    // Die veröffentlichten @real-life-stack-Pakete tragen in `exports` eine
+    // `development`-Bedingung, die auf `./src/index.ts` zeigt; `src` liegt
+    // aber nicht im Paket. Vite wählt im Dev-Modus genau diese Bedingung und
+    // findet nichts („Failed to resolve entry“). Bis die Pakete das beim
+    // Veröffentlichen entfernen (Lücke in docs/rls-kompatibel.md), lösen wir
+    // ohne `development` auf, wie beim Build.
+    conditions: ["module", "browser", "import", "default"],
+  },
   build: {
     outDir: "../public",
     emptyOutDir: false,

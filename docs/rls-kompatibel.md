@@ -88,6 +88,17 @@ beiden Signalen (`prefers-color-scheme` **und** `.dark`/`[data-theme]`).
 
 ## Upstream-Lücken
 
+**0. `npm run dev` bricht mit den veröffentlichten Paketen sofort ab.** Alle
+sechs Pakete tragen in `exports` eine `development`-Bedingung, die auf
+`./src/index.ts` zeigt; `src` ist aber nicht im Paket (`files: dist`). Vite
+wählt im Dev-Modus genau diese Bedingung: „Failed to resolve entry for package
+@real-life-stack/toolkit“. Der Build läuft, weil er `development` nicht
+benutzt. Bis zum Fix setzt `app/vite.config.ts` `resolve.conditions` ohne
+`development`. Vorschlag upstream: `publishConfig.exports` ohne die
+Bedingung, damit das Monorepo weiter aus `src` entwickelt und das Paket
+sauber auflöst (PR im Stack).
+
+
 Was gefehlt hat, mit konkretem Vorschlag. Nichts davon wurde durch einen Fork
 umgangen.
 
