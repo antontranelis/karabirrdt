@@ -1,20 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type DragEvent, type PointerEvent, type Ref } from "react"
+import { useCallback, useEffect, useRef, useState, type DragEvent, type PointerEvent } from "react"
 import type { Item, RelationRecord, User } from "@real-life-stack/data-interface"
 import { ItemAssignees, ItemCommentCount, ItemPreview, cn } from "@real-life-stack/toolkit"
-import {
-  KANN_PRAEDIKAT,
-  LERNT_PRAEDIKAT,
-  MASSE,
-  phaseVonStufe,
-  schirmZuWelt,
-  stufeVon,
-  zieleSortiert,
-  zugewiesen,
-  type Raender,
-} from "../../../modell.mjs"
+import { KANN_PRAEDIKAT, LERNT_PRAEDIKAT, MASSE, phaseVonStufe, stufeVon, zieleSortiert, zugewiesen } from "../../../modell.mjs"
 import { raster as bauRaster, zelleBei } from "./raster"
 import { ThreadsOverlay } from "./threads-overlay"
-import { KameraFlaeche, type FlaechenSteuerung } from "./kamera-flaeche"
 
 /**
  * Die vier Phasenfarben als `#rrggbb` — `ItemPreview` gibt sie über
@@ -34,11 +23,6 @@ interface Props {
   aktiv: string | null
   fadenVon: string | null
   mitglieder: User[]
-  steuerung?: Ref<FlaechenSteuerung>
-  einpassenSchluessel?: string
-  raender?: Raender
-  kopfElement?: HTMLElement | null
-  fussElement?: HTMLElement | null
   onKarte: (id: string) => void
   onZelle: (zielId: string, stufe: number) => void
   onZiel: (id: string) => void
@@ -52,11 +36,6 @@ export function KarabirrdtBoard({
   aktiv,
   fadenVon,
   mitglieder,
-  steuerung,
-  einpassenSchluessel,
-  raender,
-  kopfElement,
-  fussElement,
   onKarte,
   onZelle,
   onZiel,
@@ -117,18 +96,10 @@ export function KarabirrdtBoard({
   }
 
   return (
-    <KameraFlaeche
-      breite={r.breite}
-      hoehe={r.hoehe}
-      ziehbarSelektor="[data-karte]"
-      steuerung={steuerung}
-      einpassenSchluessel={einpassenSchluessel}
-      raender={raender}
-      kopfElement={kopfElement}
-      fussElement={fussElement}
-    >
-      {(kamera, hatGeschwenkt) => (
-        <div ref={welt} className="relative" style={{ width: r.breite, height: r.hoehe }}>
+    // Was scrollt, ist der Inhalt (Spec 01). Die Fläche scrollt in beide
+    // Richtungen; oben links fängt sie an.
+    <div className="h-full w-full overflow-auto p-4">
+      <div ref={welt} className="relative" style={{ width: r.breite, height: r.hoehe }}>
           <ThreadsOverlay raster={r} karten={karten} faeden={faeden} hervorgehoben={aktiv} />
 
           {/* Ziele als Zeilenköpfe — dieselbe Karte wie überall */}
@@ -143,7 +114,7 @@ export function KarabirrdtBoard({
                 item={z.ziel}
                 mitglieder={mitglieder}
                 aktiv={aktiv === z.ziel.id}
-                onClick={() => !hatGeschwenkt() && onZiel(z.ziel.id)}
+                onClick={() => onZiel(z.ziel.id)}
               />
             </div>
           ))}
@@ -158,7 +129,7 @@ export function KarabirrdtBoard({
                   role="button"
                   tabIndex={-1}
                   aria-label={`Karte anlegen in ${String(z.ziel.data?.title ?? "")}, Stufe ${s + 1}`}
-                  onClick={() => !hatGeschwenkt() && onZelle(z.ziel.id, s)}
+                  onClick={() => onZelle(z.ziel.id, s)}
                   onDragOver={(e: DragEvent) => {
                     e.preventDefault()
                     e.dataTransfer.dropEffect = "move"
@@ -193,7 +164,7 @@ export function KarabirrdtBoard({
                   style={{ left: P.x, top: P.y, width: MASSE.cardW }}
                   onPointerDown={(e: PointerEvent<HTMLDivElement>) => {
                     // Finger und Stift kennen kein HTML5-Ziehen: dieselbe
-                    // Bewegung hier von Hand, der Zielpunkt über die Kamera.
+                    // Bewegung hier von Hand, der Zielpunkt aus dem Raster.
                     if (e.pointerType === "mouse") return
                     e.stopPropagation()
                     const start = { x: e.clientX, y: e.clientY }
@@ -206,8 +177,7 @@ export function KarabirrdtBoard({
                         setZieht(k.id)
                       }
                       if (bewegt) {
-                        const z = kamera.zoom || 1
-                        knoten.style.transform = `translate(${(ev.clientX - start.x) / z}px, ${(ev.clientY - start.y) / z}px)`
+                        knoten.style.transform = `translate(${ev.clientX - start.x}px, ${ev.clientY - start.y}px)`
                         knoten.style.zIndex = "30"
                       }
                     }
@@ -218,10 +188,9 @@ export function KarabirrdtBoard({
                       knoten.style.transform = ""
                       knoten.style.zIndex = ""
                       if (!bewegt) return
-                      const kasten = welt.current?.parentElement?.getBoundingClientRect()
+                      const kasten = welt.current?.getBoundingClientRect()
                       if (!kasten) return
-                      const p = schirmZuWelt({ x: ev.clientX - kasten.left, y: ev.clientY - kasten.top }, kamera)
-                      const zelle = zelleBei(r, p.x, p.y)
+                      const zelle = zelleBei(r, ev.clientX - kasten.left, ev.clientY - kasten.top)
                       if (zelle) ablegen(k.id, zelle.zielId, zelle.stufe)
                       else setZieht(null)
                     }
@@ -252,9 +221,8 @@ export function KarabirrdtBoard({
                 </div>
               )
             })}
-        </div>
-      )}
-    </KameraFlaeche>
+      </div>
+    </div>
   )
 }
 
@@ -306,7 +274,13 @@ function Karte({
       ref={messen}
       data-item-id={item.id}
       {...(ziehbar ? { draggable: true, onDragStart, onDragEnd } : {})}
-      className={cn(ziehbar && "cursor-grab select-none active:cursor-grabbing", gezogen && "opacity-50", hervor && "ring-2 ring-primary/60")}
+      className={cn(
+        // `touch-none` NUR hier: sonst schluckt die Karte das Scrollen der
+        // ganzen Fläche. Wie im Kanban bleibt die Fläche selbst scrollbar.
+        ziehbar && "cursor-grab touch-none select-none active:cursor-grabbing",
+        gezogen && "opacity-50",
+        hervor && "ring-2 ring-primary/60",
+      )}
     >
       <ItemPreview
         item={mitTitel}

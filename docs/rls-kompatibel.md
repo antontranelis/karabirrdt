@@ -69,7 +69,7 @@ liegen daneben in `modell.d.mts`.
 | `people`-Widget des Composers | „kann ich" (`assignedTo`) **und** „will lernen" (`wantsToLearn`) — dasselbe Feld, zwei Vorlagen |
 | `ItemAssignees` | die Gesichter auf der Karte, für beide Zuweisungen |
 | `UserMenu` | rechts in der Navbar, wie in der Reference-App |
-| `ModuleFrame` (`fill="bleed"`) | die Modulfläche: Kopf im Fluss darüber, das Brett füllt den Rest |
+| `ModuleFrame` (`fill="bleed"`) | die Modulfläche: Kopf im Fluss darüber, darunter das scrollende Brett |
 | `ModuleToolbar` + `FilterScope` + `useModuleFilteredItems` | Kopf des Moduls: Suche, Tag-Filter, Modul-Aktionen, Verbindungsstand |
 | `ModuleControls` | schwebende Ecke unten links: kleiner / größer / einpassen |
 | `ItemPreview` + `ItemAssignees` + `ItemCommentCount` | **jede** Karte auf dem Brett — dieselben Aufrufe wie `KanbanBoard` |
@@ -146,22 +146,16 @@ umgangen.
    „bearbeiten"-Knopf ruhiger.
    *Vorschlag:* `ItemDetailBody` ist genau das — in einer künftigen Fassung
    dieser App der bessere Inhalt des Panels.
-7. **Die Graph-Kamera ist exportiert, passt aber nicht auf eine Fläche mit
-   Rändern (teilweise behoben, toolkit 0.1.7).** `GraphCamera`, `fitCamera`,
-   `focusCamera` und `interpolateCamera` kommen jetzt aus
-   `components/graph/index` — der Export, der vorher fehlte, ist da. Für unser
-   Einpassen taugt `fitCamera` trotzdem nicht, und zwar aus drei Gründen, die
-   in seiner Rechnung stehen (Bundle `index-CYotuxXr.js`, Funktion `uX`):
-   es fasst eine **Punktwolke** zusammen statt eines Rechtecks bekannter
-   Größe, es polstert mit einem **festen Faktor 0.82** auf allen vier Seiten,
-   und es klemmt den Zoom auf `0.08…1.6` bei einer Mindestausdehnung von 120.
-   Wir brauchen **seitenweise Ränder** (oben die schwebende Kopfzeile, unten
-   die Ecke mit Filter-Pille und Kamera-Knöpfen, beide am DOM gemessen) und
-   die Regel „nie über 1 vergrößern". Die Umrechnung Mitte ↔ Ursprung wäre
-   trivial; die Polster- und Klemm-Regeln sind es nicht.
-   *Vorschlag:* `fitCamera(rect, viewport, insets?)` — ein Rechteck statt
-   einer Punktwolke, Ränder je Seite statt eines festen Faktors, Zoomgrenzen
-   als Parameter. Dann fällt unsere Kamera-Rechnung weg.
+7. **~~Kamera~~ — nicht mehr benötigt.** Das Brett hatte eine eigene Kamera
+   (Zoom, Schwenken, Einpassen) im Muster der Graph-Ansicht, weil deren
+   Kamera nicht exportiert war; seit toolkit 0.1.7 ist sie es
+   (`fitCamera`, `focusCamera`, `interpolateCamera`, `GraphCamera` aus
+   `components/graph/index`). Inzwischen ist der Zoom wieder draußen: das
+   Brett ist eine normale scrollende Fläche wie Kanban und Kalender
+   (Spec 01 — „Was scrollt, ist der Inhalt"). Die Lücke besteht also nicht
+   mehr; falls je wieder eine Fläche mit Rändern eingepasst werden soll,
+   gilt der alte Einwand gegen `fitCamera` weiter (feste Polsterung 0.82,
+   Zoomklemme 0.08…1.6, Punktwolke statt Rechteck).
 8. **`GroupManager.createGroup` vergibt die Id selbst.** `MockConnector`
    schreibt `group-<zeit>` und nimmt keine Id entgegen. Ein Connector, der
    den MockConnector benutzt (siehe Lücke 9) kann eine vom Server oder von

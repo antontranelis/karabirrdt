@@ -125,43 +125,6 @@ export declare function altNachRls(brett: Partial<AltesBrett>, optionen?: Option
 export declare function rlsNachAlt(brett: Partial<RlsBrett>, mitglieder?: readonly { id: string; displayName?: string }[]): AltesBrett
 export declare function normalisiereRls(json: unknown, optionen?: Optionen): Promise<RlsBrett>
 
-export interface Kamera {
-  ox: number
-  oy: number
-  zoom: number
-}
-export interface Punkt {
-  x: number
-  y: number
-}
-export declare const KAMERA: { min: number; max: number; rand: number }
-export declare function kameraStart(): Kamera
-export declare function weltZuSchirm(p: Punkt, k: Kamera): Punkt
-export declare function schirmZuWelt(p: Punkt, k: Kamera): Punkt
-export declare function zoomeAmZeiger(k: Kamera, faktor: number, schirmX: number, schirmY: number): Kamera
-export declare function kameraSchwenken(k: Kamera, dx: number, dy: number): Kamera
-export declare function kameraBegrenzen(
-  k: Kamera,
-  breite: number,
-  hoehe: number,
-  flaecheBreite: number,
-  flaecheHoehe: number,
-  rand?: number | Raender,
-): Kamera
-export interface Raender {
-  oben?: number
-  unten?: number
-  links?: number
-  rechts?: number
-}
-export declare function kameraEinpassen(
-  breite: number,
-  hoehe: number,
-  flaecheBreite: number,
-  flaecheHoehe: number,
-  rand?: number | Raender,
-): Kamera
-
 export declare const GLOBAL: "global:"
 export declare const KANN_PRAEDIKAT: "assignedTo"
 export declare const LERNT_PRAEDIKAT: "wantsToLearn"

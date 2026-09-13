@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type { Group, Item, RelationRecord, User } from "@real-life-stack/data-interface"
 import { hasGroups } from "@real-life-stack/data-interface"
 import {
@@ -29,16 +29,14 @@ import {
   useItems,
   useMembers,
   useModuleFilteredItems,
-  useOptionalModuleHead,
   useRemoveMember,
   useUpdateGroup,
   useUpdateItem,
   type GroupDialogMode,
   type Workspace,
 } from "@real-life-stack/toolkit"
-import { Maximize2, Settings2, Sparkles, ZoomIn, ZoomOut } from "lucide-react"
+import { Settings2, Sparkles } from "lucide-react"
 import { KarabirrdtBoard } from "./board/karabirrdt-board"
-import type { FlaechenSteuerung } from "./board/kamera-flaeche"
 import { KartenDetail } from "./panels/karten-detail"
 import { ZielDetail } from "./panels/ziel-detail"
 import { PruefungPanel } from "./panels/pruefung-panel"
@@ -89,7 +87,6 @@ export default function App() {
   const [gruppenDialog, setGruppenDialog] = useState(false)
   const [spaceDialog, setSpaceDialog] = useState(false)
   const [dialogModus, setDialogModus] = useState<GroupDialogMode>({ type: "create" })
-  const kamera = useRef<FlaechenSteuerung>(null)
 
   useEffect(() => {
     if (!meldung) return
@@ -192,10 +189,13 @@ export default function App() {
         </NavbarEnd>
       </Navbar>
 
-      <AppShellMain inset={false}>
-        {/* Wie Karte und Graph: das Brett IST die Fläche, der Kopf schwebt
-            darüber. Was er verdeckt, zieht das Einpassen als Rand ab. */}
-        <ModuleFrame fill="bleed" panelFit="overlay">
+      <AppShellMain>
+        {/* Eine scrollende Fläche (Spec 01: „Was scrollt, ist der Inhalt"):
+            `fill="bleed"` gibt dem Brett die ganze Breite, die Vorgabe
+            `panelFit: "inset"` setzt den Kopf IN den Fluss und rückt die
+            Fläche neben dem offenen Panel ein. Ein schwebender Kopf läge
+            sonst auf dem, was gerade unter ihm durchscrollt. */}
+        <ModuleFrame fill="bleed">
           <FilterScope>
             <BrettModul
               ziele={ziele}
@@ -204,9 +204,7 @@ export default function App() {
               mitglieder={mitglieder}
               aktiv={aktiv}
               fadenVon={fadenVon}
-              brett={brett}
               ansicht={ansicht}
-              kamera={kamera}
               onAnsicht={setAnsicht}
               onKarte={(id) => void kartenKlick(id)}
               onZelle={(zielId, stufe) => (fadenVon ? setFadenVon(null) : setAnsicht({ art: "neu", zielId, stufe }))}
@@ -349,9 +347,7 @@ interface ModulProps {
   mitglieder: User[]
   aktiv: string | null
   fadenVon: string | null
-  brett: string
   ansicht: Ansicht
-  kamera: RefObject<FlaechenSteuerung | null>
   onAnsicht: (a: Ansicht) => void
   onKarte: (id: string) => void
   onZelle: (zielId: string, stufe: number) => void
@@ -372,9 +368,7 @@ function BrettModul({
   mitglieder,
   aktiv,
   fadenVon,
-  brett,
   ansicht,
-  kamera,
   onAnsicht,
   onKarte,
   onZelle,
@@ -382,7 +376,6 @@ function BrettModul({
   onVerschieben,
   onStartziele,
 }: ModulProps) {
-  const kopf = useOptionalModuleHead()
   const sichtbar = useModuleFilteredItems(karten)
   const tags = useMemo(() => {
     const alle = new Set<string>()
@@ -403,21 +396,6 @@ function BrettModul({
               onClick={() => onAnsicht(ansicht?.art === "pruefung" ? null : { art: "pruefung" })}
             >
               Prüfung
-            </Button>
-            {/* Die Modul-Aktionen oben rechts: `ModuleToolbar.trailingActions`
-                ist der dafür vorgesehene Platz. Einen eigenen Baustein für
-                Zoom-Knöpfe (wie ihn die Karte hat) gibt es in 0.1.6 nicht —
-                `components/map/index.d.ts` exportiert nur Adapter, `MapView`
-                und Marker. Darum die Knopf-Varianten des Toolkits, `outline`,
-                damit sie auf der schwebenden Leiste als Knöpfe lesbar sind. */}
-            <Button variant="outline" size="icon-sm" title="Verkleinern" aria-label="Verkleinern" onClick={() => kamera.current?.zoomen(1 / 1.25)}>
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon-sm" title="Vergrößern" aria-label="Vergrößern" onClick={() => kamera.current?.zoomen(1.25)}>
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon-sm" title="Einpassen" aria-label="Einpassen" onClick={() => kamera.current?.einpassen()}>
-              <Maximize2 className="h-4 w-4" />
             </Button>
           </>
         }
@@ -447,10 +425,6 @@ function BrettModul({
           mitglieder={mitglieder}
           aktiv={aktiv}
           fadenVon={fadenVon}
-          steuerung={kamera}
-          einpassenSchluessel={brett}
-          kopfElement={kopf?.element ?? null}
-          fussElement={kopf?.controlsElement ?? null}
           onKarte={onKarte}
           onZelle={onZelle}
           onZiel={onZiel}
