@@ -281,3 +281,29 @@ test("aus dem Namen eines Bretts wird eine freie Adresse", () => {
   assert.equal(freieKennung("2027", []), "2027");
   assert.ok(KENNUNG.test(freieKennung("Ein sehr langer Name, der über dreiundsechzig Zeichen hinausgeht und noch weiter", [])));
 });
+
+import { kameraBegrenzen } from "../modell.mjs";
+
+test("Begrenzen: nicht weiter hinaus als eingepasst, und das Brett bleibt in der Fläche", () => {
+  const fit = kameraEinpassen(1000, 500, 600, 400);
+  // weiter hinausgezoomt als eingepasst → zurück auf den Einpass-Zoom
+  const zuKlein = kameraBegrenzen({ ox: 0, oy: 0, zoom: fit.zoom / 2 }, 1000, 500, 600, 400);
+  assert.ok(Math.abs(zuKlein.zoom - fit.zoom) < 1e-9);
+  // eingepasst bleibt eingepasst (mittig)
+  assert.deepEqual(kameraBegrenzen(fit, 1000, 500, 600, 400), fit);
+  // hineingezoomt und nach rechts geschoben, bis links Leere wäre → linke Kante bleibt am Rand
+  const weg = kameraBegrenzen({ ox: 500, oy: 0, zoom: 1 }, 1000, 500, 600, 400);
+  assert.equal(weg.ox, 24, "linke Brettkante bleibt am linken Rand");
+  // nach links geschoben, bis rechts Leere wäre → rechte Kante bleibt am Rand
+  const weg2 = kameraBegrenzen({ ox: -900, oy: 0, zoom: 1 }, 1000, 500, 600, 400);
+  assert.equal(weg2.ox, 600 - 24 - 1000, "rechte Brettkante bleibt am rechten Rand");
+  // Achse, auf der das Brett kleiner als die Fläche ist, wird mittig gehalten
+  // senkrecht ist das Brett (500) höher als die nutzbare Fläche (352): oy=0 liegt im erlaubten Bereich und bleibt
+  assert.equal(weg.oy, 0);
+  // ist das Brett auf einer Achse kleiner als die Fläche, wird es dort mittig gehalten
+  const mittig = kameraBegrenzen({ ox: -999, oy: 0, zoom: 1 }, 100, 100, 600, 400);
+  assert.equal(mittig.ox, 24 + (600 - 48 - 100) / 2);
+  assert.equal(mittig.oy, 24 + (400 - 48 - 100) / 2);
+  // ohne Maße: unverändert
+  assert.deepEqual(kameraBegrenzen({ ox: 3, oy: 4, zoom: 1 }, 0, 0, 600, 400), { ox: 3, oy: 4, zoom: 1 });
+});

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react"
-import { kameraEinpassen, kameraSchwenken, kameraStart, zoomeAmZeiger, type Kamera, type Raender } from "../../../modell.mjs"
+import { kameraBegrenzen, kameraEinpassen, kameraSchwenken, kameraStart, zoomeAmZeiger, type Kamera, type Raender } from "../../../modell.mjs"
 
 export interface FlaechenSteuerung {
   /** Das ganze Brett mittig in die Fläche legen. */
@@ -43,6 +43,16 @@ export function KameraFlaeche({ breite, hoehe, ziehbarSelektor, steuerung, einpa
 
   const masse = useCallback(() => flaeche.current?.getBoundingClientRect() ?? null, [])
 
+  // Jede Kamerabewegung geht durch die Grenzen: nicht weiter hinaus als
+  // eingepasst, und das Brett bleibt in der Fläche.
+  const begrenzt = useCallback(
+    (k: Kamera) => {
+      const m = masse()
+      return m ? kameraBegrenzen(k, breite, hoehe, m.width, m.height, raender) : k
+    },
+    [breite, hoehe, masse, raender],
+  )
+
   const einpassen = useCallback(() => {
     const m = masse()
     if (!m) return
@@ -56,10 +66,10 @@ export function KameraFlaeche({ breite, hoehe, ziehbarSelektor, steuerung, einpa
       zoomen(faktor) {
         const m = masse()
         if (!m) return
-        setKamera((k) => zoomeAmZeiger(k, faktor, m.width / 2, m.height / 2))
+        setKamera((k) => begrenzt(zoomeAmZeiger(k, faktor, m.width / 2, m.height / 2)))
       },
     }),
-    [einpassen, masse],
+    [einpassen, masse, begrenzt],
   )
 
   // Einmal einpassen, sobald es etwas einzupassen gibt — und wieder, wenn das
@@ -82,11 +92,11 @@ export function KameraFlaeche({ breite, hoehe, ziehbarSelektor, steuerung, einpa
       e.preventDefault()
       const m = knoten.getBoundingClientRect()
       const faktor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))
-      setKamera((k) => zoomeAmZeiger(k, faktor, e.clientX - m.left, e.clientY - m.top))
+      setKamera((k) => begrenzt(zoomeAmZeiger(k, faktor, e.clientX - m.left, e.clientY - m.top)))
     }
     knoten.addEventListener("wheel", rad, { passive: false })
     return () => knoten.removeEventListener("wheel", rad)
-  }, [])
+  }, [begrenzt])
 
   const abstandUndMitte = () => {
     const [a, b] = [...zeiger.current.values()]
@@ -122,14 +132,14 @@ export function KameraFlaeche({ breite, hoehe, ziehbarSelektor, steuerung, einpa
           bewegt.current = true
           setKamera((c) => {
             const ziel = kneifen.current!.zoom * faktor
-            return zoomeAmZeiger(c, ziel / c.zoom, k.x, k.y)
+            return begrenzt(zoomeAmZeiger(c, ziel / c.zoom, k.x, k.y))
           })
           return
         }
         const dx = neu.x - alt.x
         const dy = neu.y - alt.y
         if (Math.abs(dx) + Math.abs(dy) > 0) bewegt.current = true
-        setKamera((c) => kameraSchwenken(c, dx, dy))
+        setKamera((c) => begrenzt(kameraSchwenken(c, dx, dy)))
       }}
       onPointerUp={(e) => {
         zeiger.current.delete(e.pointerId)

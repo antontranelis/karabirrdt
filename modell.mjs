@@ -413,6 +413,31 @@ export function zoomeAmZeiger(k, faktor, schirmX, schirmY) {
 export const kameraSchwenken = (k, dx, dy) => ({ ox: k.ox + dx, oy: k.oy + dy, zoom: k.zoom });
 
 /**
+ * Die Kamera in Grenzen halten: nicht weiter hinaus als eingepasst (in die
+ * Leere um das Brett gibt es nichts zu sehen), und beim Schwenken bleibt das
+ * Brett in der Fläche. Auf einer Achse, auf der das Brett kleiner als die
+ * Fläche ist, wird es mittig gehalten.
+ */
+export function kameraBegrenzen(k, breite, hoehe, flaecheBreite, flaecheHoehe, rand = KAMERA.rand) {
+  const r =
+    typeof rand === "number"
+      ? { oben: rand, unten: rand, links: rand, rechts: rand }
+      : { oben: 0, unten: 0, links: 0, rechts: 0, ...rand };
+  const nutzbarB = flaecheBreite - r.links - r.rechts;
+  const nutzbarH = flaecheHoehe - r.oben - r.unten;
+  if (!(breite > 0) || !(hoehe > 0) || !(nutzbarB > 0) || !(nutzbarH > 0)) return k;
+  const fit = kameraEinpassen(breite, hoehe, flaecheBreite, flaecheHoehe, rand);
+  const zoom = Math.max(fit.zoom, Math.min(KAMERA.max, k.zoom));
+  const achse = (o, inhalt, nutzbar, start) =>
+    inhalt <= nutzbar ? start + (nutzbar - inhalt) / 2 : Math.min(start, Math.max(start + nutzbar - inhalt, o));
+  return {
+    ox: achse(k.ox, breite * zoom, nutzbarB, r.links),
+    oy: achse(k.oy, hoehe * zoom, nutzbarH, r.oben),
+    zoom,
+  };
+}
+
+/**
  * Das ganze Brett mittig in die Fläche legen. Kleine Bretter werden nicht
  * aufgeblasen.
  *
