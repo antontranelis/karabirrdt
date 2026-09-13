@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { WebSocketServer } from "ws";
 import { Speicher, gueltigeKennung } from "./speicher.mjs";
-import { altNachRls, normalisiereRls } from "./modell.mjs";
+import { AUTOR, altNachRls, normalisiereRls } from "./modell.mjs";
 
 const PORT = Number(process.env.PORT ?? 8124);
 const HOST = process.env.HOST ?? "0.0.0.0";
@@ -168,7 +168,7 @@ function pruefeItem(doc, id) {
     ...doc,
     id,
     data: doc.data ?? {},
-    createdBy: typeof doc.createdBy === "string" ? doc.createdBy : "anonymous",
+    createdBy: typeof doc.createdBy === "string" && doc.createdBy ? doc.createdBy : AUTOR,
     createdAt: typeof doc.createdAt === "string" ? doc.createdAt : new Date().toISOString(),
   };
 }
@@ -180,7 +180,7 @@ function pruefeRelation(doc, id) {
   return {
     ...doc,
     id,
-    createdBy: typeof doc.createdBy === "string" ? doc.createdBy : "anonymous",
+    createdBy: typeof doc.createdBy === "string" && doc.createdBy ? doc.createdBy : AUTOR,
     createdAt: typeof doc.createdAt === "string" ? doc.createdAt : new Date().toISOString(),
   };
 }

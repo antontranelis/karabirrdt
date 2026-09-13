@@ -5,6 +5,18 @@ import { MASSE, phaseVonStufe, stufeVon, istErledigt, zieleSortiert } from "../.
 import { raster as bauRaster, zelleBei } from "./raster"
 import { ThreadsOverlay } from "./threads-overlay"
 
+/**
+ * Der Rand der ausgewählten Karte kommt aus `getActivePanelGlow`, und das
+ * versteht nur `#rrggbb` — eine CSS-Variable ergäbe dort lautlos gar keinen
+ * Rand. Darum die vier Phasenfarben hier zusätzlich als feste Werte.
+ */
+const PHASEN_HEX: Record<string, string> = {
+  dream: "#7c5cbf",
+  plan: "#2c7a76",
+  do: "#bd5f1c",
+  fete: "#b0355c",
+}
+
 interface Props {
   ziele: Item[]
   karten: Item[]
@@ -156,7 +168,7 @@ export function KarabirrdtBoard({ ziele, karten, faeden, aktiv, fadenVon, onKart
                   author={null}
                   density="compact"
                   active={aktiv === k.id}
-                  activeColor="var(--kb-phase)"
+                  activeColor={PHASEN_HEX[phase.key]}
                   onClick={() => onKarte(k.id)}
                   className={cn(
                     "h-full border-l-4 border-l-[var(--kb-phase)]",

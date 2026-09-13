@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import WebSocket from "ws";
 import { erstelleServer } from "../server.mjs";
 import { Speicher } from "../speicher.mjs";
-import { KARTEN_TYP, ZIEL_TYP, FADEN_PRAEDIKAT, ZUGEHOERIG_PRAEDIKAT, MODUL } from "../modell.mjs";
+import { AUTOR, KARTEN_TYP, ZIEL_TYP, FADEN_PRAEDIKAT, ZUGEHOERIG_PRAEDIKAT, MODUL } from "../modell.mjs";
 
 let server, basis, speicher;
 before(async () => {
@@ -119,6 +119,10 @@ test("ein altes Brett wird beim ersten RLS-Zugriff einmalig übersetzt", async (
   assert.equal(b.relations.length, 1);
   assert.equal(b.relations[0].from, "item:a");
   assert.equal(b.relations[0].to, "item:b");
+  // Eine einzige Kennung für alle: sonst hätte dieselbe Kante je nach
+  // Schreiber zwei Datensätze (Spec 08, Regel 4).
+  assert.equal(b.relations[0].createdBy, AUTOR);
+  assert.equal(b.items.find((i) => i.id === "b").createdBy, AUTOR);
 
   // einmalig: danach liegen die Daten wirklich da und ändern sich nicht mehr mit
   assert.ok(speicher.hatRls("t5"));
@@ -157,6 +161,11 @@ test("Änderungen erreichen die anderen Clients desselben Bretts", async () => {
   assert.equal(n.type, "reset");
   assert.deepEqual(n.data.items, []);
   ws.close();
+});
+
+test("ohne Autor schreibt der Server die gemeinsame Kennung", async () => {
+  await api("/api/b/t7/items/k1", { method: "PUT", body: JSON.stringify({ type: KARTEN_TYP, data: { title: "x" } }) });
+  assert.equal((await json("/api/b/t7/rls")).items[0].createdBy, AUTOR);
 });
 
 test("kaputte Eingaben werden abgewiesen", async () => {

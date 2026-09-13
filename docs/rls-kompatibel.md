@@ -134,6 +134,10 @@ umgangen.
   ohne `@source ".../toolkit/dist/**/*.js"` in der eigenen CSS fehlen alle
   Toolkit-Klassen und die App sieht unformatiert aus. Das ist die Falle, die
   am meisten Zeit kostet.
+- **Eine Autor-Kennung.** Die Id eines RelationRecords leitet sich aus
+  `(createdBy, predicate, from, to)` ab. Wer an zwei Stellen zwei Kennungen
+  benutzt (Server-Migration und App), bekommt zwei Datensätze für dieselbe
+  Kante. Darum steht `AUTOR` in `modell.mjs` und sonst nirgends.
 - **Genau pinnen.** `0.x` bewegt sich: toolkit `0.1.6`, data-interface `0.1.4`,
   mock-connector `0.1.4`, exakt ohne `^`.
 

@@ -7,7 +7,7 @@ import type {
   RelationRecordInput,
   RelationRecordUpdate,
 } from "@real-life-stack/data-interface"
-import { relationItemVonRecord, recordVonRelationItem, leeresRls } from "../../../modell.mjs"
+import { AUTOR, relationItemVonRecord, recordVonRelationItem, leeresRls } from "../../../modell.mjs"
 
 /**
  * Der Connector dieser App: ein `MockConnector` als Gedächtnis im Browser,
@@ -24,7 +24,7 @@ import { relationItemVonRecord, recordVonRelationItem, leeresRls } from "../../.
  */
 
 /** Die App kennt keine Anmeldung: wer das Brett offen hat, ist „am Tisch". */
-export const TISCH = { id: "did:karabirrdt:tisch", displayName: "Am Tisch" }
+export const TISCH = { id: AUTOR, displayName: "Am Tisch" }
 
 export interface BrettDaten {
   group: Group

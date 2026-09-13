@@ -25,6 +25,15 @@ export const FADEN_PRAEDIKAT = "blocks";
 export const ZUGEHOERIG_PRAEDIKAT = "partOf";
 export const MODUL = "karabirrdt";
 
+/**
+ * Die App kennt keine Anmeldung: wer das Brett offen hat, ist „am Tisch".
+ * Diese eine Kennung steht in jedem `createdBy` — auch in dem, was der Server
+ * bei der Migration schreibt. Sie muss überall dieselbe sein, weil sich die
+ * Kennung eines RelationRecords aus ihr ableitet (Spec 08, Regel 4): mit zwei
+ * Autoren entstünden zwei Fäden über denselben Endpunkten.
+ */
+export const AUTOR = "did:karabirrdt:tisch";
+
 export const PHASEN = [
   { name: "Träumen", key: "dream", stufen: ["Bewusstsein", "Motivation", "Information"] },
   { name: "Planen", key: "plan", stufen: ["Alternativen", "Strategie", "Testen"] },
@@ -264,7 +273,7 @@ export function leeresRls(brett = "haupt") {
 }
 
 /** Altes Brett `{meta, goals, tasks}` → `{group, items, relations}`. */
-export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = "anonymous", createdAt = new Date().toISOString(), brett = "haupt" } = {}) {
+export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = AUTOR, createdAt = new Date().toISOString(), brett = "haupt" } = {}) {
   const m = { name: text(meta?.name), dream: text(meta?.dream), horizon: text(meta?.horizon) };
   const items = [];
   for (const [id, g] of Object.entries(goals ?? {})) {

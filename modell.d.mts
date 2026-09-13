@@ -54,6 +54,7 @@ export declare const ZIEL_TYP: "project"
 export declare const FADEN_PRAEDIKAT: "blocks"
 export declare const ZUGEHOERIG_PRAEDIKAT: "partOf"
 export declare const MODUL: "karabirrdt"
+export declare const AUTOR: string
 export declare const PHASEN: Phase[]
 export declare const STUFEN: string[]
 export declare function phaseVonStufe(stufe: number): Phase
