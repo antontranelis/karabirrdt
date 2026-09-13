@@ -259,6 +259,17 @@ test("Einpassen legt das ganze Brett mittig in die Fläche", () => {
   assert.deepEqual(kameraEinpassen(0, 0, 800, 600), kameraStart());
 });
 
+test("Einpassen lässt Platz für das, was über der Fläche schwebt", () => {
+  // Unten liegen Filter-Pille und Kamera-Knöpfe: dort darf keine Karte landen.
+  const k = kameraEinpassen(1000, 1000, 800, 800, { oben: 0, unten: 200, links: 0, rechts: 0 });
+  assert.ok(k.zoom <= 600 / 1000 + 1e-9);
+  assert.ok(1000 * k.zoom + k.oy <= 600 + 1e-9, "das Brett endet über den Bedienelementen");
+  // Ein Rand links schiebt das Brett nach rechts.
+  const l = kameraEinpassen(100, 100, 800, 600, { links: 200 });
+  assert.equal(l.ox, 200 + (600 - 100) / 2);
+  assert.deepEqual(kameraEinpassen(100, 100, 100, 100, { links: 200 }), kameraStart());
+});
+
 import { KENNUNG, freieKennung } from "../modell.mjs";
 
 test("aus dem Namen eines Bretts wird eine freie Adresse", () => {

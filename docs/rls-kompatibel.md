@@ -53,7 +53,7 @@ liegen daneben in `modell.d.mts`.
 | `ConnectorProvider`, `AppShell`, `AppShellMain`, `Navbar` | Rahmen |
 | `WorkspaceSwitcher` + `GroupDialog` | Bretter wechseln, anlegen, umbenennen, löschen — ein Brett **ist** ein Space |
 | `UserMenu` | rechts in der Navbar, wie in der Reference-App |
-| `ModuleFrame` (`fill="bleed"`, `panelFit="overlay"`) | die Modulfläche: schwebender Kopf über der Fläche, wie Karte und Graph |
+| `ModuleFrame` (`fill="bleed"`) | die Modulfläche: Kopf im Fluss darüber, das Brett füllt den Rest |
 | `ModuleToolbar` + `FilterScope` + `useModuleFilteredItems` | Kopf des Moduls: Suche, Tag-Filter, Modul-Aktionen, Verbindungsstand |
 | `ModuleControls` | schwebende Ecke unten links: kleiner / größer / einpassen |
 | `ItemPreview` (`density="compact"`, `footerAdornment`) | **jede** Karte auf dem Brett |
@@ -141,7 +141,16 @@ umgangen.
    Typ-Signatur — man findet ihn nur im Quelltext.
    *Vorschlag:* `ModuleToolbar` intern in `FilterScope` wickeln; ein Kopf, der
    ohne unsichtbare Umgebung abstürzt, ist kein Baustein, sondern eine Falle.
-9. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
+9. **Die schwebende Ecke unten links hat nur einen Platz.** `ModuleFrame`
+   rendert dort die Filter-Pille; `ModuleControls` legt eine zweite
+   `PanelSafeArea` darüber — wer beides benutzt, stapelt seine Knöpfe auf die
+   Pille. Wir weichen mit `className="justify-end"` in die rechte Ecke aus.
+   *Vorschlag:* `ModuleControls` eine Seite mitgeben (`side="start" | "end"`,
+   Vorgabe `start`) und im Frame beides in EINE Zeile legen, damit sich zwei
+   Beiträge nebeneinander setzen statt übereinander. Außerdem fehlt eine
+   Angabe, wieviel Platz die Ecke belegt — das Einpassen einer Fläche muss
+   das heute schätzen (`SCHWEBEND` in `App.tsx`).
+10. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
    Mock-Connector ist speicherflüchtig, der Local-Connector einsam, Supabase
    und WoT bringen Identität mit. Diese App braucht dazwischen einen
    geteilten Raum ohne Konten — deshalb `ServerConnector`.
@@ -168,6 +177,13 @@ umgangen.
   ohne `@source ".../toolkit/dist/**/*.js"` in der eigenen CSS fehlen alle
   Toolkit-Klassen und die App sieht unformatiert aus. Das ist die Falle, die
   am meisten Zeit kostet.
+- **`panelFit="overlay"` nur, wenn die Fläche den Kopf verträgt.** Karte und
+  Graph vertragen einen schwebenden Kopf, weil unter ihm nur Landschaft liegt.
+  Ein Raster mit Spaltenköpfen verträgt ihn nicht: Text lag über Text. Die
+  Vorgabe (`panelFit: "inset"`) setzt den Kopf in den Fluss, mit eigenem
+  Grund — das ist hier die richtige Wahl. Und was danach noch schwebt
+  (Filter-Pille, Kamera-Knöpfe), muss das Einpassen als Rand abziehen, sonst
+  legt es Karten darunter.
 - **Module-Kopfzeilen gehören dem Toolkit.** In die Navbar kommt nur, was für
   die ganze App gilt (Space-Switch, Benutzer). Alles Modul-eigene —
   Aktionen, Suche, Filter, Verbindungsstand — geht über `ModuleToolbar` in

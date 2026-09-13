@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react"
-import { kameraEinpassen, kameraSchwenken, kameraStart, zoomeAmZeiger, type Kamera } from "../../../modell.mjs"
+import { kameraEinpassen, kameraSchwenken, kameraStart, zoomeAmZeiger, type Kamera, type Raender } from "../../../modell.mjs"
 
 export interface FlaechenSteuerung {
   /** Das ganze Brett mittig in die Fläche legen. */
@@ -17,6 +17,11 @@ interface Props {
   steuerung?: Ref<FlaechenSteuerung>
   /** Bei jedem Wechsel dieses Werts wird neu eingepasst. */
   einpassenSchluessel?: string
+  /**
+   * Was beim Einpassen frei bleiben muss, weil dort etwas über der Fläche
+   * schwebt — unten die Filter-Pille und die Kamera-Knöpfe.
+   */
+  raender?: Raender
   children: (kamera: Kamera, hatGeschwenkt: () => boolean) => ReactNode
 }
 
@@ -29,7 +34,7 @@ interface Props {
  * bleiben die Karten echte DOM-Elemente und HTML5-Drag&Drop trifft weiter
  * die richtigen Zellen, ohne dass irgendwo umgerechnet werden müsste.
  */
-export function KameraFlaeche({ breite, hoehe, ziehbarSelektor, steuerung, einpassenSchluessel, children }: Props) {
+export function KameraFlaeche({ breite, hoehe, ziehbarSelektor, steuerung, einpassenSchluessel, raender, children }: Props) {
   const flaeche = useRef<HTMLDivElement>(null)
   const [kamera, setKamera] = useState<Kamera>(kameraStart)
   const zeiger = useRef(new Map<number, { x: number; y: number }>())
@@ -41,8 +46,8 @@ export function KameraFlaeche({ breite, hoehe, ziehbarSelektor, steuerung, einpa
   const einpassen = useCallback(() => {
     const m = masse()
     if (!m) return
-    setKamera(kameraEinpassen(breite, hoehe, m.width, m.height))
-  }, [breite, hoehe, masse])
+    setKamera(kameraEinpassen(breite, hoehe, m.width, m.height, raender))
+  }, [breite, hoehe, masse, raender])
 
   useImperativeHandle(
     steuerung,

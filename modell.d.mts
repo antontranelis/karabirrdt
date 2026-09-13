@@ -134,10 +134,16 @@ export declare function weltZuSchirm(p: Punkt, k: Kamera): Punkt
 export declare function schirmZuWelt(p: Punkt, k: Kamera): Punkt
 export declare function zoomeAmZeiger(k: Kamera, faktor: number, schirmX: number, schirmY: number): Kamera
 export declare function kameraSchwenken(k: Kamera, dx: number, dy: number): Kamera
+export interface Raender {
+  oben?: number
+  unten?: number
+  links?: number
+  rechts?: number
+}
 export declare function kameraEinpassen(
   breite: number,
   hoehe: number,
   flaecheBreite: number,
   flaecheHoehe: number,
-  rand?: number,
+  rand?: number | Raender,
 ): Kamera

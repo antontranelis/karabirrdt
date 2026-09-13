@@ -412,9 +412,27 @@ export function zoomeAmZeiger(k, faktor, schirmX, schirmY) {
 
 export const kameraSchwenken = (k, dx, dy) => ({ ox: k.ox + dx, oy: k.oy + dy, zoom: k.zoom });
 
-/** Das ganze Brett mittig in die Fläche legen. Kleine Bretter werden nicht aufgeblasen. */
+/**
+ * Das ganze Brett mittig in die Fläche legen. Kleine Bretter werden nicht
+ * aufgeblasen.
+ *
+ * `rand` ist eine Zahl für alle vier Seiten oder ein Objekt je Seite. Die
+ * Seiten sind nötig, weil über der Fläche Dinge schweben, die kein Abstand
+ * des Bretts sind: unten die Filter-Pille und die Kamera-Knöpfe. Ohne sie
+ * einzurechnen legt das Einpassen Karten unter die Bedienelemente.
+ */
 export function kameraEinpassen(breite, hoehe, flaecheBreite, flaecheHoehe, rand = KAMERA.rand) {
-  if (!(breite > 0) || !(hoehe > 0) || !(flaecheBreite > 0) || !(flaecheHoehe > 0)) return kameraStart();
-  const zoom = klemme(Math.min(1, (flaecheBreite - 2 * rand) / breite, (flaecheHoehe - 2 * rand) / hoehe));
-  return { ox: (flaecheBreite - breite * zoom) / 2, oy: (flaecheHoehe - hoehe * zoom) / 2, zoom };
+  const r =
+    typeof rand === "number"
+      ? { oben: rand, unten: rand, links: rand, rechts: rand }
+      : { oben: 0, unten: 0, links: 0, rechts: 0, ...rand };
+  const nutzbarB = flaecheBreite - r.links - r.rechts;
+  const nutzbarH = flaecheHoehe - r.oben - r.unten;
+  if (!(breite > 0) || !(hoehe > 0) || !(nutzbarB > 0) || !(nutzbarH > 0)) return kameraStart();
+  const zoom = klemme(Math.min(1, nutzbarB / breite, nutzbarH / hoehe));
+  return {
+    ox: r.links + (nutzbarB - breite * zoom) / 2,
+    oy: r.oben + (nutzbarH - hoehe * zoom) / 2,
+    zoom,
+  };
 }

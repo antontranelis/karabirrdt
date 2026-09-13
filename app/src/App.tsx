@@ -56,6 +56,13 @@ import {
   zielVonKarte,
 } from "../../modell.mjs"
 
+/**
+ * Was beim Einpassen frei bleibt: unten die Schutzzone mit der Filter-Pille
+ * (links) und den Kamera-Knöpfen (rechts). Beides liegt in der `p-4`-Zone
+ * des `ModuleFrame`; 16px Polster plus eine Knopfreihe.
+ */
+const SCHWEBEND = { oben: 12, unten: 16 + 40 + 12, links: 12, rechts: 12 }
+
 type Ansicht =
   | { art: "karte"; id: string }
   | { art: "neu"; zielId: string; stufe: number }
@@ -199,8 +206,11 @@ export default function App({ aufZustand }: Props) {
         </NavbarEnd>
       </Navbar>
 
-      <AppShellMain inset={false}>
-        <ModuleFrame fill="bleed" panelFit="overlay">
+      <AppShellMain>
+        {/* `fill="bleed"`: das Brett IST die Fläche. Ohne `panelFit="overlay"`
+            steht der Kopf des Moduls IM Fluss darüber (mit eigenem Grund),
+            statt über den Phasenbändern zu schweben. */}
+        <ModuleFrame fill="bleed">
           {/* Die Steuerleiste des Moduls und das Brett teilen sich einen
               Filter: Was der Kopf zeigt, ist das, was die Fläche anwendet. */}
           <FilterScope>
@@ -405,6 +415,7 @@ function BrettModul({
           fadenVon={fadenVon}
           steuerung={kamera}
           einpassenSchluessel={brett}
+          raender={SCHWEBEND}
           onKarte={onKarte}
           onZelle={onZelle}
           onZiel={onZiel}
@@ -412,7 +423,7 @@ function BrettModul({
         />
       )}
 
-      <ModuleControls>
+      <ModuleControls className="justify-end">
         <div className="flex items-center gap-1 rounded-full border bg-card/90 p-1 shadow-sm backdrop-blur">
           <Button variant="ghost" size="icon-sm" title="Kleiner" onClick={() => kamera.current?.zoomen(1 / 1.25)}>
             <Minus className="h-4 w-4" />

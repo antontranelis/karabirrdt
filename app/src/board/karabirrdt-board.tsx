@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent, type PointerEvent, type Ref } from "react"
 import type { Item, RelationRecord } from "@real-life-stack/data-interface"
 import { ItemPreview, cn } from "@real-life-stack/toolkit"
-import { MASSE, phaseVonStufe, stufeVon, istErledigt, zieleSortiert, schirmZuWelt } from "../../../modell.mjs"
+import { MASSE, phaseVonStufe, stufeVon, istErledigt, zieleSortiert, schirmZuWelt, type Raender } from "../../../modell.mjs"
 import { raster as bauRaster, zelleBei } from "./raster"
 import { ThreadsOverlay } from "./threads-overlay"
 import { KameraFlaeche, type FlaechenSteuerung } from "./kamera-flaeche"
@@ -28,6 +28,8 @@ interface Props {
   steuerung?: Ref<FlaechenSteuerung>
   /** Wechselt mit dem Brett — danach wird neu eingepasst. */
   einpassenSchluessel?: string
+  /** Freiraum für die schwebenden Bedienelemente. */
+  raender?: Raender
   onKarte: (id: string) => void
   onZelle: (zielId: string, stufe: number) => void
   onZiel: (id: string) => void
@@ -42,6 +44,7 @@ export function KarabirrdtBoard({
   fadenVon,
   steuerung,
   einpassenSchluessel,
+  raender,
   onKarte,
   onZelle,
   onZiel,
@@ -66,6 +69,7 @@ export function KarabirrdtBoard({
       ziehbarSelektor="[data-karte]"
       steuerung={steuerung}
       einpassenSchluessel={einpassenSchluessel}
+      raender={raender}
     >
       {(kamera, hatGeschwenkt) => (
         <div ref={welt} className="relative" style={{ width: r.breite, height: r.hoehe }}>
