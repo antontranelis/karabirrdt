@@ -5,12 +5,25 @@ Zeilen, die zwölf Stufen von Träumen bis Feiern als Spalten, Karten in den
 Zellen und Fäden dazwischen. Alle, die dasselbe Brett offen haben, sehen
 Änderungen sofort.
 
+Es gibt die App zweimal: unter `/` die Fassung auf dem
+[Real Life Stack](https://github.com/real-life-org/real-life-stack)
+(React + Toolkit-Komponenten, Daten als Items und Relationen), unter `/alt`
+die ursprüngliche Seite aus einer Datei. Beide zeigen dasselbe Brett.
+Wie die Abbildung auf RLS aussieht, steht in
+[`docs/rls-kompatibel.md`](docs/rls-kompatibel.md).
+
 ## Starten
 
 ```bash
 npm install
+npm run setup      # Abhängigkeiten der App (app/)
+npm run build      # baut die App nach public/
 npm start          # http://localhost:8124
 ```
+
+Zum Entwickeln an der Oberfläche: `npm start` in einem Fenster,
+`npm run dev:app` in einem zweiten (Vite mit Hot Reload, leitet `/api` und
+`/ws` an den Server weiter).
 
 Die Daten liegen in einer SQLite-Datei unter `data/karabirrdt.sqlite`
 (Node 22 bringt SQLite mit, es gibt keine nativen Abhängigkeiten).
@@ -25,6 +38,16 @@ Die Daten liegen in einer SQLite-Datei unter `data/karabirrdt.sqlite`
 Jedes Brett hat eine eigene Adresse: `/` ist das Brett `haupt`, `/emil` das
 Brett `emil`. Kleinbuchstaben, Ziffern und Bindestriche. Über den Knopf
 „Brett“ in der Kopfzeile wechselt man oder legt ein neues an.
+
+## Aufbau
+
+```text
+server.mjs      HTTP + WebSocket, liefert public/ aus
+speicher.mjs    SQLite: alte Tabellen (für /alt) und die RLS-Tabellen
+modell.mjs      die Abbildung Brett ↔ RLS, die Regeln und die Geometrie
+app/            Vite + React + @real-life-stack/*, baut nach public/
+public/alt.html die ursprüngliche Seite, unverändert in Funktion
+```
 
 ## Bedienung
 
@@ -60,12 +83,21 @@ Basis-Anmeldung in Traefik davor ist deshalb nicht optional.
 | Aufruf | Wirkung |
 |---|---|
 | `GET /api/bretter` | Liste der Bretter |
-| `GET /api/b/<brett>` | ganzes Brett (`meta`, `goals`, `tasks`) |
+| `GET /api/b/<brett>/rls` | ganzes Brett als `group`, `items`, `relations` |
+| `PUT` / `DELETE /api/b/<brett>/items/<id>` | Item setzen oder löschen |
+| `PUT` / `DELETE /api/b/<brett>/relations/<id>` | RelationRecord setzen oder löschen |
+| `PUT /api/b/<brett>/group` | Group (Merge-Patch auf `data`, `null` löscht) |
+| `POST /api/b/<brett>/rls/import` | Brett ersetzen (altes **und** neues Format) |
+| `GET /api/b/<brett>` | ganzes Brett in der alten Form (`meta`, `goals`, `tasks`) |
 | `PUT /api/b/<brett>/meta` | Name, Traumsatz, Horizont |
 | `PUT` / `DELETE /api/b/<brett>/goals/<id>` | Ziel setzen oder löschen |
 | `PUT` / `DELETE /api/b/<brett>/tasks/<id>` | Karte setzen oder löschen |
 | `POST /api/b/<brett>/import` | Brett komplett ersetzen |
-| `ws://…/ws/<brett>` | Änderungen live: `{type: meta\|goal\|task\|reset, id, data}` |
+| `ws://…/ws/<brett>` | Änderungen live: `{type: item\|relation\|group\|reset, id, data}` — und für `/alt` weiterhin `meta\|goal\|task` |
+
+Der erste Aufruf von `/rls` auf einem alten Brett übersetzt es einmalig:
+Ziel → `project`-Item, Karte → `task`-Item, Abhängigkeit → RelationRecord.
+Danach ist die RLS-Form die Wahrheit; die alten Endpunkte bedienen `/alt`.
 
 Letzter Schreiber gewinnt. Ein Brett ist Kilobytes groß, Konflikte sind bei
 einer Gruppe am Tisch praktisch keine.
@@ -73,5 +105,9 @@ einer Gruppe am Tisch praktisch keine.
 ## Tests
 
 ```bash
-npm test
+npm test           # Speicher, API, Datenmodell (node --test)
+npm run typecheck  # TypeScript der App
 ```
+
+`npm test` prüft auch, dass `/` die gebaute App ausliefert — dafür muss
+einmal `npm run build` gelaufen sein.

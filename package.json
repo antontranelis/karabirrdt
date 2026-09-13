@@ -10,7 +10,11 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "setup": "npm --prefix app install",
+    "build": "npm --prefix app run build",
+    "typecheck": "npm --prefix app run typecheck",
+    "dev:app": "npm --prefix app run dev"
   },
   "dependencies": {
     "ws": "^8.18.0"
