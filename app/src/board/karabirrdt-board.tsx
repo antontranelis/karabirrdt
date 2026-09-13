@@ -71,14 +71,19 @@ export function KarabirrdtBoard({
   // Kommentarzähler wird eine Karte höher. Also messen statt raten.
   const [hoehen, setHoehen] = useState<Record<string, number>>({})
   const beobachter = useRef<ResizeObserver | null>(null)
-  useEffect(() => {
-    if (typeof ResizeObserver === "undefined") return
+  // Der Beobachter entsteht beim ersten Messen, nicht in einem Effect: Die
+  // ref-Callbacks der Karten laufen VOR den Effects des ersten Renderns, ein
+  // dort angelegter Beobachter hätte die ersten Karten nie gesehen.
+  const holeBeobachter = useCallback(() => {
+    if (beobachter.current || typeof ResizeObserver === "undefined") return beobachter.current
     const o = new ResizeObserver((eintraege) => {
       setHoehen((alt) => {
         let neu = alt
         for (const e of eintraege) {
           const id = (e.target as HTMLElement).dataset.itemId
-          const h = Math.round(e.contentRect.height)
+          // Außenhöhe, nicht contentRect: Rahmen und Innenabstand der Karte
+          // zählen mit, sonst rutscht die nächste Karte in den Mindestabstand.
+          const h = Math.round(e.borderBoxSize?.[0]?.blockSize ?? (e.target as HTMLElement).getBoundingClientRect().height)
           if (!id || !h || alt[id] === h) continue
           if (neu === alt) neu = { ...alt }
           neu[id] = h
@@ -87,14 +92,21 @@ export function KarabirrdtBoard({
       })
     })
     beobachter.current = o
-    return () => {
-      o.disconnect()
+    return o
+  }, [])
+  useEffect(
+    () => () => {
+      beobachter.current?.disconnect()
       beobachter.current = null
-    }
-  }, [])
-  const messen = useCallback((el: HTMLDivElement | null) => {
-    if (el) beobachter.current?.observe(el)
-  }, [])
+    },
+    [],
+  )
+  const messen = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (el) holeBeobachter()?.observe(el)
+    },
+    [holeBeobachter],
+  )
 
   const r = bauRaster(sortiert, karten, hoehen)
 

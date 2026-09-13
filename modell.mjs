@@ -171,11 +171,11 @@ export function verschiebenFehler(karten, relations, id, neueStufe) {
 export const MASSE = {
   start: 46,
   label: 260,
-  colW: 292,
+  colW: 308, // 276 Karte + 16 Luft je Seite: Karten nebeneinander kleben nicht
   cardW: 276,
   cardH: 96,
-  gap: 8,
-  rowPad: 16,
+  gap: 16, // Mindestabstand zwischen gestapelten Karten in einer Zelle
+  rowPad: 20,
   head: 76,
   end: 46,
 };
