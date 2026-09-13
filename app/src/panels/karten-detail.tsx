@@ -5,10 +5,13 @@ import {
   DeleteConfirmDialog,
   ItemComposer,
   ItemDetailPanel,
+  ItemPreview,
+  Label,
+  Separator,
   useDeleteItem,
   useUpdateItem,
 } from "@real-life-stack/toolkit"
-import { KARTEN_VORLAGE, LERNT_VORLAGE, WIDGETS, karteMapper, karteVorbelegung, lerntMapper, useMitgliederOptionen } from "../content-types"
+import { KARTEN_VORLAGE, LERNT_VORLAGE, karteMapper, karteVorbelegung, lerntMapper, useComposerProps } from "../content-types"
 import { LERNT_PRAEDIKAT, stufeVon, istErledigt, ohnePraefix, zielVonKarte, zugewiesen } from "../../../modell.mjs"
 
 interface Props {
@@ -42,12 +45,11 @@ export function KartenDetail({
   onGeschlossen,
 }: Props) {
   const { mutate: aendere } = useUpdateItem()
-  const personen = useMitgliederOptionen()
+  const composerProps = useComposerProps()
   const { mutate: loesche } = useDeleteItem()
   const [loeschenOffen, setLoeschenOffen] = useState(false)
 
   const ziel = ziele.find((z) => z.id === zielVonKarte(karte))
-  const titel = (id: string) => String(karten.find((k) => k.id === id)?.data?.title ?? "gelöschte Karte")
   const hinein = faeden.filter((f) => ohnePraefix(f.to) === karte.id)
   const hinaus = faeden.filter((f) => ohnePraefix(f.from) === karte.id)
 
@@ -63,7 +65,7 @@ export function KartenDetail({
           existingItem={karte}
           initialData={karteVorbelegung(karte)}
           mapper={karteMapper({ zielId: ziel?.id ?? "", stufe: stufeVon(karte), order: Number(karte.data?.order) || 0 })}
-          composerProps={{ widgets: WIDGETS, peopleOptions: personen }}
+          composerProps={composerProps}
           onDone={() => {}}
           onCancel={onGeschlossen}
         />
@@ -79,14 +81,16 @@ export function KartenDetail({
           existingItem={karte}
           initialData={{ people: zugewiesen(karte, LERNT_PRAEDIKAT) }}
           mapper={lerntMapper}
-          composerProps={{ peopleOptions: personen, liveUpdate: true }}
+          composerProps={{ ...composerProps, liveUpdate: true }}
           onDone={() => {}}
           onCancel={() => {}}
         />
 
-        <section className="space-y-1">
-          <h3 className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Voraussetzungen (Fäden hinein)</h3>
-          <FadenListe faeden={hinein} seite="from" titel={titel} onOeffnen={onNachbarKarte} onLoesen={onFadenLoesen} />
+        <Separator />
+
+        <section className="space-y-2">
+          <Label>Voraussetzungen</Label>
+          <FadenListe faeden={hinein} seite="from" karten={karten} onOeffnen={onNachbarKarte} onLoesen={onFadenLoesen} />
           {fadenSchreibbar && (
             <Button size="sm" variant="outline" onClick={onFadenSuchen}>
               Voraussetzung hinzufügen
@@ -94,9 +98,9 @@ export function KartenDetail({
           )}
         </section>
 
-        <section className="space-y-1">
-          <h3 className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Was danach kommt (Fäden hinaus)</h3>
-          <FadenListe faeden={hinaus} seite="to" titel={titel} onOeffnen={onNachbarKarte} onLoesen={onFadenLoesen} />
+        <section className="space-y-2">
+          <Label>Was danach kommt</Label>
+          <FadenListe faeden={hinaus} seite="to" karten={karten} onOeffnen={onNachbarKarte} onLoesen={onFadenLoesen} />
         </section>
 
         <div className="flex flex-wrap gap-2 pt-2">
@@ -130,36 +134,42 @@ export function KartenDetail({
   )
 }
 
+/** Die Fäden als Karten — dieselbe `ItemPreview` wie überall, kein eigener Stil. */
 function FadenListe({
   faeden,
   seite,
-  titel,
+  karten,
   onOeffnen,
   onLoesen,
 }: {
   faeden: RelationRecord[]
   seite: "from" | "to"
-  titel: (id: string) => string
+  karten: Item[]
   onOeffnen: (id: string) => void
   onLoesen: (id: string) => void
 }) {
-  if (!faeden.length)
-    return <p className="text-sm text-muted-foreground">{seite === "from" ? "Keine. Hängt am Start." : "Keine. Läuft zum Ziel."}</p>
+  if (!faeden.length) return null
   return (
-    <ul className="divide-y">
+    <div className="space-y-2">
       {faeden.map((f) => {
         const anderer = ohnePraefix(seite === "from" ? f.from : f.to)
+        const item = karten.find((k) => k.id === anderer)
+        if (!item) return null
         return (
-          <li key={f.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
-            <button type="button" className="flex-1 text-left hover:underline" onClick={() => onOeffnen(anderer)}>
-              {titel(anderer)}
-            </button>
-            <Button size="sm" variant="ghost" title="Faden lösen" onClick={() => onLoesen(f.id)}>
-              ×
-            </Button>
-          </li>
+          <ItemPreview
+            key={f.id}
+            item={item}
+            author={null}
+            density="compact"
+            onClick={() => onOeffnen(anderer)}
+            actions={
+              <Button size="icon-sm" variant="ghost" title="Faden lösen" onClick={(e) => { e.stopPropagation(); onLoesen(f.id) }}>
+                ×
+              </Button>
+            }
+          />
         )
       })}
-    </ul>
+    </div>
   )
 }

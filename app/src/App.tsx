@@ -48,7 +48,7 @@ import { SpaceDialog } from "./panels/space-dialog"
 import { useFaeden } from "./faeden"
 import { STARTZIELE } from "./startziele"
 import { TISCH } from "./connector/server-connector"
-import { KARTEN_VORLAGE, WIDGETS, ZIEL_VORLAGE, karteMapper, useMitgliederOptionen, zielMapper } from "./content-types"
+import { KARTEN_VORLAGE, ZIEL_VORLAGE, karteMapper, useComposerProps, zielMapper } from "./content-types"
 import {
   KARTEN_TYP,
   VOCAB,
@@ -267,7 +267,6 @@ export default function App({ aufZustand }: Props) {
         {offenesZiel && (
           <ZielDetail
             ziel={offenesZiel}
-            karten={karten.filter((k) => zielVonKarte(k) === offenesZiel.id).length}
             onLoeschen={async () => {
               for (const k of karten.filter((k) => zielVonKarte(k) === offenesZiel.id)) await karteLoeschen(k.id)
             }}
@@ -339,7 +338,7 @@ function Anlegen({
   onFertig: (item: Item) => void
   onAbbruch: () => void
 }) {
-  const personen = useMitgliederOptionen()
+  const composerProps = useComposerProps()
   const karte = karteMapper({ zielId, stufe, order: Date.now() })
   const ziel = zielMapper(Date.now())
   return (
@@ -349,7 +348,7 @@ function Anlegen({
         initialContentType={KARTEN_VORLAGE.id}
         initialData={{ status: "open" }}
         mapper={(eingabe, ctx) => (eingabe.contentType === ZIEL_TYP ? ziel(eingabe, ctx) : karte(eingabe, ctx))}
-        composerProps={{ widgets: WIDGETS, peopleOptions: personen }}
+        composerProps={composerProps}
         onDone={onFertig}
         onCancel={onAbbruch}
       />

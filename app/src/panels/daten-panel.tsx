@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { Group, Item, RelationRecord } from "@real-life-stack/data-interface"
-import { Button, Textarea } from "@real-life-stack/toolkit"
+import { Button, Label, Textarea } from "@real-life-stack/toolkit"
 import { importiereBrett } from "../connector/server-connector"
 import { rlsNachAlt } from "../../../modell.mjs"
 
@@ -24,10 +24,6 @@ export function DatenPanel({ brett, group, items, relations }: Props) {
 
   return (
     <div className="space-y-3 p-4">
-      <h2 className="text-lg font-semibold">Daten</h2>
-      <p className="text-sm text-muted-foreground">
-        Zum Sichern oder Weitergeben: JSON kopieren. Einfügen ersetzt das ganze Brett.
-      </p>
       <Textarea rows={12} className="font-mono text-xs" value={text} onChange={(e) => setText(e.target.value)} />
       <div className="flex flex-wrap gap-2">
         <Button
@@ -54,7 +50,7 @@ export function DatenPanel({ brett, group, items, relations }: Props) {
       </div>
 
       <label className="block space-y-1">
-        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Aus Datei laden</span>
+        <Label>Aus Datei laden</Label>
         <input
           type="file"
           accept="application/json,.json"
@@ -74,7 +70,6 @@ export function DatenPanel({ brett, group, items, relations }: Props) {
           }}
         />
       </label>
-      <p className="text-xs text-muted-foreground">Die Datei landet erst im Textfeld. Ersetzt wird erst mit dem roten Knopf.</p>
 
       <Button
         variant="destructive"

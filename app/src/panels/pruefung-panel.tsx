@@ -1,5 +1,5 @@
 import type { Item, RelationRecord } from "@real-life-stack/data-interface"
-import { cn } from "@real-life-stack/toolkit"
+import { Label, Separator, cn } from "@real-life-stack/toolkit"
 import { KANN_PRAEDIKAT, LERNT_PRAEDIKAT, PHASEN, istErledigt, ohnePraefix, stufeVon, zieleSortiert, zielVonKarte, zugewiesen } from "../../../modell.mjs"
 
 interface Props {
@@ -25,7 +25,6 @@ export function PruefungPanel({ ziele, karten, faeden }: Props) {
 
   return (
     <div className="space-y-4 p-4">
-      <h2 className="text-lg font-semibold">Prüfung</h2>
       <div className="flex gap-5 font-mono text-sm">
         <Zahl wert={karten.length} was="Karten" />
         <Zahl wert={fertig} was="erledigt" />
@@ -45,9 +44,6 @@ export function PruefungPanel({ ziele, karten, faeden }: Props) {
             <ZielZeile key={z.id} ziel={z} karten={karten} />
           ))}
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Ein Strich heißt: diese Phase hat für das Ziel noch keine Karte. Feiern und Träumen fehlen erfahrungsgemäß zuerst.
-        </p>
       </Abschnitt>
 
       <Abschnitt titel="Ohne Namen">
@@ -56,9 +52,6 @@ export function PruefungPanel({ ziele, karten, faeden }: Props) {
 
       <Abschnitt titel="Ohne Fäden">
         <Liste eintraege={ohneFaden.map((k) => String(k.data?.title ?? ""))} warnen />
-        <p className="mt-1 text-xs text-muted-foreground">
-          Karten, die nur an Start und Ziel hängen. Gehört wirklich nichts davor oder danach?
-        </p>
       </Abschnitt>
 
       <Abschnitt titel="Hebelpunkte">
@@ -76,8 +69,9 @@ const Zahl = ({ wert, was }: { wert: number; was: string }) => (
 )
 
 const Abschnitt = ({ titel, children }: { titel: string; children: React.ReactNode }) => (
-  <section className="border-t pt-3">
-    <h3 className="mb-1 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{titel}</h3>
+  <section className="space-y-2">
+    <Separator />
+    <Label>{titel}</Label>
     {children}
   </section>
 )

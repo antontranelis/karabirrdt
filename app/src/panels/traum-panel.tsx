@@ -1,5 +1,5 @@
 import type { Group } from "@real-life-stack/data-interface"
-import { Input, Textarea, useUpdateGroup } from "@real-life-stack/toolkit"
+import { Input, Label, Textarea, useUpdateGroup } from "@real-life-stack/toolkit"
 
 /**
  * Traumsatz und Traumhorizont. Sie gehören dem Brett, nicht der App-Leiste:
@@ -15,14 +15,9 @@ export function TraumPanel({ group }: { group: Group | null }) {
 
   return (
     <div className="space-y-4 p-4">
-      <h2 className="text-lg font-semibold">Der Traum</h2>
-      <p className="text-sm text-muted-foreground">
-        Der Satz aus dem Traumkreis und der Zeitpunkt, zu dem er wahr sein soll. Beides gehört zum Brett — den Namen
-        änderst du im Space-Menü oben links.
-      </p>
 
       <label className="block space-y-1">
-        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Traumsatz</span>
+        <Label>Traumsatz</Label>
         <Textarea
           rows={3}
           className="italic"
@@ -34,7 +29,7 @@ export function TraumPanel({ group }: { group: Group | null }) {
       </label>
 
       <label className="block space-y-1">
-        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Traumhorizont</span>
+        <Label>Traumhorizont</Label>
         <Input
           placeholder="September 2027"
           key={`h-${String(daten.horizon ?? "")}`}

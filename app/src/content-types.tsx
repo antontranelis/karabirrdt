@@ -1,8 +1,11 @@
+import { useMemo } from "react"
 import { GraduationCap, ListTodo, Target, Timer } from "lucide-react"
 import {
   Input,
+  Label,
   cn,
   useCurrentGroup,
+  useItems,
   useMembers,
   type ContentTypeConfig,
   type CustomWidgetDefinition,
@@ -36,6 +39,32 @@ export function useMitgliederOptionen(): PersonOption[] {
   return data.map((u) => ({ id: u.id, name: u.displayName || u.id }))
 }
 
+/**
+ * Die Laufzeit-Verdrahtung, die jeder Composer dieser App braucht: eigene
+ * Widgets, die Mitglieder als Auswahl UND als Schnellvorschläge unter dem
+ * Feld, die Tags des Spaces ebenso. Alles vorgesehene Props des
+ * `ContentComposer` — hier nur befüllt, nirgends nachgebaut.
+ */
+export function useComposerProps() {
+  const personen = useMitgliederOptionen()
+  const { data: alle } = useItems()
+  const tags = useMemo(() => {
+    const menge = new Set<string>()
+    for (const i of alle) for (const t of i.tags ?? []) menge.add(t)
+    return [...menge].sort()
+  }, [alle])
+  return useMemo(
+    () => ({
+      widgets: WIDGETS,
+      peopleOptions: personen,
+      peopleQuickSuggestions: personen,
+      tagSuggestions: tags,
+      tagQuickSuggestions: tags,
+    }),
+    [personen, tags],
+  )
+}
+
 const alsListe = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : [])
 
 export interface Aufwand {
@@ -51,14 +80,14 @@ function AufwandWidget({ value, onChange, label }: WidgetComponentProps<unknown>
   const a = alsAufwand(value)
   return (
     <div className="space-y-2">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <Label>{label}</Label>
       <div className="flex gap-2">
         <label className="flex-1 space-y-1">
-          <span className="text-xs text-muted-foreground">Stunden</span>
+          <Label>Stunden</Label>
           <Input type="number" min={0} step={1} value={a.hours} onChange={(e) => onChange({ ...a, hours: Math.max(0, Number(e.target.value) || 0) })} />
         </label>
         <label className="flex-1 space-y-1">
-          <span className="text-xs text-muted-foreground">Euro</span>
+          <Label>Euro</Label>
           <Input type="number" min={0} step={10} value={a.euros} onChange={(e) => onChange({ ...a, euros: Math.max(0, Number(e.target.value) || 0) })} />
         </label>
       </div>
@@ -71,7 +100,7 @@ function PunkteWidget({ value, onChange, label }: WidgetComponentProps<unknown>)
   const n = Number(value) || 0
   return (
     <div className="space-y-2">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <Label>{label}</Label>
       <div className="flex items-center gap-2">
         <Input
           className="w-20 text-center font-mono"
@@ -96,7 +125,7 @@ export const KARTEN_VORLAGE: ContentTypeConfig = {
   id: KARTEN_TYP,
   label: "Karte",
   icon: ListTodo,
-  defaultWidgets: ["title", "text", "status", "people", "aufwand"],
+  defaultWidgets: ["title", "text", "status", "people", "aufwand", "tags"],
   widgetLabels: { title: "Aufgabe", text: "Notiz", status: "Stand", people: "Kann ich", aufwand: "Aufwand" },
   peopleRelation: { predicate: KANN_PRAEDIKAT },
   statusOptions: [
@@ -140,7 +169,7 @@ export const ZIEL_VORLAGE: ContentTypeConfig = {
   id: ZIEL_TYP,
   label: "Ziel",
   icon: Target,
-  defaultWidgets: ["title", "text", "punkte"],
+  defaultWidgets: ["title", "text", "punkte", "tags"],
   widgetLabels: { title: "Ziel", text: "Beschreibung", punkte: "Punkte" },
   submitLabel: "Ziel anlegen",
   editLabel: "Speichern",
