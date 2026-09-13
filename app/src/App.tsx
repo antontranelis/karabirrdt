@@ -195,7 +195,7 @@ export default function App() {
             `panelFit: "inset"` setzt den Kopf IN den Fluss und rückt die
             Fläche neben dem offenen Panel ein. Ein schwebender Kopf läge
             sonst auf dem, was gerade unter ihm durchscrollt. */}
-        <ModuleFrame fill="bleed">
+        <ModuleFrame fill="bleed" maxWidth="max-w-none">
           <FilterScope>
             <BrettModul
               ziele={ziele}
