@@ -537,8 +537,12 @@ function renderData(side){
   side.innerHTML=`<h2>Daten</h2><p class="muted">Zum Sichern oder Weitergeben: JSON kopieren. Einfügen ersetzt das ganze Brett.</p>
     <textarea id="dJson" rows="10" style="font-family:'IBM Plex Mono',monospace;font-size:11.5px"></textarea>
     <div class="row" style="margin-top:8px"><button id="dCopy">In Zwischenablage</button><a id="dSave" class="btnlink" download="karabirrdt-${BRETT}.json">Als Datei speichern</a></div>
-    <div class="row" style="margin-top:8px"><button id="dImport" class="danger">Einfügen und ersetzen</button><button id="dBack" class="ghost">Zurück</button></div>`;
+    <label class="f">Aus Datei laden</label>
+    <input id="dFile" type="file" accept="application/json,.json">
+    <div class="muted" style="font-size:12.5px;margin-top:4px">Die Datei landet erst im Textfeld. Ersetzt wird erst mit dem roten Knopf.</div>
+    <div class="row" style="margin-top:12px"><button id="dImport" class="danger">Einfügen und ersetzen</button><button id="dBack" class="ghost">Zurück</button></div>`;
   const ta=$('dJson'); ta.value=JSON.stringify(localSnapshot(),null,1);
+  $('dFile').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ta.value=String(r.result||'');try{JSON.parse(ta.value);toast('Datei geladen. Jetzt „Einfügen und ersetzen“.');}catch(x){toast('Die Datei ist kein gültiges JSON.');}}; r.readAsText(f);});
   $('dCopy').onclick=async()=>{try{await navigator.clipboard.writeText(ta.value);toast('Kopiert.');}catch(e){ta.select();toast('Bitte manuell kopieren (Strg+C).');}};
   $('dImport').onclick=()=>{let j;try{j=JSON.parse(ta.value);if(!j||typeof j!=='object')throw 0;}catch(e){toast('Das ist kein gültiges JSON.');return;} armed($('dImport'),'Brett wirklich ersetzen?',()=>{
     state.meta=Object.assign({name:'',dream:'',horizon:''},j.meta||{}); state.goals=j.goals||{}; state.tasks=j.tasks||{};

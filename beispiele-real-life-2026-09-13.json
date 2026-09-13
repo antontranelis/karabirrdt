@@ -1,0 +1,589 @@
+{
+ "meta": {
+  "name": "Real Life Projekt",
+  "dream": "",
+  "horizon": "September 2027"
+ },
+ "goals": {
+  "0izijb9a": {
+   "dots": 4,
+   "order": 4,
+   "title": "Ein Ökosystem, in dem Entwickler, Vibe-Coder und KI-Agenten laufend Module entwickeln, testen und verbessern.",
+   "id": "0izijb9a"
+  },
+  "857ipxmg": {
+   "dots": 2,
+   "order": 7,
+   "title": "Onboarding: Ein sich selbst verstärkender Onboarding- und Kooperations-Prozess, der die Menschen so begeistert, dass sie unsere Werkzeuge in ihrem Sinne nutzen und von sich aus weitertragen.",
+   "id": "857ipxmg"
+  },
+  "gdiumexq": {
+   "dots": 0,
+   "order": 1,
+   "title": "Übersicht Arbeitskreise: Die Arbeitskreise sind als variable Module auf einem Board zu sehen, inklusive aller wesentlichen Informationen.",
+   "id": "gdiumexq"
+  },
+  "r5z56gnt": {
+   "dots": 0,
+   "order": 5,
+   "title": "Medien: Ein Portfolio aus unterschiedlichen Medien, die mit unserer Vision, Konzepten und Werkzeugen gezielt verschiedene Zielgruppen ansprechen.",
+   "id": "r5z56gnt"
+  },
+  "rcgksu0s": {
+   "dots": 5,
+   "order": 2,
+   "title": "Wirtschaftliche Tragfähigkeit: Wir teilen unsere Bedarfe und Ressourcen und entwickeln gemeinsame Versorgungsmodelle, die unsere Netzwerke tragen, mit und ohne Geld.",
+   "id": "rcgksu0s"
+  },
+  "tif0wc3e": {
+   "dots": 3,
+   "order": 6,
+   "title": "Interoperabilität: Klare und gut dokumentierte Schnittstellen, Bibliotheken und offene Standards erlauben es anderen Apps, Entwicklern und Netzwerken, sich an unser Ökosystem anzudocken.",
+   "id": "tif0wc3e"
+  },
+  "tlva3g8r": {
+   "dots": 1,
+   "order": 3,
+   "title": "App: Eine vollständige und funktionierende App für alle Plattformen auf Basis eines vollständigen UI/UX-Konzepts.",
+   "id": "tlva3g8r"
+  },
+  "weg2s7m1": {
+   "dots": 6,
+   "order": 0,
+   "title": "Team-Organisation: Aus einem Dokument heraus ist der Ablauf aller Team-Prozesse klar definiert.",
+   "id": "weg2s7m1"
+  }
+ },
+ "tasks": {
+  "0o1w80f3": {
+   "id": "0o1w80f3",
+   "title": "Liste erstellen: Was brauchen Devs, Vibe-Coder und AIs um unseren Stack zu verwenden?",
+   "goal": "0izijb9a",
+   "stage": 2,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "v2bxybk4"
+   ],
+   "note": "",
+   "order": 1789229477103
+  },
+  "0y0ib6gz": {
+   "id": "0y0ib6gz",
+   "title": "Liste aller Organisationsfragen erstellen",
+   "goal": "weg2s7m1",
+   "stage": 2,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "h42df21i"
+   ],
+   "note": "",
+   "order": 1789226600482
+  },
+  "19c456b6": {
+   "id": "19c456b6",
+   "title": "Brainstorming Versorgungsmodelle",
+   "goal": "rcgksu0s",
+   "stage": 0,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "u1p714lt"
+   ],
+   "note": "",
+   "order": 1789227611593
+  },
+  "3jecgiwd": {
+   "id": "3jecgiwd",
+   "title": "Liste von Ressourcen und Bedarfen",
+   "goal": "rcgksu0s",
+   "stage": 2,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "u1p714lt"
+   ],
+   "note": "",
+   "order": 1789227551839
+  },
+  "3nifkbc1": {
+   "id": "3nifkbc1",
+   "title": "Jeder ist gut versorgt",
+   "goal": "rcgksu0s",
+   "stage": 9,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "mw0koci0",
+    "xg8gj16g",
+    "th05f2am"
+   ],
+   "note": "",
+   "order": 1789219287559
+  },
+  "48q4rlqu": {
+   "id": "48q4rlqu",
+   "title": "Real Life Auswerungs Meeting im Sommer 2027",
+   "goal": "weg2s7m1",
+   "stage": 11,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "99iqemkd",
+    "ojywweet",
+    "pgqljkqn"
+   ],
+   "note": "",
+   "order": 1789230326075
+  },
+  "5d3ojuqe": {
+   "id": "5d3ojuqe",
+   "title": "Allen Contributoren Badges / Attestations geben (gegenseitig)",
+   "goal": "0izijb9a",
+   "stage": 9,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "crfsmwdb",
+    "yexe7pgw",
+    "kixwhyte"
+   ],
+   "note": "",
+   "order": 1789230183531
+  },
+  "5kzwjuco": {
+   "id": "5kzwjuco",
+   "title": "Support und Bugfixing Prozess aufbauen",
+   "goal": "0izijb9a",
+   "stage": 7,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "kixwhyte"
+   ],
+   "note": "",
+   "order": 1789228473304
+  },
+  "6lpmdwzd": {
+   "id": "6lpmdwzd",
+   "title": "Alternative Opensource Projekte auswerten",
+   "goal": "0izijb9a",
+   "stage": 3,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "0o1w80f3"
+   ],
+   "note": "",
+   "order": 1789230904793
+  },
+  "71z76rje": {
+   "id": "71z76rje",
+   "title": "Ein Marktplatz der Ressourcen und Bedarf zeigt",
+   "goal": "rcgksu0s",
+   "stage": 6,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "9e721l72",
+    "3jecgiwd"
+   ],
+   "note": "",
+   "order": 1789218687715
+  },
+  "99iqemkd": {
+   "id": "99iqemkd",
+   "title": "Reflektion, Efolge und Fehler auswerten",
+   "goal": "0izijb9a",
+   "stage": 11,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "hm4qm8y8",
+    "kzq2r8ma"
+   ],
+   "note": "",
+   "order": 1789230406125
+  },
+  "9e721l72": {
+   "id": "9e721l72",
+   "title": "Marksplatz; Anforderungsliste abstimmen",
+   "goal": "rcgksu0s",
+   "stage": 4,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "u1p714lt"
+   ],
+   "note": "",
+   "order": 1789218894292
+  },
+  "agowuauu": {
+   "id": "agowuauu",
+   "title": "Worshop: Wie organisieren wir uns konkret? durchgeführt",
+   "goal": "weg2s7m1",
+   "stage": 4,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "d202m70w"
+   ],
+   "note": "",
+   "order": 1789224199416
+  },
+  "bieygrdm": {
+   "id": "bieygrdm",
+   "title": "Rolle Plattform-Hüter besetzt (Betrieb, Updates, Backups)",
+   "goal": "0izijb9a",
+   "stage": 7,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "kixwhyte"
+   ],
+   "note": "",
+   "order": 1789229817601
+  },
+  "crfsmwdb": {
+   "id": "crfsmwdb",
+   "title": "Spielwiese erschaffen um Module und Prozesse auszuprobieren",
+   "goal": "0izijb9a",
+   "stage": 5,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "vk9qh7yx"
+   ],
+   "note": "",
+   "order": 1789231208298
+  },
+  "d202m70w": {
+   "id": "d202m70w",
+   "title": "Alternative Organisationsformen sammeln und vergleichen",
+   "goal": "weg2s7m1",
+   "stage": 3,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "0y0ib6gz"
+   ],
+   "note": "",
+   "order": 1789230945568
+  },
+  "fqqbeoif": {
+   "id": "fqqbeoif",
+   "title": "Gesundheitsbild des Ökosystems: Zahlen und Stakeholder-Rückmeldungen, erste Ausgabe erstellt",
+   "goal": "0izijb9a",
+   "stage": 8,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "kixwhyte",
+    "yexe7pgw",
+    "5kzwjuco",
+    "lkuuovdd"
+   ],
+   "note": "",
+   "order": 1789229929458
+  },
+  "h42df21i": {
+   "id": "h42df21i",
+   "title": "Workshop: Was wollen wir?",
+   "goal": "weg2s7m1",
+   "stage": 0,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [],
+   "note": "",
+   "order": 1789218543266
+  },
+  "hm4qm8y8": {
+   "id": "hm4qm8y8",
+   "title": "Verbesserungsrunde 1: Gesundheitsbild gelesen, drei Maßnahmen beschlossen",
+   "goal": "0izijb9a",
+   "stage": 10,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "fqqbeoif"
+   ],
+   "note": "",
+   "order": 1789228514007
+  },
+  "kzq2r8ma": {
+   "id": "kzq2r8ma",
+   "title": "Verbesserungsrunde 2: Maßnahmen geprüft, nächste drei beschlossen",
+   "goal": "0izijb9a",
+   "stage": 10,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "hm4qm8y8"
+   ],
+   "note": "",
+   "order": 1789228514008
+  },
+  "kixwhyte": {
+   "id": "kixwhyte",
+   "title": "Portal zur Verbindung mit der Dev-Community ausrollen",
+   "goal": "0izijb9a",
+   "stage": 6,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "mlg02gss"
+   ],
+   "note": "",
+   "order": 1789229736729
+  },
+  "lkuuovdd": {
+   "id": "lkuuovdd",
+   "title": "Jeder Arbeitskreis hat eine Kennzahl im Prozessdokument",
+   "goal": "weg2s7m1",
+   "stage": 6,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "agowuauu"
+   ],
+   "note": "",
+   "order": 1789230065194
+  },
+  "mlg02gss": {
+   "id": "mlg02gss",
+   "title": "Community Managment Konzept erstellen",
+   "goal": "0izijb9a",
+   "stage": 4,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "6lpmdwzd"
+   ],
+   "note": "",
+   "order": 1789229510920
+  },
+  "mw0koci0": {
+   "id": "mw0koci0",
+   "title": "Bedarfe und Ressourcen matchen",
+   "goal": "rcgksu0s",
+   "stage": 7,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "71z76rje"
+   ],
+   "note": "",
+   "order": 1789220915713
+  },
+  "ojywweet": {
+   "id": "ojywweet",
+   "title": "mehr als 100 Angebote & Bedarfe gematcht",
+   "goal": "rcgksu0s",
+   "stage": 10,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "71z76rje"
+   ],
+   "note": "",
+   "order": 1789218912933
+  },
+  "pgqljkqn": {
+   "id": "pgqljkqn",
+   "title": "An einem gemeinsamen Ort ist der Stand klar ersichtlich",
+   "goal": "weg2s7m1",
+   "stage": 9,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "ycefhhib"
+   ],
+   "note": "",
+   "order": 1789217897846
+  },
+  "th05f2am": {
+   "id": "th05f2am",
+   "title": "gemeinsame Ökonomie und Wertschöpfungsprozess",
+   "goal": "rcgksu0s",
+   "stage": 6,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "ybr2tay9",
+    "agowuauu"
+   ],
+   "note": "",
+   "order": 1789220586200
+  },
+  "tjck649v": {
+   "id": "tjck649v",
+   "title": "Dokumentation für Devs, Vibecoder und AIs erstellen",
+   "goal": "0izijb9a",
+   "stage": 6,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "v2bxybk4"
+   ],
+   "note": "",
+   "order": 1789228342510
+  },
+  "u1p714lt": {
+   "id": "u1p714lt",
+   "title": "Workshop: Wer braucht was? Wer hat was?",
+   "goal": "rcgksu0s",
+   "stage": 0,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [],
+   "note": "",
+   "order": 1789227467168
+  },
+  "v2bxybk4": {
+   "id": "v2bxybk4",
+   "title": "Deverloper Experience Kreis",
+   "goal": "0izijb9a",
+   "stage": 1,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [],
+   "note": "",
+   "order": 1789228265230
+  },
+  "vk9qh7yx": {
+   "id": "vk9qh7yx",
+   "title": "Dev-Game starten",
+   "goal": "0izijb9a",
+   "stage": 0,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [],
+   "note": "",
+   "order": 1789228445415
+  },
+  "xg8gj16g": {
+   "id": "xg8gj16g",
+   "title": "Werkzeuge zum Ressourcen-Pooling bereitstellen",
+   "goal": "rcgksu0s",
+   "stage": 7,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "th05f2am"
+   ],
+   "note": "",
+   "order": 1789221449502
+  },
+  "ybr2tay9": {
+   "id": "ybr2tay9",
+   "title": "Versorgungs Alternativen bewerten",
+   "goal": "rcgksu0s",
+   "stage": 3,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "19c456b6"
+   ],
+   "note": "",
+   "order": 1789219553616
+  },
+  "ycefhhib": {
+   "id": "ycefhhib",
+   "title": "Darstellung mit dem RLS umsetzen",
+   "goal": "weg2s7m1",
+   "stage": 6,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "agowuauu"
+   ],
+   "note": "",
+   "order": 1789218069255
+  },
+  "yexe7pgw": {
+   "id": "yexe7pgw",
+   "title": "Developer Onboarding Prozess bauen",
+   "goal": "0izijb9a",
+   "stage": 6,
+   "who": [],
+   "hours": 0,
+   "euros": 0,
+   "done": false,
+   "deps": [
+    "tjck649v",
+    "mlg02gss"
+   ],
+   "note": "",
+   "order": 1789229265318
+  }
+ }
+}
