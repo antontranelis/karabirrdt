@@ -289,6 +289,10 @@ const rowOf={}; // taskId -> row
 const NS='http://www.w3.org/2000/svg';
 const el=(tag,attrs,txt)=>{const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(txt!=null)e.textContent=txt;return e;};
 function renderBoard(){
+  const wrap=$('boardwrap'); const sx=wrap.scrollLeft, sy=wrap.scrollTop;
+  try{ renderBoardInner(); } finally { wrap.scrollLeft=sx; wrap.scrollTop=sy; }
+}
+function renderBoardInner(){
   const host=$('boardhost'); host.innerHTML='';
   const goals=goalsSorted();
   if(!goals.length){
