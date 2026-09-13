@@ -20,8 +20,8 @@ export interface Raster {
 }
 
 /** Das Raster des Bretts. Die Rechnung selbst steht in `modell.mjs`. */
-export function raster(ziele: Item[], karten: Item[]): Raster {
-  const L = layout(ziele, karten) as Omit<Raster, "spalte">
+export function raster(ziele: Item[], karten: Item[], hoehen: Record<string, number> = {}): Raster {
+  const L = layout(ziele, karten, hoehen) as Omit<Raster, "spalte">
   return { ...L, spalte: spaltenX }
 }
 

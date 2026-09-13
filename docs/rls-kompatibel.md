@@ -72,7 +72,7 @@ liegen daneben in `modell.d.mts`.
 | `ModuleFrame` (`fill="bleed"`) | die Modulfläche: Kopf im Fluss darüber, das Brett füllt den Rest |
 | `ModuleToolbar` + `FilterScope` + `useModuleFilteredItems` | Kopf des Moduls: Suche, Tag-Filter, Modul-Aktionen, Verbindungsstand |
 | `ModuleControls` | schwebende Ecke unten links: kleiner / größer / einpassen |
-| `ItemPreview` (`density="compact"`, `footerAdornment`) | **jede** Karte auf dem Brett |
+| `ItemPreview` + `ItemAssignees` + `ItemCommentCount` | **jede** Karte auf dem Brett — dieselben Aufrufe wie `KanbanBoard` |
 | `ItemComposer` + `ContentTypeConfig` + eigene `widgets` | Karte anlegen **und** bearbeiten — eine Form für beides |
 | `ItemDetailView` + `ItemDetailBody` + `ItemDetailActions` | die geöffnete Karte und das geöffnete Ziel: Lesen ↔ Bearbeiten, ⋮-Menü mit Bearbeiten und Löschen, Diskussion |
 | `AdaptivePanel` | eine Fläche für alle Panels (Karte, Ziele, Prüfung, Daten, Bretter) |
@@ -91,14 +91,23 @@ beiden Signalen (`prefers-color-scheme` **und** `.dark`/`[data-theme]`).
 Was gefehlt hat, mit konkretem Vorschlag. Nichts davon wurde durch einen Fork
 umgangen.
 
-1. **Keine Karte unterhalb von `compact`.** Die kleinste `ItemPreview` braucht
+1. **Die Punkte eines Ziels haben keinen Platz auf der Karte.** Seit die
+   Karten exakt wie im Kanban gezeichnet werden (`ItemPreview` mit
+   `footerAdornment` aus `ItemAssignees`/`ItemCommentCount`), fehlen die
+   Klebepunkte auf dem Zeilenkopf — sie sortieren die Zeilen, sind aber
+   unsichtbar. Der vorgesehene Ort wäre der `preview`-Slot der
+   Type-Presentation von `project`; den besetzt aber schon der Kern, und ein
+   zweiter Eintrag für dieselbe Id ist nach Spec 06 ein Konflikt.
+   *Offene Entscheidung:* Toolkit-PR (Punkte in `ItemProjectMeta`) oder Punkte
+   nur im Ziel-Detail lassen.
+3. **Keine Karte unterhalb von `compact`.** Die kleinste `ItemPreview` braucht
    rund 200×90 px. Das ursprüngliche Brett hatte 102×60-Zellen; die RLS-
    Fassung ist darum doppelt so breit (12 × 224 px). Für dichte Raster —
    Karabirrdt, Wochenkalender, Matrizen — fehlt eine dritte Dichte.
    *Vorschlag:* `density="tight"` in `ItemPreviewDensity`: nur Titel (2
    Zeilen, geklemmt) plus `footerAdornment`, kein Autor-Block, `p-1.5`,
    `text-[11px]`. Keine neue Komponente, eine neue Stufe der bestehenden Achse.
-2. **Kein vorgesehener Weg „Task gehört zu Projekt".** `TaskRelations.forward`
+3. **Kein vorgesehener Weg „Task gehört zu Projekt".** `TaskRelations.forward`
    kennt `assignedTo` (Person), `childOf` (Eltern-**Task**), `blocks`,
    `relatedTo`. Ein Task in einem Projekt ist keins davon; `relatedTo` wäre
    bedeutungslos. Wir benutzen `partOf`, das Spec 08 in der Motivation und
@@ -107,7 +116,7 @@ umgangen.
    *Vorschlag:* im `CORE_TYPE_MANIFEST` beim Typ `task` ergänzen:
    `{ predicate: "partOf", itemRole: "from", otherKind: "project" }`, dazu
    beim Typ `project` die Gegenrichtung `{ partOf, to, item }`.
-3. **`who` passt in kein vorhandenes Feld.** Karabirrdt schreibt Initialen mit
+4. **`who` passt in kein vorhandenes Feld.** Karabirrdt schreibt Initialen mit
    „kann ich" / „will ich lernen" — Menschen ohne Konto, mit einer Aussage
    über Können statt über Zuständigkeit. `assignedTo` verlangt Personen-Items
    bzw. DIDs, `ItemAssignees` verlangt aufgelöste `User`. `who` bleibt darum
@@ -116,19 +125,19 @@ umgangen.
    dass Beteiligung ohne Konto ein legitimer App-Fall ist — und langfristig
    ein `skillLevel`-Feld an `assignedTo`-Records („kann" / „lernt"), sobald
    Beteiligte echte Identitäten haben.
-4. **Kein Composer-Widget für Zahlenpaare.** Stunden und Euro brauchten ein
+5. **Kein Composer-Widget für Zahlenpaare.** Stunden und Euro brauchten ein
    eigenes Widget (`aufwand`). Der vorgesehene Weg (`widgets`,
    `CustomWidgetDefinition`) funktioniert einwandfrei — es fehlt nur ein
    generisches `number`-Widget im Toolkit, das jede zweite App sonst neu baut.
    *Vorschlag:* `WidgetType` um `"number"` erweitern, konfiguriert über
    `widgetLabels` und eine Feldliste im `ContentTypeConfig`.
-5. **`ContentComposer` kennt keine reine Ansicht.** `ItemDetailPanel` erwartet
+6. **`ContentComposer` kennt keine reine Ansicht.** `ItemDetailPanel` erwartet
    einen Inhalt; die Kanban-Lösung ist ein Composer im Bearbeiten-Modus. Für
    ein Brett, an dem mehrere gleichzeitig arbeiten, wäre ein Lesemodus mit
    „bearbeiten"-Knopf ruhiger.
    *Vorschlag:* `ItemDetailBody` ist genau das — in einer künftigen Fassung
    dieser App der bessere Inhalt des Panels.
-6. **Die Kamera der Graph-Ansicht ist nicht wiederverwendbar.** `GraphCamera`,
+7. **Die Kamera der Graph-Ansicht ist nicht wiederverwendbar.** `GraphCamera`,
    `fitCamera`, `focusCamera` und `interpolateCamera` liegen in
    `components/graph/force-layout.ts` und werden weder von
    `components/graph/index.ts` noch vom Paket-Root exportiert; `GraphView`
@@ -142,7 +151,7 @@ umgangen.
    Gesten heraus, `fit`/`zoom` über einen Handle wie bei `GraphViewHandle`.
    Dann teilen sich alle Flächen dieselbe Geste — heute unterscheiden sich
    Karte und Graph schon voneinander.
-7. **`GroupManager.createGroup` vergibt die Id selbst.** `MockConnector`
+8. **`GroupManager.createGroup` vergibt die Id selbst.** `MockConnector`
    schreibt `group-<zeit>` und nimmt keine Id entgegen. Ein Connector, der
    den MockConnector benutzt (siehe Lücke 9) kann eine vom Server oder von
    der Spec bestimmte Id also nicht durchreichen; wir laden beim Anlegen
@@ -151,13 +160,13 @@ umgangen.
    sogar —, Groups können das nicht.
    *Vorschlag:* `createGroup(name, data?, options?: { id?: string })`, und im
    Mock-Connector die übergebene Id übernehmen statt zu erfinden.
-8. **`ModuleToolbar` wirft ohne Filter-Kontext.** `useSharedFilter` verlangt
+9. **`ModuleToolbar` wirft ohne Filter-Kontext.** `useSharedFilter` verlangt
    einen `<FilterProvider>`; die Leiste selbst bringt keinen mit. Der Ausweg
    heißt `FilterScope` (setzt einen, wenn keiner da ist) und steht in keiner
    Typ-Signatur — man findet ihn nur im Quelltext.
    *Vorschlag:* `ModuleToolbar` intern in `FilterScope` wickeln; ein Kopf, der
    ohne unsichtbare Umgebung abstürzt, ist kein Baustein, sondern eine Falle.
-9. **Die schwebende Ecke unten links hat nur einen Platz.** `ModuleFrame`
+10. **Die schwebende Ecke unten links hat nur einen Platz.** `ModuleFrame`
    rendert dort die Filter-Pille; `ModuleControls` legt eine zweite
    `PanelSafeArea` darüber — wer beides benutzt, stapelt seine Knöpfe auf die
    Pille. Wir weichen mit `className="justify-end"` in die rechte Ecke aus.
@@ -166,7 +175,7 @@ umgangen.
    Beiträge nebeneinander setzen statt übereinander. Außerdem fehlt eine
    Angabe, wieviel Platz die Ecke belegt — das Einpassen einer Fläche muss
    das heute schätzen (`SCHWEBEND` in `App.tsx`).
-10. **Ein Composer kann nur EIN Personen-Feld rendern.** Nachgesehen im
+11. **Ein Composer kann nur EIN Personen-Feld rendern.** Nachgesehen im
    ausgelieferten Paket (`dist/index-BkQTwNfj.js`, `ContentComposer`): die
    eingebauten Felder entstehen aus `Ly.map(V => …)` über die
    modul-globale Konstante
@@ -197,7 +206,7 @@ umgangen.
    `{ predicate: "wantsToLearn", itemRole: "from", otherKind: "person" }`.
    Beteiligung ist selten nur Zuständigkeit — wer etwas lernen will, ist
    genauso beteiligt.
-11. **Der MockConnector nimmt nach dem Seed keine Menschen mehr auf.**
+12. **Der MockConnector nimmt nach dem Seed keine Menschen mehr auf.**
    `users` ist privat, `inviteMember(groupId, userId)` kennt nur Kennungen,
    und `injectSeedItems` gilt nur für Items. Ein Connector, der ihn benutzt,
    kann Mitglieder eines nachgeladenen Spaces also nicht hineinreichen —
@@ -205,14 +214,14 @@ umgangen.
    `getMembers`/`observeMembers`/`getUser` direkt.
    *Vorschlag:* `injectSeedUsers(users, groupId)` analog zu `injectSeedItems`,
    oder `inviteMember(groupId, user: string | User)`.
-12. **Die Space-Konfiguration hat keinen Platz für mehr.** `GroupDialog` nimmt
+13. **Die Space-Konfiguration hat keinen Platz für mehr.** `GroupDialog` nimmt
    keine zusätzlichen Abschnitte und `WorkspaceSwitcher` keinen zweiten
    Menüpunkt je Space. Traum, Traumhorizont und der JSON-Austausch gehören
    zum Space und mussten darum in einen eigenen Dialog neben das Space-Menü.
    *Vorschlag:* ein `sections`-Slot im `GroupDialog` (oder Tabs, in die eine
    App eigene Abschnitte hängt) und ein `actions`-Slot je Space-Eintrag im
    Switcher.
-13. **Kein Baustein für Flächen-Bedienelemente oben rechts.** Gesucht in
+14. **Kein Baustein für Flächen-Bedienelemente oben rechts.** Gesucht in
    0.1.6 nach `ModuleMenu`, `MapControls`, `ZoomControls`, `LocateButton` —
    nichts davon existiert; `components/map/index.d.ts` exportiert nur die
    Adapter-Typen, `LocationPickProvider`, `MapView` und die Marker, und
@@ -222,13 +231,13 @@ umgangen.
    *Vorschlag:* den Baustein, den die Karte für Zoom und Ortung benutzt
    (rls#321/#324), exportieren — dann teilen sich Karte, Graph und Karabirrdt
    dieselben Knöpfe an derselben Stelle.
-14. **Kein Ort für den Verbindungsstand außerhalb der Kontakte.** Das Toolkit
+15. **Kein Ort für den Verbindungsstand außerhalb der Kontakte.** Das Toolkit
    hat `RelayStatusBadge` (`components/contacts/relay-status-badge.d.ts`) und
    den Hook `useRelayStatus`; die Reference-App rendert das Abzeichen in
    `NavbarEnd`, wenn `hasMessaging(connector)` wahr ist. Unser Connector hat
    keine `MessagingCapable`-Fähigkeit, also gibt es dafür keinen Platz — die
    Anzeige ist entfernt und nicht ersetzt.
-15. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
+16. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
    Mock-Connector ist speicherflüchtig, der Local-Connector einsam, Supabase
    und WoT bringen Identität mit. Diese App braucht dazwischen einen
    geteilten Raum ohne Konten — deshalb `ServerConnector`.

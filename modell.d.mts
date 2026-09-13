@@ -101,7 +101,11 @@ export declare const MASSE: {
 }
 export declare function spaltenX(stufe: number): number
 export declare function labelHoehe(titel: string): number
-export declare function layout(ziele: readonly Item[], karten: readonly Item[]): Raster
+export declare function layout(
+  ziele: readonly Item[],
+  karten: readonly Item[],
+  hoehen?: Record<string, number>,
+): Raster
 export declare function fadenPfad(
   x1: number,
   y1: number,

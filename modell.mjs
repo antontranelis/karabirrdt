@@ -165,14 +165,15 @@ export function verschiebenFehler(karten, relations, id, neueStufe) {
 
 // --------------------------------------------------------------- Geometrie
 
-// Die Zelle ist so breit, dass eine ItemPreview in der Dichte `compact`
-// hineinpasst; das Toolkit hat keine kleinere Karte (siehe docs/rls-kompatibel.md).
+// Die Zelle ist so breit wie eine Kanban-Karte: `ItemPreview` in der Dichte
+// `compact` mit Titel, Tags und Fußzeile. `cardH` ist nur das Grundmaß für
+// noch nicht gemessene Karten — die wirkliche Höhe misst das Brett am DOM.
 export const MASSE = {
   start: 46,
-  label: 250,
-  colW: 224,
-  cardW: 208,
-  cardH: 112, // drei Titelzeilen plus Fußzeile in der Dichte `compact`
+  label: 260,
+  colW: 292,
+  cardW: 276,
+  cardH: 96,
   gap: 8,
   rowPad: 16,
   head: 76,
@@ -187,24 +188,34 @@ export function labelHoehe(titel) {
   return zeilen * 16 + 34;
 }
 
-/** Zeilen, Kartenpositionen und Gesamtmaße des Rasters. */
-export function layout(ziele, karten) {
+/**
+ * Zeilen, Kartenpositionen und Gesamtmaße des Rasters.
+ *
+ * `hoehen` sind die am DOM gemessenen Höhen der Karten: `ItemPreview` hat
+ * keine feste Höhe — mit Tags und Zugewiesenen wird eine Karte höher als ohne.
+ * Was nicht gemessen wurde, zählt mit `MASSE.cardH`.
+ */
+export function layout(ziele, karten, hoehen = {}) {
   const zeilen = [];
   const pos = {};
+  const hoehe = (id) => Math.max(24, Number(hoehen[id]) || MASSE.cardH);
   let y = MASSE.head;
   for (const z of ziele) {
-    let stapel = 1;
-    for (let s = 0; s < 12; s++) stapel = Math.max(stapel, kartenInZelle(karten, z.id, s).length);
-    const h = Math.max(stapel * (MASSE.cardH + MASSE.gap) - MASSE.gap + MASSE.rowPad * 2, labelHoehe(z.data?.title));
+    let stapel = MASSE.cardH;
+    for (let s = 0; s < 12; s++) {
+      const liste = kartenInZelle(karten, z.id, s);
+      if (!liste.length) continue;
+      const summe = liste.reduce((a, k) => a + hoehe(k.id), 0) + (liste.length - 1) * MASSE.gap;
+      stapel = Math.max(stapel, summe);
+    }
+    const h = Math.max(stapel + MASSE.rowPad * 2, labelHoehe(z.data?.title));
     const zeile = { ziel: z, y, h };
     for (let s = 0; s < 12; s++) {
-      kartenInZelle(karten, z.id, s).forEach((k, i) => {
-        pos[k.id] = {
-          x: spaltenX(s) - MASSE.cardW / 2,
-          y: y + MASSE.rowPad + i * (MASSE.cardH + MASSE.gap),
-          zeile,
-        };
-      });
+      let oben = y + MASSE.rowPad;
+      for (const k of kartenInZelle(karten, z.id, s)) {
+        pos[k.id] = { x: spaltenX(s) - MASSE.cardW / 2, y: oben, zeile };
+        oben += hoehe(k.id) + MASSE.gap;
+      }
     }
     zeilen.push(zeile);
     y += h;

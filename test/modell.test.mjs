@@ -207,6 +207,18 @@ test("Raster: Spalten, Zeilenhöhen und Gesamtmaße", () => {
   assert.equal(L.pos.k1.x, spaltenX(0) - MASSE.cardW / 2);
 });
 
+test("gemessene Kartenhöhen bestimmen Stapel und Zeilenhöhe", () => {
+  const ziele = [{ id: "z1", type: ZIEL_TYP, data: { title: "Z", dots: 0, order: 0 } }];
+  const k = (id) => ({ id, type: KARTEN_TYP, data: { title: id, stage: 0, order: id }, relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z1" }] });
+  const karten = [k("a"), k("b")];
+  const L = layout(ziele, karten, { a: 200, b: 100 });
+  assert.equal(L.pos.a.y, L.zeilen[0].y + MASSE.rowPad);
+  assert.equal(L.pos.b.y, L.pos.a.y + 200 + MASSE.gap);
+  assert.equal(L.zeilen[0].h, 200 + MASSE.gap + 100 + MASSE.rowPad * 2);
+  // ohne Messung zählt das Grundmaß
+  assert.equal(layout(ziele, karten).pos.b.y, layout(ziele, karten).pos.a.y + MASSE.cardH + MASSE.gap);
+});
+
 test("Fadenpfad: Bogen nach rechts, Umweg über den Zeilenrand, senkrecht in derselben Spalte", () => {
   assert.match(fadenPfad(0, 0, 100, 40), /^M0,0 C/);
   assert.ok(fadenPfad(0, 0, 100, 40, 90).includes("S"));

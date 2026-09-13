@@ -1,11 +1,10 @@
-import { useRef, useState, type DragEvent, type PointerEvent, type Ref } from "react"
+import { useCallback, useEffect, useRef, useState, type DragEvent, type PointerEvent, type Ref } from "react"
 import type { Item, RelationRecord, User } from "@real-life-stack/data-interface"
-import { ItemAssignees, ItemPreview, cn } from "@real-life-stack/toolkit"
+import { ItemAssignees, ItemCommentCount, ItemPreview, cn } from "@real-life-stack/toolkit"
 import {
   KANN_PRAEDIKAT,
   LERNT_PRAEDIKAT,
   MASSE,
-  istErledigt,
   phaseVonStufe,
   schirmZuWelt,
   stufeVon,
@@ -18,9 +17,8 @@ import { ThreadsOverlay } from "./threads-overlay"
 import { KameraFlaeche, type FlaechenSteuerung } from "./kamera-flaeche"
 
 /**
- * Der Rand der ausgewählten Karte kommt aus `getActivePanelGlow`, und das
- * versteht nur `#rrggbb` — eine CSS-Variable ergäbe dort lautlos gar keinen
- * Rand. Darum die vier Phasenfarben hier zusätzlich als feste Werte.
+ * Die vier Phasenfarben als `#rrggbb` — `ItemPreview` gibt sie über
+ * `activeColor` an `getActivePanelGlow` weiter, und das versteht nur Hex.
  */
 const PHASEN_HEX: Record<string, string> = {
   dream: "#7c5cbf",
@@ -34,14 +32,10 @@ interface Props {
   karten: Item[]
   faeden: RelationRecord[]
   aktiv: string | null
-  /** Karte, für die gerade eine Voraussetzung gesucht wird. */
   fadenVon: string | null
-  /** Die Mitglieder des Spaces — für die Zuweisungen auf den Karten. */
   mitglieder: User[]
   steuerung?: Ref<FlaechenSteuerung>
-  /** Wechselt mit dem Brett — danach wird neu eingepasst. */
   einpassenSchluessel?: string
-  /** Freiraum für die schwebenden Bedienelemente. */
   raender?: Raender
   kopfElement?: HTMLElement | null
   fussElement?: HTMLElement | null
@@ -69,10 +63,40 @@ export function KarabirrdtBoard({
   onVerschieben,
 }: Props) {
   const sortiert = zieleSortiert(ziele) as Item[]
-  const r = bauRaster(sortiert, karten)
   const welt = useRef<HTMLDivElement>(null)
   const [zieht, setZieht] = useState<string | null>(null)
   const [ueber, setUeber] = useState<string | null>(null)
+
+  // `ItemPreview` hat keine feste Höhe — mit Tags, Zugewiesenen und
+  // Kommentarzähler wird eine Karte höher. Also messen statt raten.
+  const [hoehen, setHoehen] = useState<Record<string, number>>({})
+  const beobachter = useRef<ResizeObserver | null>(null)
+  useEffect(() => {
+    if (typeof ResizeObserver === "undefined") return
+    const o = new ResizeObserver((eintraege) => {
+      setHoehen((alt) => {
+        let neu = alt
+        for (const e of eintraege) {
+          const id = (e.target as HTMLElement).dataset.itemId
+          const h = Math.round(e.contentRect.height)
+          if (!id || !h || alt[id] === h) continue
+          if (neu === alt) neu = { ...alt }
+          neu[id] = h
+        }
+        return neu
+      })
+    })
+    beobachter.current = o
+    return () => {
+      o.disconnect()
+      beobachter.current = null
+    }
+  }, [])
+  const messen = useCallback((el: HTMLDivElement | null) => {
+    if (el) beobachter.current?.observe(el)
+  }, [])
+
+  const r = bauRaster(sortiert, karten, hoehen)
 
   const ablegen = (id: string, zielId: string, stufe: number) => {
     setZieht(null)
@@ -96,30 +120,23 @@ export function KarabirrdtBoard({
           <ThreadsOverlay raster={r} karten={karten} faeden={faeden} hervorgehoben={aktiv} />
 
           {/* Ziele als Zeilenköpfe — dieselbe Karte wie überall */}
-        {r.zeilen.map((z) => (
-          <div
-            key={z.ziel.id}
-            data-karte
-            className="absolute overflow-hidden"
-            style={{ left: MASSE.start, top: z.y + 4, width: MASSE.label, height: Math.max(60, z.h - 8) }}
-          >
-            <ItemPreview
-              item={z.ziel}
-              author={null}
-              density="compact"
-              active={aktiv === z.ziel.id}
-              onClick={() => !hatGeschwenkt() && onZiel(z.ziel.id)}
-              className="h-full"
-              metaAdornment={
-                <span className="font-mono text-[10px] tracking-wide text-muted-foreground">
-                  {Number(z.ziel.data?.dots) > 0 ? "●".repeat(Number(z.ziel.data?.dots)) : "keine Punkte"}
-                </span>
-              }
-            />
-          </div>
-        ))}
+          {r.zeilen.map((z) => (
+            <div
+              key={z.ziel.id}
+              data-karte
+              className="absolute"
+              style={{ left: MASSE.start, top: z.y + MASSE.rowPad, width: MASSE.label }}
+            >
+              <Karte
+                item={z.ziel}
+                mitglieder={mitglieder}
+                aktiv={aktiv === z.ziel.id}
+                onClick={() => !hatGeschwenkt() && onZiel(z.ziel.id)}
+              />
+            </div>
+          ))}
 
-        {/* Zellen: leere Fläche zum Anlegen und Ziel jedes Ablegens */}
+          {/* Zellen: leere Fläche zum Anlegen und Ziel jedes Ablegens */}
           {r.zeilen.flatMap((z) =>
             Array.from({ length: 12 }, (_, s) => {
               const schluessel = `${z.ziel.id}:${s}`
@@ -156,24 +173,15 @@ export function KarabirrdtBoard({
             .filter((k) => r.pos[k.id])
             .map((k) => {
               const P = r.pos[k.id]
-              const phase = phaseVonStufe(stufeVon(k))
               return (
                 <div
                   key={k.id}
                   data-karte
-                  draggable
-                  onDragStart={(e: DragEvent) => {
-                    e.dataTransfer.setData("text/plain", k.id)
-                    e.dataTransfer.effectAllowed = "move"
-                    setZieht(k.id)
-                  }}
-                  onDragEnd={() => {
-                    setZieht(null)
-                    setUeber(null)
-                  }}
+                  className="absolute"
+                  style={{ left: P.x, top: P.y, width: MASSE.cardW }}
                   onPointerDown={(e: PointerEvent<HTMLDivElement>) => {
-                    // Finger und Stift kennen kein HTML5-Ziehen: dieselbe Bewegung
-                    // hier von Hand. Die Kamera rechnet den Zielpunkt zurück.
+                    // Finger und Stift kennen kein HTML5-Ziehen: dieselbe
+                    // Bewegung hier von Hand, der Zielpunkt über die Kamera.
                     if (e.pointerType === "mouse") return
                     e.stopPropagation()
                     const start = { x: e.clientX, y: e.clientY }
@@ -209,31 +217,25 @@ export function KarabirrdtBoard({
                     knoten.addEventListener("pointerup", loslassen)
                     knoten.addEventListener("pointercancel", loslassen)
                   }}
-                  className={cn(
-                    "absolute touch-none select-none overflow-hidden rounded-lg",
-                    zieht === k.id && "opacity-60",
-                    fadenVon && fadenVon !== k.id && "ring-2 ring-dashed ring-primary/60",
-                  )}
-                  style={{
-                    left: P.x,
-                    top: P.y,
-                    width: MASSE.cardW,
-                    height: MASSE.cardH,
-                    ["--kb-phase" as string]: `var(--kb-${phase.key})`,
-                  }}
                 >
-                  <ItemPreview
+                  <Karte
                     item={k}
-                    author={null}
-                    density="compact"
-                    active={aktiv === k.id}
-                    activeColor={PHASEN_HEX[phase.key]}
+                    mitglieder={mitglieder}
+                    aktiv={aktiv === k.id}
+                    gezogen={zieht === k.id}
+                    hervor={!!fadenVon && fadenVon !== k.id}
+                    ziehbar
+                    messen={messen}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", k.id)
+                      e.dataTransfer.effectAllowed = "move"
+                      setZieht(k.id)
+                    }}
+                    onDragEnd={() => {
+                      setZieht(null)
+                      setUeber(null)
+                    }}
                     onClick={() => onKarte(k.id)}
-                    className={cn(
-                      "h-full border-l-4 border-l-[var(--kb-phase)]",
-                      istErledigt(k) && "bg-[var(--kb-phase)]/15",
-                    )}
-                    footerAdornment={<KartenFuss item={k} mitglieder={mitglieder} />}
                   />
                 </div>
               )
@@ -245,27 +247,75 @@ export function KarabirrdtBoard({
 }
 
 /**
- * Die Fußzeile einer Karte: wer sie kann und wer sie lernen will, dazu die
- * Stunden. Die Gesichter zeichnet `ItemAssignees` — dieselbe Darstellung von
- * Zuständigen wie überall im Stack; „will lernen" steht daneben beschriftet,
- * weil es eine andere Aussage ist.
+ * Eine Karte auf dem Brett — dieselben Aufrufe, mit denen `KanbanBoard` seine
+ * Karten zeichnet (toolkit 0.1.6, `components/kanban/kanban-board`): Item mit
+ * Ersatztitel, `author={null}`, `density="compact"`, `active`, und als
+ * `footerAdornment` die Zugewiesenen über `ItemAssignees` plus, wenn es
+ * welche gibt, der Kommentarzähler über `ItemCommentCount`. Tags, Titel und
+ * Rahmen kommen aus `ItemPreview` selbst.
  */
-function KartenFuss({ item, mitglieder }: { item: Item; mitglieder: User[] }) {
-  const finde = (ids: string[]) => ids.map((id) => mitglieder.find((m) => m.id === id)).filter((u): u is User => !!u)
-  const kann = finde(zugewiesen(item, KANN_PRAEDIKAT))
-  const lernt = finde(zugewiesen(item, LERNT_PRAEDIKAT))
-  const stunden = Number(item.data?.hours) || 0
-  if (!kann.length && !lernt.length && !stunden) return null
+function Karte({
+  item,
+  mitglieder,
+  aktiv,
+  gezogen,
+  hervor,
+  ziehbar,
+  messen,
+  onDragStart,
+  onDragEnd,
+  onClick,
+}: {
+  item: Item
+  mitglieder: User[]
+  aktiv: boolean
+  gezogen?: boolean
+  hervor?: boolean
+  ziehbar?: boolean
+  messen?: (el: HTMLDivElement | null) => void
+  onDragStart?: (e: DragEvent<HTMLDivElement>) => void
+  onDragEnd?: () => void
+  onClick: () => void
+}) {
+  const nachId = new Map(mitglieder.map((m) => [m.id, m]))
+  const zugeteilt = [...zugewiesen(item, KANN_PRAEDIKAT), ...zugewiesen(item, LERNT_PRAEDIKAT)]
+    .map((id) => nachId.get(id))
+    .filter((u): u is User => !!u)
+  const kommentare = Number(item.data?.commentCount) || 0
+  const hatFuss = zugeteilt.length > 0 || kommentare > 0
+  const mitTitel =
+    typeof item.data?.title === "string" && item.data.title.length > 0
+      ? item
+      : { ...item, data: { ...item.data, title: "Ohne Titel" } }
+  const phase = phaseVonStufe(stufeVon(item))
+
   return (
-    <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-      {!!kann.length && <ItemAssignees users={kann} />}
-      {!!lernt.length && (
-        <span className="flex min-w-0 items-center gap-1 opacity-70">
-          <span className="font-mono text-[9px] uppercase tracking-wide text-muted-foreground">lernt</span>
-          <ItemAssignees users={lernt} />
-        </span>
-      )}
-      {stunden > 0 && <span className="ml-auto font-mono text-[10px] text-muted-foreground">{stunden}h</span>}
+    <div
+      ref={messen}
+      data-item-id={item.id}
+      {...(ziehbar ? { draggable: true, onDragStart, onDragEnd } : {})}
+      className={cn(ziehbar && "cursor-grab select-none active:cursor-grabbing", gezogen && "opacity-50", hervor && "ring-2 ring-primary/60")}
+    >
+      <ItemPreview
+        item={mitTitel}
+        author={null}
+        density="compact"
+        active={aktiv}
+        activeColor={PHASEN_HEX[phase.key]}
+        onClick={onClick}
+        footerAdornment={
+          hatFuss ? (
+            <>
+              <ItemAssignees users={zugeteilt} />
+              {kommentare > 0 && (
+                <div className="ml-auto">
+                  <ItemCommentCount count={kommentare} />
+                </div>
+              )}
+            </>
+          ) : undefined
+        }
+      />
     </div>
   )
 }
