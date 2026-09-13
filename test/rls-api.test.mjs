@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import WebSocket from "ws";
 import { erstelleServer } from "../server.mjs";
 import { Speicher } from "../speicher.mjs";
-import { AUTOR, KARTEN_TYP, ZIEL_TYP, FADEN_PRAEDIKAT, ZUGEHOERIG_PRAEDIKAT, MODUL } from "../modell.mjs";
+import { AUTOR, KARTEN_TYP, ZIEL_TYP, FADEN_PRAEDIKAT, ZUGEHOERIG_PRAEDIKAT, MODUL, KANN_PRAEDIKAT, LERNT_PRAEDIKAT, GLOBAL, zugewiesen } from "../modell.mjs";
 
 let server, basis, speicher;
 before(async () => {
@@ -202,6 +202,54 @@ test("ein Brett löschen räumt beide Formen weg", async () => {
   assert.deepEqual(b.relations, []);
   assert.equal(b.group.data.name, "");
   assert.equal((await json("/api/gruppen")).some((g) => g.id === "weg"), false);
+});
+
+test("Mitglieder eines Bretts anlegen, lesen, entfernen", async () => {
+  assert.deepEqual(await json("/api/b/m1/members"), []);
+  let r = await api("/api/b/m1/members/user%3Aanton", { method: "PUT", body: JSON.stringify({ displayName: "Anton Tranelis" }) });
+  assert.equal(r.status, 200);
+  await api("/api/b/m1/members/user%3Aemil", { method: "PUT", body: JSON.stringify({ displayName: "Emil" }) });
+  const leute = await json("/api/b/m1/members");
+  assert.deepEqual(leute.map((u) => u.id).sort(), ["user:anton", "user:emil"]);
+  assert.equal(leute.find((u) => u.id === "user:anton").displayName, "Anton Tranelis");
+  // Mitglieder kommen mit dem Brett
+  assert.equal((await json("/api/b/m1/rls")).members.length, 2);
+  assert.equal((await api("/api/b/m1/members/user%3Aemil", { method: "DELETE" })).status, 200);
+  assert.deepEqual((await json("/api/b/m1/members")).map((u) => u.id), ["user:anton"]);
+});
+
+test("Mitglieder überleben einen Import, denn sie sind der Space, nicht der Inhalt", async () => {
+  await api("/api/b/m2/members/user%3Aanton", { method: "PUT", body: JSON.stringify({ displayName: "Anton" }) });
+  await api("/api/b/m2/rls/import", { method: "POST", body: JSON.stringify({ group: { data: {} }, items: [], relations: [] }) });
+  assert.deepEqual((await json("/api/b/m2/members")).map((u) => u.id), ["user:anton"]);
+});
+
+test("altes who wird beim Übersetzen zu Zuweisungen an Mitglieder", async () => {
+  await api("/api/b/m3/members/user%3Aanton", { method: "PUT", body: JSON.stringify({ displayName: "Anton Tranelis" }) });
+  await api("/api/b/m3/members/user%3Aemil", { method: "PUT", body: JSON.stringify({ displayName: "Emil" }) });
+  await api("/api/b/m3/goals/z", { method: "PUT", body: JSON.stringify({ title: "Z" }) });
+  await api("/api/b/m3/tasks/k", {
+    method: "PUT",
+    body: JSON.stringify({ title: "K", goal: "z", stage: 0, who: [{ ini: "AT", can: true }, { ini: "EM", can: false }, { ini: "QQ", can: true }] }),
+  });
+  const karte = (await json("/api/b/m3/rls")).items.find((i) => i.id === "k");
+  assert.deepEqual(zugewiesen(karte, KANN_PRAEDIKAT), ["user:anton"]);
+  assert.deepEqual(zugewiesen(karte, LERNT_PRAEDIKAT), ["user:emil"]);
+  assert.equal(karte.data.who, undefined);
+  assert.match(karte.data.description, /QQ/);
+});
+
+test("ein Brett, das schon RLS-Daten mit who hat, wird beim Lesen einmalig nachgezogen", async () => {
+  await api("/api/b/m4/members/user%3Atimo", { method: "PUT", body: JSON.stringify({ displayName: "Timo" }) });
+  await api("/api/b/m4/items/k", {
+    method: "PUT",
+    body: JSON.stringify({ type: KARTEN_TYP, data: { title: "K", stage: 0, who: [{ ini: "TI", can: true }] }, relations: [] }),
+  });
+  const karte = (await json("/api/b/m4/rls")).items.find((i) => i.id === "k");
+  assert.deepEqual(zugewiesen(karte, KANN_PRAEDIKAT), ["user:timo"]);
+  assert.equal(karte.data.who, undefined);
+  // und wirklich weggeschrieben, nicht bei jedem Lesen neu gerechnet
+  assert.equal(speicher.rlsBrett("m4").items.find((i) => i.id === "k").relations[0].target, GLOBAL + "user:timo");
 });
 
 test("kaputte Eingaben werden abgewiesen", async () => {

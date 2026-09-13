@@ -19,6 +19,9 @@ export class Speicher {
       CREATE TABLE IF NOT EXISTS rls_items    (brett TEXT, id TEXT, json TEXT NOT NULL, geaendert TEXT NOT NULL, PRIMARY KEY (brett, id));
       CREATE TABLE IF NOT EXISTS rls_relationen(brett TEXT, id TEXT, json TEXT NOT NULL, geaendert TEXT NOT NULL, PRIMARY KEY (brett, id));
       CREATE TABLE IF NOT EXISTS rls_gruppe   (brett TEXT PRIMARY KEY, json TEXT NOT NULL, geaendert TEXT NOT NULL);
+      -- Die Mitglieder eines Spaces. Sie gehören dem Brett, nicht seinem
+      -- Inhalt: ein Import tauscht Karten, keine Menschen.
+      CREATE TABLE IF NOT EXISTS rls_mitglieder(brett TEXT, id TEXT, json TEXT NOT NULL, geaendert TEXT NOT NULL, PRIMARY KEY (brett, id));
     `);
     this.q = {
       meta: this.db.prepare("SELECT json FROM meta WHERE brett = ?"),
@@ -41,6 +44,10 @@ export class Speicher {
       rlsRelationenLeeren: this.db.prepare("DELETE FROM rls_relationen WHERE brett = ?"),
       rlsGruppe: this.db.prepare("SELECT json FROM rls_gruppe WHERE brett = ?"),
       rlsGruppeSetzen: this.db.prepare("INSERT INTO rls_gruppe (brett, json, geaendert) VALUES (?, ?, ?) ON CONFLICT(brett) DO UPDATE SET json = excluded.json, geaendert = excluded.geaendert"),
+      mitglieder: this.db.prepare("SELECT id, json FROM rls_mitglieder WHERE brett = ? ORDER BY geaendert"),
+      mitgliedSetzen: this.db.prepare("INSERT INTO rls_mitglieder (brett, id, json, geaendert) VALUES (?, ?, ?, ?) ON CONFLICT(brett, id) DO UPDATE SET json = excluded.json"),
+      mitgliedLoeschen: this.db.prepare("DELETE FROM rls_mitglieder WHERE brett = ? AND id = ?"),
+      mitgliederLeeren: this.db.prepare("DELETE FROM rls_mitglieder WHERE brett = ?"),
       rlsGruppeLoeschen: this.db.prepare("DELETE FROM rls_gruppe WHERE brett = ?"),
       metaLoeschen: this.db.prepare("DELETE FROM meta WHERE brett = ?"),
       rlsZahl: this.db.prepare("SELECT (SELECT count(*) FROM rls_items WHERE brett = ?1) + (SELECT count(*) FROM rls_gruppe WHERE brett = ?1) AS n"),
@@ -132,7 +139,18 @@ export class Speicher {
       group,
       items: this.q.rlsItems.all(kennung).map((z) => JSON.parse(z.json)),
       relations: this.q.rlsRelationen.all(kennung).map((z) => JSON.parse(z.json)),
+      members: this.mitglieder(kennung),
     };
+  }
+
+  mitglieder(kennung) {
+    return this.q.mitglieder.all(kennung).map((z) => ({ ...JSON.parse(z.json), id: z.id }));
+  }
+  mitgliedSetzen(kennung, id, nutzer) {
+    this.q.mitgliedSetzen.run(kennung, id, JSON.stringify({ ...nutzer, id }), jetzt());
+  }
+  mitgliedLoeschen(kennung, id) {
+    this.q.mitgliedLoeschen.run(kennung, id);
   }
 
   itemSetzen(kennung, id, item) {
@@ -190,6 +208,7 @@ export class Speicher {
       this.q.rlsItemsLeeren.run(kennung);
       this.q.rlsRelationenLeeren.run(kennung);
       this.q.rlsGruppeLoeschen.run(kennung);
+      this.q.mitgliederLeeren.run(kennung);
       this.q.zieleLeeren.run(kennung);
       this.q.kartenLeeren.run(kennung);
       this.q.metaLoeschen.run(kennung);

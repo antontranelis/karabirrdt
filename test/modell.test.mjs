@@ -307,3 +307,124 @@ test("Begrenzen: nicht weiter hinaus als eingepasst, und das Brett bleibt in der
   // ohne Maße: unverändert
   assert.deepEqual(kameraBegrenzen({ ox: 3, oy: 4, zoom: 1 }, 0, 0, 600, 400), { ox: 3, oy: 4, zoom: 1 });
 });
+
+// --------------------------------------------------------- Mitglieder
+
+import {
+  KANN_PRAEDIKAT,
+  LERNT_PRAEDIKAT,
+  initialenFuer,
+  zugewiesen,
+  mitZuweisungen,
+  migriereWho,
+  GLOBAL,
+} from "../modell.mjs";
+
+const MITGLIEDER = [
+  { id: "user:anton", displayName: "Anton Tranelis" },
+  { id: "user:emil", displayName: "Emil" },
+  { id: "user:agnes", displayName: "Agnes" },
+  { id: "user:jonathan", displayName: "Jonathan" },
+  { id: "user:janosch", displayName: "Janosch" },
+  { id: "user:janis", displayName: "Janis" },
+  { id: "user:holger", displayName: "Holger" },
+  { id: "user:timo", displayName: "Timo" },
+];
+
+test("Initialen: zwei Namen ergeben zwei Anfangsbuchstaben, sonst die ersten zwei", () => {
+  const ini = initialenFuer(MITGLIEDER);
+  assert.equal(ini.get("user:anton"), "AT");
+  assert.equal(ini.get("user:emil"), "EM");
+  assert.equal(ini.get("user:agnes"), "AG");
+  assert.equal(ini.get("user:jonathan"), "JO");
+  assert.equal(ini.get("user:janosch"), "JA");
+  // Janis stößt mit Janosch zusammen und weicht auf den nächsten Buchstaben aus
+  assert.equal(ini.get("user:janis"), "JN");
+  assert.equal(ini.get("user:holger"), "HO");
+  assert.equal(ini.get("user:timo"), "TI");
+  // alle verschieden
+  assert.equal(new Set(ini.values()).size, MITGLIEDER.length);
+  // ohne Namen bleibt die Kennung die Quelle
+  assert.ok(initialenFuer([{ id: "user:x", displayName: "" }]).get("user:x"));
+});
+
+test("Zuweisungen liegen als Relationen am Item, nicht als eigenes Feld", () => {
+  const karte = {
+    id: "k",
+    type: KARTEN_TYP,
+    data: { title: "K", stage: 0 },
+    relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z" }],
+  };
+  const neu = { ...karte, relations: mitZuweisungen(karte, ["user:anton"], ["user:emil", "user:timo"]) };
+  assert.deepEqual(zugewiesen(neu, KANN_PRAEDIKAT), ["user:anton"]);
+  assert.deepEqual(zugewiesen(neu, LERNT_PRAEDIKAT), ["user:emil", "user:timo"]);
+  // die Zeile bleibt unangetastet
+  assert.equal(zielVonKarte(neu), "z");
+  assert.ok(neu.relations.some((r) => r.target === `${GLOBAL}user:anton` && r.predicate === KANN_PRAEDIKAT));
+  // leeren
+  assert.deepEqual(zugewiesen({ ...neu, relations: mitZuweisungen(neu, [], []) }, KANN_PRAEDIKAT), []);
+  assert.equal(zielVonKarte({ ...neu, relations: mitZuweisungen(neu, [], []) }), "z");
+});
+
+test("altes who wird auf die beiden Zuweisungen abgebildet", () => {
+  const karte = {
+    id: "k",
+    type: KARTEN_TYP,
+    data: { title: "K", stage: 0, description: "Notiz", who: [{ ini: "AT", can: true }, { ini: "em", can: false }, { ini: "XY", can: true }] },
+    relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z" }],
+  };
+  const { item, unbekannt } = migriereWho(karte, MITGLIEDER);
+  assert.deepEqual(zugewiesen(item, KANN_PRAEDIKAT), ["user:anton"]);
+  assert.deepEqual(zugewiesen(item, LERNT_PRAEDIKAT), ["user:emil"]);
+  assert.equal(item.data.who, undefined, "das alte Feld verschwindet");
+  assert.deepEqual(unbekannt, ["XY"]);
+  // Was sich niemandem zuordnen lässt, geht nicht verloren
+  assert.match(item.data.description, /Notiz/);
+  assert.match(item.data.description, /XY/);
+
+  // Ohne who bleibt die Karte, wie sie ist
+  const ohne = { id: "o", type: KARTEN_TYP, data: { title: "O" }, relations: [] };
+  assert.equal(migriereWho(ohne, MITGLIEDER).item, ohne);
+});
+
+test("der Import aus dem alten Format legt die Zuweisungen gleich richtig an", async () => {
+  const rls = await altNachRls(
+    { meta: {}, goals: { z: { title: "Z" } }, tasks: { k: { title: "K", goal: "z", stage: 0, who: [{ ini: "AT", can: true }, { ini: "JA", can: false }] } } },
+    { createdBy: "u", createdAt: "2026-01-01T00:00:00.000Z", mitglieder: MITGLIEDER },
+  );
+  const karte = rls.items.find((i) => i.id === "k");
+  assert.deepEqual(zugewiesen(karte, KANN_PRAEDIKAT), ["user:anton"]);
+  assert.deepEqual(zugewiesen(karte, LERNT_PRAEDIKAT), ["user:janosch"]);
+  assert.equal(karte.data.who, undefined);
+
+  // Ohne bekannte Mitglieder bleibt who erhalten, statt still zu verschwinden
+  const ohne = await altNachRls(
+    { meta: {}, goals: {}, tasks: { k: { title: "K", who: [{ ini: "AT", can: true }] } } },
+    { createdBy: "u", createdAt: "2026-01-01T00:00:00.000Z" },
+  );
+  assert.deepEqual(ohne.items[0].data.who, [{ ini: "AT", can: true }]);
+});
+
+test("zurück ins alte Format werden die Zuweisungen wieder zu who", () => {
+  const rls = {
+    group: { id: "b", name: "", data: {} },
+    items: [
+      {
+        id: "k",
+        type: KARTEN_TYP,
+        data: { title: "K", stage: 1 },
+        relations: [
+          { predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z" },
+          { predicate: KANN_PRAEDIKAT, target: `${GLOBAL}user:anton` },
+          { predicate: LERNT_PRAEDIKAT, target: `${GLOBAL}user:emil` },
+        ],
+      },
+    ],
+    relations: [],
+  };
+  const alt = rlsNachAlt(rls, MITGLIEDER);
+  assert.deepEqual(alt.tasks.k.who, [
+    { ini: "AT", can: true },
+    { ini: "EM", can: false },
+  ]);
+});

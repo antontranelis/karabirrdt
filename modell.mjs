@@ -300,7 +300,7 @@ export function leeresRls(brett = "haupt") {
 }
 
 /** Altes Brett `{meta, goals, tasks}` → `{group, items, relations}`. */
-export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = AUTOR, createdAt = new Date().toISOString(), brett = "haupt" } = {}) {
+export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = AUTOR, createdAt = new Date().toISOString(), brett = "haupt", mitglieder = [] } = {}) {
   const m = { name: text(meta?.name), dream: text(meta?.dream), horizon: text(meta?.horizon) };
   const items = [];
   for (const [id, g] of Object.entries(goals ?? {})) {
@@ -315,7 +315,7 @@ export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = AUTO
   }
   const relations = [];
   for (const [id, t] of Object.entries(tasks ?? {})) {
-    items.push({
+    const karte = {
       id,
       type: KARTEN_TYP,
       createdAt,
@@ -332,7 +332,10 @@ export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = AUTO
         order: zahl(t?.order),
       },
       relations: t?.goal ? [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: ziel(t.goal) }] : [],
-    });
+    };
+    // Mit bekannten Mitgliedern werden aus den Kürzeln gleich Zuweisungen;
+    // ohne sie bleibt `who` stehen, statt still verloren zu gehen.
+    items.push(mitglieder.length ? migriereWho(karte, mitglieder).item : karte);
     for (const d of Array.isArray(t?.deps) ? t.deps : []) {
       const from = ziel(d);
       const to = ziel(id);
@@ -347,10 +350,11 @@ export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = AUTO
 }
 
 /** `{group, items, relations}` → altes Brett, für die alte Seite und alte Exporte. */
-export function rlsNachAlt({ group, items = [], relations = [] } = {}) {
+export function rlsNachAlt({ group, items = [], relations = [] } = {}, mitglieder = []) {
   const d = group?.data ?? {};
   const goals = {};
   const tasks = {};
+  const ini = initialenFuer(mitglieder);
   for (const i of items) {
     if (istZiel(i)) goals[i.id] = { id: i.id, title: text(i.data?.title), dots: zahl(i.data?.dots), order: zahl(i.data?.order) };
     else if (istKarte(i))
@@ -359,7 +363,11 @@ export function rlsNachAlt({ group, items = [], relations = [] } = {}) {
         title: text(i.data?.title),
         goal: zielVonKarte(i),
         stage: stufeVon(i),
-        who: Array.isArray(i.data?.who) ? i.data.who : [],
+        who: [
+          ...zugewiesen(i, KANN_PRAEDIKAT).map((id) => ({ ini: ini.get(id) ?? id, can: true })),
+          ...zugewiesen(i, LERNT_PRAEDIKAT).map((id) => ({ ini: ini.get(id) ?? id, can: false })),
+          ...(Array.isArray(i.data?.who) ? i.data.who : []),
+        ],
         hours: zahl(i.data?.hours),
         euros: zahl(i.data?.euros),
         done: istErledigt(i),
@@ -460,4 +468,88 @@ export function kameraEinpassen(breite, hoehe, flaecheBreite, flaecheHoehe, rand
     oy: r.oben + (nutzbarH - hoehe * zoom) / 2,
     zoom,
   };
+}
+
+// ------------------------------------------------------------ Mitglieder
+//
+// „Wer" an einer Karte sind Zuweisungen an Mitglieder des Spaces, keine
+// freien Kürzel mehr: „kann ich" ist die normale Task-Zuweisung `assignedTo`
+// (TaskRelations.forward), „will lernen" ein zweites Zuweisungsprädikat.
+// Beide liegen als eingebettete Relations am Item, Ziel `global:<userId>`
+// nach den Target-Konventionen aus Spec 04.
+
+export const GLOBAL = "global:";
+export const KANN_PRAEDIKAT = "assignedTo";
+export const LERNT_PRAEDIKAT = "wantsToLearn";
+export const ZUWEISUNGEN = [KANN_PRAEDIKAT, LERNT_PRAEDIKAT];
+
+/**
+ * Die Initialen der Mitglieder, eindeutig innerhalb eines Bretts.
+ * Zwei Namen → zwei Anfangsbuchstaben („Anton Tranelis" → AT), sonst die
+ * ersten zwei Buchstaben („Emil" → EM). Wer zusammenstößt, weicht auf den
+ * nächsten Buchstaben seines Vornamens aus („Janis" neben „Janosch" → JN).
+ */
+export function initialenFuer(mitglieder = []) {
+  const ini = new Map();
+  const belegt = new Set();
+  for (const m of mitglieder) {
+    const name = String(m?.displayName ?? "").trim();
+    const worte = name ? name.split(/\s+/) : [];
+    const erst = worte[0] ?? String(m?.id ?? "?").replace(/^[^:]*:/, "");
+    const gross = (s) => String(s ?? "").toUpperCase();
+    const kandidaten = [];
+    if (worte.length > 1) kandidaten.push(gross(erst[0] + worte[1][0]));
+    kandidaten.push(gross(erst.slice(0, 2)));
+    for (let i = 1; i < erst.length; i++) kandidaten.push(gross(erst[0] + erst[i]));
+    kandidaten.push(gross(String(m?.id ?? "?").slice(-2)));
+    const gewaehlt = kandidaten.find((k) => k && k.length === 2 && !belegt.has(k)) ?? gross(String(m?.id ?? "?").slice(-2));
+    belegt.add(gewaehlt);
+    ini.set(m.id, gewaehlt);
+  }
+  return ini;
+}
+
+/** Wem ist diese Karte unter diesem Prädikat zugewiesen? */
+export function zugewiesen(item, praedikat) {
+  return (item?.relations ?? [])
+    .filter((r) => r?.predicate === praedikat && String(r.target ?? "").startsWith(GLOBAL))
+    .map((r) => String(r.target).slice(GLOBAL.length));
+}
+
+/** Die Relations einer Karte mit neuen Zuweisungen. Alles andere bleibt. */
+export function mitZuweisungen(item, kann = [], lernt = []) {
+  const rest = (item?.relations ?? []).filter((r) => !ZUWEISUNGEN.includes(r?.predicate));
+  return [
+    ...rest,
+    ...kann.map((id) => ({ predicate: KANN_PRAEDIKAT, target: GLOBAL + id })),
+    ...lernt.map((id) => ({ predicate: LERNT_PRAEDIKAT, target: GLOBAL + id })),
+  ];
+}
+
+/**
+ * Das alte Feld `who` (freie Initialen mit „kann/lernt") auf die beiden
+ * Zuweisungen abbilden. Was sich keinem Mitglied zuordnen lässt, wird an die
+ * Notiz gehängt und zurückgemeldet — es verschwindet nicht still.
+ */
+export function migriereWho(item, mitglieder = []) {
+  const who = item?.data?.who;
+  if (!Array.isArray(who) || !who.length) return { item, unbekannt: [] };
+  const nachIni = new Map([...initialenFuer(mitglieder)].map(([id, ini]) => [ini, id]));
+  const kann = [];
+  const lernt = [];
+  const unbekannt = [];
+  for (const w of who) {
+    const id = nachIni.get(String(w?.ini ?? "").toUpperCase());
+    if (!id) {
+      unbekannt.push(String(w?.ini ?? ""));
+      continue;
+    }
+    ;(w?.can ? kann : lernt).push(id);
+  }
+  const { who: _weg, ...daten } = item.data;
+  if (unbekannt.length) {
+    const hinweis = `Wer (noch ohne Mitglied): ${unbekannt.join(", ")}`;
+    daten.description = daten.description ? `${daten.description}\n\n${hinweis}` : hinweis;
+  }
+  return { item: { ...item, data: daten, relations: mitZuweisungen(item, kann, lernt) }, unbekannt };
 }

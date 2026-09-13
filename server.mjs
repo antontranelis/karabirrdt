@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { WebSocketServer } from "ws";
 import { Speicher, gueltigeKennung } from "./speicher.mjs";
-import { AUTOR, altNachRls, normalisiereRls } from "./modell.mjs";
+import { AUTOR, altNachRls, normalisiereRls, migriereWho, istKarte } from "./modell.mjs";
 
 const PORT = Number(process.env.PORT ?? 8124);
 const HOST = process.env.HOST ?? "0.0.0.0";
@@ -54,7 +54,7 @@ export function erstelleServer({ speicher }) {
     if (p === "/api/bretter" && req.method === "GET") return json(res, speicher.bretter());
     if (p === "/api/gruppen" && req.method === "GET") return json(res, speicher.gruppen());
 
-    const api = p.match(/^\/api\/b\/([^/]+)(?:\/(meta|goals|tasks|import|rls|items|relations|group)(?:\/([^/]+))?)?$/);
+    const api = p.match(/^\/api\/b\/([^/]+)(?:\/(meta|goals|tasks|import|rls|items|relations|group|members)(?:\/([^/]+))?)?$/);
     if (api) {
       const [, brett, teil, id] = api;
       if (!gueltigeKennung(brett)) return fehler(res, 400, "Ungültige Brett-Kennung");
@@ -96,6 +96,24 @@ export function erstelleServer({ speicher }) {
         speicher.rlsErsetzen(brett, await normalisiereRls(daten, { brett }));
         verteile(brett, { type: "reset", data: speicher.rlsBrett(brett) });
         return json(res, { ok: true });
+      }
+      if (teil === "members" && !id && req.method === "GET") return json(res, speicher.mitglieder(brett));
+      if (teil === "members" && id) {
+        const kennung = decodeURIComponent(id);
+        if (!/^[A-Za-z0-9_:.@-]{1,80}$/.test(kennung)) return fehler(res, 400, "Ungültige Kennung");
+        if (req.method === "PUT") {
+          const doc = await koerper(req);
+          if (!doc || typeof doc !== "object" || Array.isArray(doc)) return fehler(res, 400, "Kein Objekt");
+          const nutzer = { id: kennung, displayName: typeof doc.displayName === "string" ? doc.displayName.slice(0, 200) : kennung };
+          speicher.mitgliedSetzen(brett, kennung, nutzer);
+          verteile(brett, { type: "member", id: kennung, data: nutzer });
+          return json(res, { ok: true });
+        }
+        if (req.method === "DELETE") {
+          speicher.mitgliedLoeschen(brett, kennung);
+          verteile(brett, { type: "member", id: kennung, data: null });
+          return json(res, { ok: true });
+        }
       }
       if (teil === "group" && !id && req.method === "PUT") {
         const patch = await koerper(req);
@@ -160,8 +178,20 @@ const gueltigeId = (id) => /^[A-Za-z0-9_-]{1,80}$/.test(id);
  * Wahrheit und die alten Tabellen bedienen nur noch `/alt`.
  */
 async function rlsBrett(speicher, brett) {
+  const mitglieder = speicher.mitglieder(brett);
   if (!speicher.hatRls(brett) && speicher.hatAlt(brett)) {
-    speicher.rlsErsetzen(brett, await altNachRls(speicher.brett(brett), { brett }));
+    const uebersetzt = await altNachRls(speicher.brett(brett), { brett, mitglieder });
+    speicher.rlsErsetzen(brett, uebersetzt);
+    for (const m of mitglieder) speicher.mitgliedSetzen(brett, m.id, m);
+  }
+  // Karten, die noch das alte `who` tragen, einmalig auf Zuweisungen an
+  // Mitglieder umstellen — und das Ergebnis wegschreiben, nicht bei jedem
+  // Lesen neu rechnen.
+  if (mitglieder.length) {
+    for (const item of speicher.rlsBrett(brett).items) {
+      if (!istKarte(item) || !Array.isArray(item.data?.who) || !item.data.who.length) continue;
+      speicher.itemSetzen(brett, item.id, migriereWho(item, mitglieder).item);
+    }
   }
   return speicher.rlsBrett(brett);
 }
