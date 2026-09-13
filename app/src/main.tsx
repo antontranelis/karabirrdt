@@ -14,7 +14,7 @@ async function start() {
     wurzel.render(
       <StrictMode>
         <ConnectorProvider connector={connector}>
-          <App brett={brett} aufZustand={aufZustand} />
+          <App aufZustand={aufZustand} />
         </ConnectorProvider>
       </StrictMode>,
     )

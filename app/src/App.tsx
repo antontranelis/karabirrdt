@@ -1,32 +1,47 @@
-import { useCallback, useEffect, useState } from "react"
-import type { Item } from "@real-life-stack/data-interface"
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react"
+import type { Group, Item, RelationRecord } from "@real-life-stack/data-interface"
+import { hasGroups } from "@real-life-stack/data-interface"
 import {
   AdaptivePanel,
   AppShell,
   AppShellMain,
   Button,
   EmptyState,
-  Input,
+  FilterScope,
+  GroupDialog,
+  ModuleControls,
+  ModuleFrame,
+  ModuleToolbar,
   Navbar,
   NavbarEnd,
   NavbarStart,
-  Textarea,
+  UserMenu,
+  WorkspaceSwitcher,
   cn,
+  useConnector,
+  useCreateGroup,
   useCreateItem,
   useCurrentGroup,
+  useCurrentUser,
+  useDeleteGroup,
   useDeleteItem,
+  useGroups,
   useItems,
+  useModuleFilteredItems,
   useUpdateGroup,
   useUpdateItem,
+  type GroupDialogMode,
+  type Workspace,
 } from "@real-life-stack/toolkit"
-import { Sparkles } from "lucide-react"
+import { Maximize2, Minus, Plus, Sparkles } from "lucide-react"
 import { KarabirrdtBoard } from "./board/karabirrdt-board"
+import type { FlaechenSteuerung } from "./board/kamera-flaeche"
 import { KartenDetail } from "./panels/karten-detail"
 import { KarteAnlegen } from "./panels/karte-anlegen"
 import { ZielePanel } from "./panels/ziele-panel"
 import { PruefungPanel } from "./panels/pruefung-panel"
 import { DatenPanel } from "./panels/daten-panel"
-import { BretterPanel } from "./panels/bretter-panel"
+import { TraumPanel } from "./panels/traum-panel"
 import { useFaeden } from "./faeden"
 import { STARTZIELE } from "./startziele"
 import { TISCH } from "./connector/server-connector"
@@ -44,31 +59,39 @@ import {
 type Ansicht =
   | { art: "karte"; id: string }
   | { art: "neu"; zielId: string; stufe: number }
+  | { art: "traum" }
   | { art: "ziele" }
   | { art: "pruefung" }
   | { art: "daten" }
-  | { art: "bretter" }
   | null
 
 interface Props {
-  brett: string
   aufZustand: (hoerer: (live: boolean) => void) => () => void
 }
 
-export default function App({ brett, aufZustand }: Props) {
+export default function App({ aufZustand }: Props) {
+  const connector = useConnector()
   const group = useCurrentGroup()
-  const aendereGroup = useUpdateGroup()
+  const brett = group?.id ?? "haupt"
+  const { data: gruppen } = useGroups()
+  const { data: nutzer } = useCurrentUser()
   const { data: ziele } = useItems({ type: ZIEL_TYP })
   const { data: karten } = useItems({ type: KARTEN_TYP })
   const { faeden, schreibbar: fadenSchreibbar, ziehe, loese } = useFaeden()
   const { mutate: anlegen } = useCreateItem()
   const { mutate: aendere } = useUpdateItem()
   const { mutate: loesche } = useDeleteItem()
+  const gruppeAnlegen = useCreateGroup()
+  const gruppeAendern = useUpdateGroup()
+  const gruppeLoeschen = useDeleteGroup()
 
   const [ansicht, setAnsicht] = useState<Ansicht>(null)
   const [fadenVon, setFadenVon] = useState<string | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [live, setLive] = useState(false)
+  const [gruppenDialog, setGruppenDialog] = useState(false)
+  const [dialogModus, setDialogModus] = useState<GroupDialogMode>({ type: "create" })
+  const kamera = useRef<FlaechenSteuerung>(null)
 
   useEffect(() => aufZustand(setLive), [aufZustand])
   useEffect(() => {
@@ -85,9 +108,34 @@ export default function App({ brett, aufZustand }: Props) {
     document.addEventListener("keydown", taste)
     return () => document.removeEventListener("keydown", taste)
   }, [fadenVon])
+  // Beim Brettwechsel schließt, was zum alten Brett gehörte.
+  useEffect(() => {
+    setAnsicht(null)
+    setFadenVon(null)
+  }, [brett])
 
-  const daten = (group?.data ?? {}) as Record<string, unknown>
-  const setzeGroup = (patch: Record<string, unknown>) => void aendereGroup(brett, { data: patch })
+  // --------------------------------------------------------------- Spaces
+
+  const arbeitsraeume: Workspace[] = useMemo(
+    () =>
+      gruppen.map((g: Group) => ({
+        id: g.id,
+        name: g.name || g.id,
+        scope: typeof g.data?.scope === "string" ? g.data.scope : undefined,
+        avatar: typeof g.data?.image === "string" ? g.data.image : undefined,
+      })),
+    [gruppen],
+  )
+  const aktiverRaum = arbeitsraeume.find((w) => w.id === brett) ?? null
+
+  const wechsleRaum = useCallback(
+    (w: Workspace) => {
+      if (hasGroups(connector)) connector.setCurrentGroup(w.id)
+    },
+    [connector],
+  )
+
+  // --------------------------------------------------------------- Brett
 
   const karteLoeschen = useCallback(
     async (id: string) => {
@@ -130,100 +178,59 @@ export default function App({ brett, aufZustand }: Props) {
     <AppShell>
       <Navbar>
         <NavbarStart>
-          <div className="min-w-0 flex-1 py-1">
-            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              Karabirrdt · Dragon Dreaming · {brett}
-            </div>
-            <Input
-              className="h-8 border-0 bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:ring-0"
-              placeholder="Name des Projekts"
-              aria-label="Projektname"
-              defaultValue={String(daten.name ?? "")}
-              key={`n-${String(daten.name ?? "")}`}
-              onBlur={(e) => setzeGroup({ name: e.target.value.trim() })}
-            />
-            <Textarea
-              rows={1}
-              className="min-h-0 resize-none border-0 bg-transparent px-0 italic shadow-none focus-visible:ring-0"
-              placeholder="Traumsatz aus dem Traumkreis: „Es ist … und wir …“"
-              aria-label="Traumsatz"
-              defaultValue={String(daten.dream ?? "")}
-              key={`d-${String(daten.dream ?? "")}`}
-              onBlur={(e) => setzeGroup({ dream: e.target.value.trim() })}
-            />
-            <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
-              Traumhorizont
-              <Input
-                className="h-6 w-36 px-1 text-xs"
-                placeholder="September 2027"
-                aria-label="Traumhorizont"
-                defaultValue={String(daten.horizon ?? "")}
-                key={`h-${String(daten.horizon ?? "")}`}
-                onBlur={(e) => setzeGroup({ horizon: e.target.value.trim() })}
-              />
-            </div>
-          </div>
+          <WorkspaceSwitcher
+            workspaces={arbeitsraeume}
+            activeWorkspace={aktiverRaum}
+            onWorkspaceChange={wechsleRaum}
+            onCreateWorkspace={() => {
+              setDialogModus({ type: "create" })
+              setGruppenDialog(true)
+            }}
+            onEditWorkspace={(w) => {
+              const g = gruppen.find((x: Group) => x.id === w.id)
+              if (!g) return
+              setDialogModus({ type: "edit", group: g })
+              setGruppenDialog(true)
+            }}
+          />
         </NavbarStart>
         <NavbarEnd>
-          <span className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground" title="Verbindung zum Server">
-            <i className={cn("inline-block h-2 w-2 rounded-full", live ? "bg-primary" : "bg-muted-foreground/40")} />
-            {live ? "gemeinsam, live" : "getrennt"}
-          </span>
-          <Button variant="ghost" size="sm" onClick={() => setAnsicht({ art: "bretter" })}>
-            Brett
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setAnsicht({ art: "ziele" })}>
-            Ziele
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setAnsicht({ art: "pruefung" })}>
-            Prüfung
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setAnsicht({ art: "daten" })}>
-            Daten
-          </Button>
+          <UserMenu user={{ id: nutzer?.id ?? TISCH.id, name: nutzer?.displayName ?? TISCH.displayName }} />
         </NavbarEnd>
       </Navbar>
 
-      <AppShellMain>
-        {ziele.length === 0 ? (
-          <EmptyState
-            icon={Sparkles}
-            title="Das Brett ist leer."
-            description="Ein Karabirrdt beginnt mit den Zielen aus dem Traumkreis. Jedes Ziel wird eine Zeile, die zwölf Stufen sind die Spalten, und jede Karte hängt in einer Zelle."
-            action={
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button
-                  onClick={async () => {
-                    for (const [i, titel] of STARTZIELE.entries())
-                      await anlegen({
-                        type: ZIEL_TYP,
-                        createdBy: TISCH.id,
-                        "@context": [VOCAB.BASE, VOCAB.PROJECT],
-                        data: { title: titel, dots: 0, order: i },
-                      })
-                  }}
-                >
-                  Die acht Ziele vom Whiteboard laden
-                </Button>
-                <Button variant="outline" onClick={() => setAnsicht({ art: "ziele" })}>
-                  Mit eigenen Zielen starten
-                </Button>
-              </div>
-            }
-          />
-        ) : (
-          <KarabirrdtBoard
-            ziele={ziele}
-            karten={karten}
-            faeden={faeden}
-            aktiv={aktiv}
-            fadenVon={fadenVon}
-            onKarte={(id) => void kartenKlick(id)}
-            onZelle={(zielId, stufe) => (fadenVon ? setFadenVon(null) : setAnsicht({ art: "neu", zielId, stufe }))}
-            onZiel={() => setAnsicht({ art: "ziele" })}
-            onVerschieben={(id, zielId, stufe) => void verschieben(id, zielId, stufe)}
-          />
-        )}
+      <AppShellMain inset={false}>
+        <ModuleFrame fill="bleed" panelFit="overlay">
+          {/* Die Steuerleiste des Moduls und das Brett teilen sich einen
+              Filter: Was der Kopf zeigt, ist das, was die Fläche anwendet. */}
+          <FilterScope>
+            <BrettModul
+              ziele={ziele}
+              karten={karten}
+              faeden={faeden}
+              aktiv={aktiv}
+              fadenVon={fadenVon}
+              live={live}
+              brett={brett}
+              ansicht={ansicht}
+              kamera={kamera}
+              onAnsicht={setAnsicht}
+              onKarte={(id) => void kartenKlick(id)}
+              onZelle={(zielId, stufe) => (fadenVon ? setFadenVon(null) : setAnsicht({ art: "neu", zielId, stufe }))}
+              onZiel={() => setAnsicht({ art: "ziele" })}
+              onVerschieben={(id, zielId, stufe) => void verschieben(id, zielId, stufe)}
+              onStartziele={async () => {
+                for (const [i, titel] of STARTZIELE.entries())
+                  await anlegen({
+                    type: ZIEL_TYP,
+                    createdBy: TISCH.id,
+                    "@context": [VOCAB.BASE, VOCAB.PROJECT],
+                    data: { title: titel, dots: 0, order: i },
+                  })
+              }}
+            />
+          </FilterScope>
+        </ModuleFrame>
       </AppShellMain>
 
       <AdaptivePanel open={!!ansicht} onClose={() => setAnsicht(null)} allowedModes={["sidebar", "drawer"]}>
@@ -255,11 +262,27 @@ export default function App({ brett, aufZustand }: Props) {
             onAbbruch={() => setAnsicht(null)}
           />
         )}
+        {ansicht?.art === "traum" && <TraumPanel group={group} />}
         {ansicht?.art === "ziele" && <ZielePanel ziele={ziele} karten={karten} onKarteLoeschen={karteLoeschen} />}
         {ansicht?.art === "pruefung" && <PruefungPanel ziele={ziele} karten={karten} faeden={faeden} />}
         {ansicht?.art === "daten" && <DatenPanel brett={brett} group={group} items={[...ziele, ...karten]} relations={faeden} />}
-        {ansicht?.art === "bretter" && <BretterPanel brett={brett} />}
       </AdaptivePanel>
+
+      <GroupDialog
+        open={gruppenDialog}
+        onOpenChange={setGruppenDialog}
+        mode={dialogModus}
+        currentUserId={nutzer?.id ?? TISCH.id}
+        onCreateGroup={async (name) => {
+          await gruppeAnlegen(name)
+        }}
+        onUpdateGroup={async (id, aenderungen) => {
+          await gruppeAendern(id, aenderungen)
+        }}
+        onDeleteGroup={async (id) => {
+          await gruppeLoeschen(id)
+        }}
+      />
 
       {meldung && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md bg-foreground px-4 py-2 text-sm text-background shadow-lg">
@@ -267,5 +290,141 @@ export default function App({ brett, aufZustand }: Props) {
         </div>
       )}
     </AppShell>
+  )
+}
+
+
+// ------------------------------------------------------------- Modulfläche
+
+interface ModulProps {
+  ziele: Item[]
+  karten: Item[]
+  faeden: RelationRecord[]
+  aktiv: string | null
+  fadenVon: string | null
+  live: boolean
+  brett: string
+  ansicht: Ansicht
+  kamera: RefObject<FlaechenSteuerung | null>
+  onAnsicht: (a: Ansicht) => void
+  onKarte: (id: string) => void
+  onZelle: (zielId: string, stufe: number) => void
+  onZiel: (id: string) => void
+  onVerschieben: (id: string, zielId: string, stufe: number) => void
+  onStartziele: () => Promise<void>
+}
+
+/**
+ * Alles, was zum Modul gehört, liegt im Modul: die Steuerleiste über dem
+ * Brett (`ModuleToolbar` — Suche, Filter, Modul-Aktionen, Verbindungsstand),
+ * die Fläche selbst und die schwebende Ecke mit der Kamera
+ * (`ModuleControls`). Die Navbar bleibt davon frei.
+ */
+function BrettModul({
+  ziele,
+  karten,
+  faeden,
+  aktiv,
+  fadenVon,
+  live,
+  brett,
+  ansicht,
+  kamera,
+  onAnsicht,
+  onKarte,
+  onZelle,
+  onZiel,
+  onVerschieben,
+  onStartziele,
+}: ModulProps) {
+  // Suche und Tag-Auswahl kommen aus der Leiste im Kopf. Die Regeln (Fäden,
+  // Verschieben) rechnen weiter mit ALLEN Karten — was ausgeblendet ist, ist
+  // nicht weg.
+  const sichtbar = useModuleFilteredItems(karten)
+  const tags = useMemo(() => {
+    const alle = new Set<string>()
+    for (const k of [...karten, ...ziele]) for (const t of k.tags ?? []) alle.add(t)
+    return [...alle].sort()
+  }, [karten, ziele])
+
+  const aktion = (art: Exclude<Ansicht, null>["art"], text: string) => (
+    <Button
+      key={art}
+      variant={ansicht?.art === art ? "secondary" : "ghost"}
+      size="sm"
+      onClick={() => onAnsicht(ansicht?.art === art ? null : ({ art } as Ansicht))}
+    >
+      {text}
+    </Button>
+  )
+
+  return (
+    <>
+      <ModuleToolbar
+        availableTags={tags}
+        searchLabel="Karten durchsuchen"
+        trailingActions={
+          <>
+            <span
+              className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground"
+              title={live ? "gemeinsam, live" : "getrennt — Änderungen bleiben lokal"}
+            >
+              <i className={cn("inline-block h-2 w-2 rounded-full", live ? "bg-primary" : "bg-muted-foreground/40")} />
+              {live ? "live" : "getrennt"}
+            </span>
+            {aktion("traum", "Traum")}
+            {aktion("ziele", "Ziele")}
+            {aktion("pruefung", "Prüfung")}
+            {aktion("daten", "Daten")}
+          </>
+        }
+      />
+
+      {ziele.length === 0 ? (
+        <div className="grid h-full place-items-center">
+          <EmptyState
+            icon={Sparkles}
+            title="Das Brett ist leer."
+            description="Ein Karabirrdt beginnt mit den Zielen aus dem Traumkreis. Jedes Ziel wird eine Zeile, die zwölf Stufen sind die Spalten, und jede Karte hängt in einer Zelle."
+            action={
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button onClick={() => void onStartziele()}>Die acht Ziele vom Whiteboard laden</Button>
+                <Button variant="outline" onClick={() => onAnsicht({ art: "ziele" })}>
+                  Mit eigenen Zielen starten
+                </Button>
+              </div>
+            }
+          />
+        </div>
+      ) : (
+        <KarabirrdtBoard
+          ziele={ziele}
+          karten={sichtbar}
+          faeden={faeden}
+          aktiv={aktiv}
+          fadenVon={fadenVon}
+          steuerung={kamera}
+          einpassenSchluessel={brett}
+          onKarte={onKarte}
+          onZelle={onZelle}
+          onZiel={onZiel}
+          onVerschieben={onVerschieben}
+        />
+      )}
+
+      <ModuleControls>
+        <div className="flex items-center gap-1 rounded-full border bg-card/90 p-1 shadow-sm backdrop-blur">
+          <Button variant="ghost" size="icon-sm" title="Kleiner" onClick={() => kamera.current?.zoomen(1 / 1.25)}>
+            <Minus className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon-sm" title="Größer" onClick={() => kamera.current?.zoomen(1.25)}>
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon-sm" title="Einpassen" onClick={() => kamera.current?.einpassen()}>
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </ModuleControls>
+    </>
   )
 }
