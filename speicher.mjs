@@ -41,6 +41,8 @@ export class Speicher {
       rlsRelationenLeeren: this.db.prepare("DELETE FROM rls_relationen WHERE brett = ?"),
       rlsGruppe: this.db.prepare("SELECT json FROM rls_gruppe WHERE brett = ?"),
       rlsGruppeSetzen: this.db.prepare("INSERT INTO rls_gruppe (brett, json, geaendert) VALUES (?, ?, ?) ON CONFLICT(brett) DO UPDATE SET json = excluded.json, geaendert = excluded.geaendert"),
+      rlsGruppeLoeschen: this.db.prepare("DELETE FROM rls_gruppe WHERE brett = ?"),
+      metaLoeschen: this.db.prepare("DELETE FROM meta WHERE brett = ?"),
       rlsZahl: this.db.prepare("SELECT (SELECT count(*) FROM rls_items WHERE brett = ?1) + (SELECT count(*) FROM rls_gruppe WHERE brett = ?1) AS n"),
       altZahl: this.db.prepare("SELECT (SELECT count(*) FROM ziele WHERE brett = ?1) + (SELECT count(*) FROM karten WHERE brett = ?1) + (SELECT count(*) FROM meta WHERE brett = ?1) AS n"),
       bretter: this.db.prepare("SELECT brett, max(geaendert) AS geaendert FROM (SELECT brett, geaendert FROM meta UNION ALL SELECT brett, geaendert FROM ziele UNION ALL SELECT brett, geaendert FROM karten UNION ALL SELECT brett, geaendert FROM rls_items UNION ALL SELECT brett, geaendert FROM rls_relationen UNION ALL SELECT brett, geaendert FROM rls_gruppe) GROUP BY brett ORDER BY geaendert DESC"),
@@ -104,6 +106,25 @@ export class Speicher {
     return this.q.altZahl.get(kennung).n > 0;
   }
 
+  /**
+   * Alle Bretter als Groups — für den Space-Switch. Ein Brett, das es nur in
+   * der alten Form gibt, kommt mit seinem Namen aus `meta` mit, OHNE dafür
+   * übersetzt zu werden: Die Liste zu öffnen darf keine Migration auslösen.
+   */
+  gruppen() {
+    const vorlage = leeresRls("").group.data;
+    return this.bretter().map(({ brett, geaendert }) => {
+      const gespeichert = this.q.rlsGruppe.get(brett);
+      if (gespeichert) {
+        const g = JSON.parse(gespeichert.json);
+        return { ...g, id: brett, name: g.name || brett, data: { ...vorlage, ...(g.data ?? {}) }, geaendert };
+      }
+      const alt = this.q.meta.get(brett);
+      const meta = alt ? JSON.parse(alt.json) : {};
+      return { id: brett, name: meta.name || brett, data: { ...vorlage, ...meta }, geaendert };
+    });
+  }
+
   rlsBrett(kennung) {
     const gespeichert = this.q.rlsGruppe.get(kennung);
     const group = gespeichert ? { ...JSON.parse(gespeichert.json), id: kennung } : leeresRls(kennung).group;
@@ -155,6 +176,23 @@ export class Speicher {
       this.q.rlsGruppeSetzen.run(kennung, JSON.stringify(g), jetzt());
       for (const i of items ?? []) this.itemSetzen(kennung, i.id, i);
       for (const r of relations ?? []) this.relationSetzen(kennung, r.id, r);
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+  }
+
+  /** Ein Brett ganz entfernen — beide Formen, in einem Zug. */
+  brettLoeschen(kennung) {
+    this.db.exec("BEGIN");
+    try {
+      this.q.rlsItemsLeeren.run(kennung);
+      this.q.rlsRelationenLeeren.run(kennung);
+      this.q.rlsGruppeLoeschen.run(kennung);
+      this.q.zieleLeeren.run(kennung);
+      this.q.kartenLeeren.run(kennung);
+      this.q.metaLoeschen.run(kennung);
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");

@@ -52,6 +52,7 @@ export function erstelleServer({ speicher }) {
     const p = url.pathname;
 
     if (p === "/api/bretter" && req.method === "GET") return json(res, speicher.bretter());
+    if (p === "/api/gruppen" && req.method === "GET") return json(res, speicher.gruppen());
 
     const api = p.match(/^\/api\/b\/([^/]+)(?:\/(meta|goals|tasks|import|rls|items|relations|group)(?:\/([^/]+))?)?$/);
     if (api) {
@@ -84,6 +85,11 @@ export function erstelleServer({ speicher }) {
         }
       }
       if (teil === "rls" && !id && req.method === "GET") return json(res, await rlsBrett(speicher, brett));
+      if (teil === "rls" && !id && req.method === "DELETE") {
+        speicher.brettLoeschen(brett);
+        verteile(brett, { type: "reset", data: speicher.rlsBrett(brett) });
+        return json(res, { ok: true });
+      }
       if (teil === "rls" && id === "import" && req.method === "POST") {
         const daten = await koerper(req);
         if (!daten || typeof daten !== "object" || Array.isArray(daten)) return fehler(res, 400, "Kein Objekt");
