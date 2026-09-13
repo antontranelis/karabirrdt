@@ -11,6 +11,11 @@ App (Toolkit-Komponenten + Hooks)
      └── fetch + WebSocket ← der Karabirrdt-Server (SQLite, ein Brett je Adresse)
 ```
 
+Ein **Brett ist eine Group**: `/api/gruppen` listet alle Bretter als Groups,
+der `WorkspaceSwitcher` wechselt zwischen ihnen, und die Adresse `/<brett>`
+folgt dem Wechsel (`history.pushState`, „Zurück" hört mit). Beim Wechsel
+werden die Items des anderen Bretts nachgeladen und die WebSocket umgehängt.
+
 `server-connector.ts` ist **kein** eigener Connector von Grund auf, sondern
 eine Schicht um `MockConnector`:
 
@@ -22,6 +27,15 @@ eine Schicht um `MockConnector`:
 3. Nachrichten der anderen Clients kommen über die WebSocket und werden in
    den MockConnector gelegt. Die Oberfläche merkt davon nichts: sie hört
    ohnehin nur auf die Observables.
+4. `setCurrentGroup` wechselt das Brett, `createGroup` legt eins an
+   (`PUT /api/b/<kennung>/group`, Kennung aus dem Namen abgeleitet und gegen
+   die vorhandenen geprüft), `deleteGroup` entfernt eins
+   (`DELETE /api/b/<kennung>/rls`).
+
+Beim **Anlegen** lädt die Seite auf dem neuen Brett neu, statt weich zu
+wechseln: `MockConnector.createGroup` vergibt die Id selbst (`group-<zeit>`)
+und nimmt keine mit, also lässt sich die Kennung des Servers nicht
+durchreichen — Upstream-Lücke, siehe `docs/rls-kompatibel.md`.
 
 Ein `Proxy` reicht alles durch, was nicht überschrieben ist. Dadurch erbt die
 App jede Fähigkeit des MockConnectors — auch die, die erst später dazukommt —
