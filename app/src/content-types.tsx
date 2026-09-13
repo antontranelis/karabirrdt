@@ -1,6 +1,5 @@
 import { GraduationCap, ListTodo, Target, Timer } from "lucide-react"
 import {
-  Button,
   Input,
   cn,
   useCurrentGroup,
@@ -38,39 +37,6 @@ export function useMitgliederOptionen(): PersonOption[] {
 }
 
 const alsListe = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : [])
-
-/**
- * „Will lernen" — dieselbe Auswahl wie das Personen-Widget, nur auf einem
- * zweiten Prädikat. `PeopleWidget` selbst ist nicht exportiert und
- * `ContentTypeConfig.peopleRelation` kennt nur EIN Prädikat je Typ, darum
- * hier aus Toolkit-Bausteinen nachgebaut statt geforkt.
- */
-function LerntWidget({ value, onChange, label }: WidgetComponentProps<unknown>) {
-  const optionen = useMitgliederOptionen()
-  const gewaehlt = alsListe(value)
-  return (
-    <div className="space-y-2">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="flex flex-wrap gap-1.5">
-        {optionen.map((o) => {
-          const an = gewaehlt.includes(o.id)
-          return (
-            <Button
-              key={o.id}
-              type="button"
-              size="sm"
-              variant={an ? "default" : "outline"}
-              onClick={() => onChange(an ? gewaehlt.filter((x) => x !== o.id) : [...gewaehlt, o.id])}
-            >
-              {o.name}
-            </Button>
-          )
-        })}
-        {!optionen.length && <span className="text-xs text-muted-foreground">Dieser Space hat noch keine Mitglieder.</span>}
-      </div>
-    </div>
-  )
-}
 
 export interface Aufwand {
   hours: number
@@ -122,7 +88,6 @@ function PunkteWidget({ value, onChange, label }: WidgetComponentProps<unknown>)
 }
 
 export const WIDGETS: CustomWidgetDefinition[] = [
-  { id: "lernt", label: "Will lernen", icon: GraduationCap, component: LerntWidget },
   { id: "aufwand", label: "Aufwand", icon: Timer, component: AufwandWidget },
   { id: "punkte", label: "Punkte", icon: Target, component: PunkteWidget },
 ]
@@ -131,8 +96,8 @@ export const KARTEN_VORLAGE: ContentTypeConfig = {
   id: KARTEN_TYP,
   label: "Karte",
   icon: ListTodo,
-  defaultWidgets: ["title", "text", "status", "people", "lernt", "aufwand"],
-  widgetLabels: { title: "Aufgabe", text: "Notiz", status: "Stand", people: "Kann ich", lernt: "Will lernen", aufwand: "Aufwand" },
+  defaultWidgets: ["title", "text", "status", "people", "aufwand"],
+  widgetLabels: { title: "Aufgabe", text: "Notiz", status: "Stand", people: "Kann ich", aufwand: "Aufwand" },
   peopleRelation: { predicate: KANN_PRAEDIKAT },
   statusOptions: [
     { id: "open", label: "offen" },
@@ -141,6 +106,34 @@ export const KARTEN_VORLAGE: ContentTypeConfig = {
   defaultStatus: "open",
   submitLabel: "Karte anlegen",
   editLabel: "Speichern",
+}
+
+/**
+ * „Will lernen" — dasselbe Personen-Feld des Composers wie „kann ich", nur
+ * mit anderer Beschriftung und anderem Prädikat. Es steht in einer EIGENEN
+ * Vorlage, weil `ContentTypeConfig` genau ein `peopleRelation` je Typ kennt
+ * und der Composer sein `people`-Feld genau einmal rendert (siehe
+ * docs/rls-kompatibel.md). Dieselbe Komponente, zweimal deklariert — kein
+ * Nachbau.
+ */
+export const LERNT_VORLAGE: ContentTypeConfig = {
+  id: KARTEN_TYP,
+  label: "Will lernen",
+  icon: GraduationCap,
+  defaultWidgets: ["people"],
+  widgetLabels: { people: "Will lernen" },
+  peopleRelation: { predicate: LERNT_PRAEDIKAT },
+}
+
+/** Schreibt nur die Lern-Zuweisungen; alles andere an der Karte bleibt. */
+export const lerntMapper: ItemEditorMapper = (eingabe, ctx) => {
+  const vorhanden = ctx.existingItem
+  if (!vorhanden) return null
+  return {
+    type: KARTEN_TYP,
+    data: vorhanden.data,
+    relations: mitZuweisungen(vorhanden, zugewiesen(vorhanden, KANN_PRAEDIKAT), alsListe(eingabe.data.people)),
+  }
 }
 
 export const ZIEL_VORLAGE: ContentTypeConfig = {
@@ -176,7 +169,13 @@ export function karteMapper(zelle: { zielId: string; stufe: number; order: numbe
         order: ctx.existingItem ? Number(alt.order) || 0 : zelle.order,
       },
       tags: eingabe.data.tags,
-      relations: mitZuweisungen({ relations: mitZiel(vorhanden, zielId) }, alsListe(d.people), alsListe(d.lernt)),
+      // „will lernen" schreibt das zweite Personen-Feld (s. u.); hier bleibt es
+      // stehen, damit ein Speichern der Karte es nicht abräumt.
+      relations: mitZuweisungen(
+        { relations: mitZiel(vorhanden, zielId) },
+        alsListe(d.people),
+        zugewiesen(vorhanden, LERNT_PRAEDIKAT),
+      ),
     }
   }
 }
@@ -193,7 +192,6 @@ export function karteVorbelegung(item: { data: Record<string, unknown>; relation
     text: String(item.data.description ?? ""),
     status: String(item.data.status ?? "open"),
     people: zugewiesen(item, KANN_PRAEDIKAT),
-    lernt: zugewiesen(item, LERNT_PRAEDIKAT),
     aufwand: { hours: Number(item.data.hours) || 0, euros: Number(item.data.euros) || 0 },
   }
 }

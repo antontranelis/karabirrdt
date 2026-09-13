@@ -8,8 +8,8 @@ import {
   useDeleteItem,
   useUpdateItem,
 } from "@real-life-stack/toolkit"
-import { KARTEN_VORLAGE, WIDGETS, karteMapper, karteVorbelegung, useMitgliederOptionen } from "../content-types"
-import { STUFEN, phaseVonStufe, stufeVon, istErledigt, ohnePraefix, zielVonKarte } from "../../../modell.mjs"
+import { KARTEN_VORLAGE, LERNT_VORLAGE, WIDGETS, karteMapper, karteVorbelegung, lerntMapper, useMitgliederOptionen } from "../content-types"
+import { LERNT_PRAEDIKAT, stufeVon, istErledigt, ohnePraefix, zielVonKarte, zugewiesen } from "../../../modell.mjs"
 
 interface Props {
   karte: Item
@@ -46,8 +46,6 @@ export function KartenDetail({
   const { mutate: loesche } = useDeleteItem()
   const [loeschenOffen, setLoeschenOffen] = useState(false)
 
-  const stufe = stufeVon(karte)
-  const phase = phaseVonStufe(stufe)
   const ziel = ziele.find((z) => z.id === zielVonKarte(karte))
   const titel = (id: string) => String(karten.find((k) => k.id === id)?.data?.title ?? "gelöschte Karte")
   const hinein = faeden.filter((f) => ohnePraefix(f.to) === karte.id)
@@ -58,25 +56,32 @@ export function KartenDetail({
   return (
     <ItemDetailPanel itemId={karte.id}>
       <div className="space-y-4 p-4">
-        <div>
-          <div className="font-mono text-[11px] uppercase tracking-wider" style={{ color: `var(--kb-${phase.key})` }}>
-            {phase.name} · {STUFEN[stufe]}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {ziel ? String(ziel.data?.title ?? "").split(":")[0] : "ohne Ziel"} · Zeile und Spalte änderst du durch Ziehen der Karte.
-          </div>
-        </div>
-
         <ItemComposer
           key={karte.id}
           contentTypes={[KARTEN_VORLAGE]}
           initialContentType={KARTEN_VORLAGE.id}
           existingItem={karte}
           initialData={karteVorbelegung(karte)}
-          mapper={karteMapper({ zielId: ziel?.id ?? "", stufe, order: Number(karte.data?.order) || 0 })}
+          mapper={karteMapper({ zielId: ziel?.id ?? "", stufe: stufeVon(karte), order: Number(karte.data?.order) || 0 })}
           composerProps={{ widgets: WIDGETS, peopleOptions: personen }}
           onDone={() => {}}
           onCancel={onGeschlossen}
+        />
+
+        {/* Zweites Zuweisungsfeld: dasselbe Personen-Widget des Composers,
+            nur auf dem Prädikat `wantsToLearn`. `liveUpdate` blendet den
+            eigenen Fußbereich aus, damit es als Feld und nicht als zweites
+            Formular wirkt. */}
+        <ItemComposer
+          key={`lernt-${karte.id}`}
+          contentTypes={[LERNT_VORLAGE]}
+          initialContentType={LERNT_VORLAGE.id}
+          existingItem={karte}
+          initialData={{ people: zugewiesen(karte, LERNT_PRAEDIKAT) }}
+          mapper={lerntMapper}
+          composerProps={{ peopleOptions: personen, liveUpdate: true }}
+          onDone={() => {}}
+          onCancel={() => {}}
         />
 
         <section className="space-y-1">

@@ -56,7 +56,7 @@ liegen daneben in `modell.d.mts`.
 | `ConnectorProvider`, `AppShell`, `AppShellMain`, `Navbar` | Rahmen |
 | `WorkspaceSwitcher` + `GroupDialog` | Bretter wechseln, anlegen, umbenennen, löschen, Mitglieder — ein Brett **ist** ein Space |
 | `CreateFab` | der Plus-Knopf unten rechts; die Typ-Auswahl macht der `ItemComposer` selbst |
-| `people`-Widget des Composers (`peopleRelation: assignedTo`) | „kann ich" — dasselbe Feld wie Zuständige im Kanban |
+| `people`-Widget des Composers | „kann ich" (`assignedTo`) **und** „will lernen" (`wantsToLearn`) — dasselbe Feld, zwei Vorlagen |
 | `ItemAssignees` | die Gesichter auf der Karte, für beide Zuweisungen |
 | `UserMenu` | rechts in der Navbar, wie in der Reference-App |
 | `ModuleFrame` (`fill="bleed"`) | die Modulfläche: Kopf im Fluss darüber, das Brett füllt den Rest |
@@ -156,17 +156,34 @@ umgangen.
    Beiträge nebeneinander setzen statt übereinander. Außerdem fehlt eine
    Angabe, wieviel Platz die Ecke belegt — das Einpassen einer Fläche muss
    das heute schätzen (`SCHWEBEND` in `App.tsx`).
-10. **Ein Typ kann nur EIN Personen-Feld haben.** `ContentTypeConfig.peopleRelation`
-   nimmt genau ein Prädikat, und `PeopleWidget` ist nicht exportiert (nur
-   `PersonOption`). Eine Karte mit zwei Zuweisungsarten — „kann ich" und
-   „will lernen" — lässt sich damit nicht bauen; das zweite Feld ist aus
-   Toolkit-Bausteinen nachgezogen und sieht darum anders aus als das erste.
-   Auch im Prädikat-Katalog (`KnownPredicate`) gibt es nichts fürs Lernen:
+10. **Ein Composer kann nur EIN Personen-Feld rendern.** Nachgesehen im
+   ausgelieferten Paket (`dist/index-BkQTwNfj.js`, `ContentComposer`): die
+   eingebauten Felder entstehen aus `Ly.map(V => …)` über die
+   modul-globale Konstante
+   `Ly = ["group","status","title","text","media","date","location","people","tags"]`,
+   und der Zweig lautet
+   `V === "people" && <PeopleWidget value={O.people} onChange={v => Pe("people", v)} label={…} options={…} suggestions={…} quickSuggestions={…} />`.
+   Also: ein fester Platz, ein fester Datenschlüssel `data.people`, der
+   React-Key ist die Widget-Id — „people" kann in einem Composer nicht
+   zweimal vorkommen. Das Widget nimmt **kein** Prädikat entgegen; das
+   Prädikat steht in `ContentTypeConfig.peopleRelation` (Einzahl) und wirkt
+   erst im Submission-Mapper. `PeopleWidget` selbst ist nicht exportiert
+   (`composer/index.d.ts` gibt nur `ContentComposer`,
+   `ComposerFullscreenShell`, `ItemComposer` und `type PersonOption` heraus).
+   Auch der Prädikat-Katalog (`KnownPredicate`) hat nichts fürs Lernen:
    `assignedTo`, `childOf`, `blocks`, `relatedTo`, `invited`, `commentOn`,
-   `reactsTo`, `votesOn`. Wir benutzen `wantsToLearn` in `item.relations[]`.
-   *Vorschlag:* `peopleRelations: readonly { predicate, widget, label }[]`
-   statt des einen `peopleRelation`, `PeopleWidget` exportieren, und im
-   Task-Manifest eine zweite Affordance
+   `reactsTo`, `votesOn`.
+
+   Unsere Antwort ohne Eigenbau: **zwei Vorlagen, zweimal dasselbe Widget.**
+   „Kann ich" steht in `KARTEN_VORLAGE` (`peopleRelation: assignedTo`),
+   „Will lernen" in einer zweiten `ContentTypeConfig` auf demselben Typ
+   (`peopleRelation: wantsToLearn`), gerendert von einem zweiten
+   `ItemComposer` mit `liveUpdate: true` — dadurch fällt sein Fußbereich weg
+   und es liest sich als Feld, nicht als zweites Formular. Es ist dieselbe
+   Komponente des Toolkits, nur zweimal deklariert.
+   *Vorschlag für Upstream:* `peopleRelations: readonly { predicate, label }[]`
+   statt des einen `peopleRelation`, gerendert als je ein `people`-Feld mit
+   eigenem Datenschlüssel; dazu im Task-Manifest die zweite Affordance
    `{ predicate: "wantsToLearn", itemRole: "from", otherKind: "person" }`.
    Beteiligung ist selten nur Zuständigkeit — wer etwas lernen will, ist
    genauso beteiligt.
