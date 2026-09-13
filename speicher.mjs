@@ -2,6 +2,7 @@
 // Ziele und Karten liegen als JSON-Dokumente in je einer Tabelle, damit der
 // Client dieselbe Form sieht wie im Browser-Speicher. Letzter Schreiber gewinnt.
 import { DatabaseSync } from "node:sqlite";
+import { leeresRls } from "./modell.mjs";
 
 const KENNUNG = /^[a-z0-9][a-z0-9-]{0,63}$/;
 export const gueltigeKennung = (k) => KENNUNG.test(k);
@@ -14,6 +15,10 @@ export class Speicher {
       CREATE TABLE IF NOT EXISTS meta  (brett TEXT PRIMARY KEY, json TEXT NOT NULL, geaendert TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS ziele (brett TEXT, id TEXT, json TEXT NOT NULL, geaendert TEXT NOT NULL, PRIMARY KEY (brett, id));
       CREATE TABLE IF NOT EXISTS karten(brett TEXT, id TEXT, json TEXT NOT NULL, geaendert TEXT NOT NULL, PRIMARY KEY (brett, id));
+      -- Die RLS-Form desselben Bretts: Items, RelationRecords und die Group.
+      CREATE TABLE IF NOT EXISTS rls_items    (brett TEXT, id TEXT, json TEXT NOT NULL, geaendert TEXT NOT NULL, PRIMARY KEY (brett, id));
+      CREATE TABLE IF NOT EXISTS rls_relationen(brett TEXT, id TEXT, json TEXT NOT NULL, geaendert TEXT NOT NULL, PRIMARY KEY (brett, id));
+      CREATE TABLE IF NOT EXISTS rls_gruppe   (brett TEXT PRIMARY KEY, json TEXT NOT NULL, geaendert TEXT NOT NULL);
     `);
     this.q = {
       meta: this.db.prepare("SELECT json FROM meta WHERE brett = ?"),
@@ -26,7 +31,19 @@ export class Speicher {
       karteLoeschen: this.db.prepare("DELETE FROM karten WHERE brett = ? AND id = ?"),
       zieleLeeren: this.db.prepare("DELETE FROM ziele WHERE brett = ?"),
       kartenLeeren: this.db.prepare("DELETE FROM karten WHERE brett = ?"),
-      bretter: this.db.prepare("SELECT brett, max(geaendert) AS geaendert FROM (SELECT brett, geaendert FROM meta UNION ALL SELECT brett, geaendert FROM ziele UNION ALL SELECT brett, geaendert FROM karten) GROUP BY brett ORDER BY geaendert DESC"),
+      rlsItems: this.db.prepare("SELECT id, json FROM rls_items WHERE brett = ?"),
+      rlsItemSetzen: this.db.prepare("INSERT INTO rls_items (brett, id, json, geaendert) VALUES (?, ?, ?, ?) ON CONFLICT(brett, id) DO UPDATE SET json = excluded.json, geaendert = excluded.geaendert"),
+      rlsItemLoeschen: this.db.prepare("DELETE FROM rls_items WHERE brett = ? AND id = ?"),
+      rlsItemsLeeren: this.db.prepare("DELETE FROM rls_items WHERE brett = ?"),
+      rlsRelationen: this.db.prepare("SELECT id, json FROM rls_relationen WHERE brett = ?"),
+      rlsRelationSetzen: this.db.prepare("INSERT INTO rls_relationen (brett, id, json, geaendert) VALUES (?, ?, ?, ?) ON CONFLICT(brett, id) DO UPDATE SET json = excluded.json, geaendert = excluded.geaendert"),
+      rlsRelationLoeschen: this.db.prepare("DELETE FROM rls_relationen WHERE brett = ? AND id = ?"),
+      rlsRelationenLeeren: this.db.prepare("DELETE FROM rls_relationen WHERE brett = ?"),
+      rlsGruppe: this.db.prepare("SELECT json FROM rls_gruppe WHERE brett = ?"),
+      rlsGruppeSetzen: this.db.prepare("INSERT INTO rls_gruppe (brett, json, geaendert) VALUES (?, ?, ?) ON CONFLICT(brett) DO UPDATE SET json = excluded.json, geaendert = excluded.geaendert"),
+      rlsZahl: this.db.prepare("SELECT (SELECT count(*) FROM rls_items WHERE brett = ?1) + (SELECT count(*) FROM rls_gruppe WHERE brett = ?1) AS n"),
+      altZahl: this.db.prepare("SELECT (SELECT count(*) FROM ziele WHERE brett = ?1) + (SELECT count(*) FROM karten WHERE brett = ?1) + (SELECT count(*) FROM meta WHERE brett = ?1) AS n"),
+      bretter: this.db.prepare("SELECT brett, max(geaendert) AS geaendert FROM (SELECT brett, geaendert FROM meta UNION ALL SELECT brett, geaendert FROM ziele UNION ALL SELECT brett, geaendert FROM karten UNION ALL SELECT brett, geaendert FROM rls_items UNION ALL SELECT brett, geaendert FROM rls_relationen UNION ALL SELECT brett, geaendert FROM rls_gruppe) GROUP BY brett ORDER BY geaendert DESC"),
     };
   }
 
@@ -69,6 +86,75 @@ export class Speicher {
       this.metaSetzen(kennung, meta ?? { name: "", dream: "", horizon: "" });
       for (const [id, z] of Object.entries(goals ?? {})) this.zielSetzen(kennung, id, z);
       for (const [id, k] of Object.entries(tasks ?? {})) this.karteSetzen(kennung, id, k);
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+  }
+
+  // ---------------------------------------------------------------- RLS-Form
+
+  /** Liegen für dieses Brett schon RLS-Daten? */
+  hatRls(kennung) {
+    return this.q.rlsZahl.get(kennung).n > 0;
+  }
+  /** Gibt es überhaupt etwas Altes zu übersetzen? */
+  hatAlt(kennung) {
+    return this.q.altZahl.get(kennung).n > 0;
+  }
+
+  rlsBrett(kennung) {
+    const gespeichert = this.q.rlsGruppe.get(kennung);
+    const group = gespeichert ? { ...JSON.parse(gespeichert.json), id: kennung } : leeresRls(kennung).group;
+    return {
+      group,
+      items: this.q.rlsItems.all(kennung).map((z) => JSON.parse(z.json)),
+      relations: this.q.rlsRelationen.all(kennung).map((z) => JSON.parse(z.json)),
+    };
+  }
+
+  itemSetzen(kennung, id, item) {
+    this.q.rlsItemSetzen.run(kennung, id, JSON.stringify({ ...item, id }), jetzt());
+  }
+  itemLoeschen(kennung, id) {
+    this.q.rlsItemLoeschen.run(kennung, id);
+  }
+  relationSetzen(kennung, id, record) {
+    this.q.rlsRelationSetzen.run(kennung, id, JSON.stringify({ ...record, id }), jetzt());
+  }
+  relationLoeschen(kennung, id) {
+    this.q.rlsRelationLoeschen.run(kennung, id);
+  }
+
+  /**
+   * Group schreiben. `data` ist ein Merge-Patch in einer Ebene (Spec 04/
+   * GroupManager.updateGroup): genannte Schlüssel werden übernommen, `null`
+   * löscht, ungenannte bleiben stehen. Sonst überschriebe ein Schreiber die
+   * Felder des anderen.
+   */
+  gruppeSetzen(kennung, patch) {
+    const alt = this.rlsBrett(kennung).group;
+    const data = { ...(alt.data ?? {}) };
+    for (const [k, v] of Object.entries(patch?.data ?? {})) {
+      if (v === null) delete data[k];
+      else data[k] = v;
+    }
+    const neu = { id: kennung, name: patch?.name ?? alt.name ?? "", data };
+    this.q.rlsGruppeSetzen.run(kennung, JSON.stringify(neu), jetzt());
+    return neu;
+  }
+
+  /** Ein ganzes Brett in RLS-Form ersetzen. Alles oder nichts. */
+  rlsErsetzen(kennung, { group, items, relations }) {
+    this.db.exec("BEGIN");
+    try {
+      this.q.rlsItemsLeeren.run(kennung);
+      this.q.rlsRelationenLeeren.run(kennung);
+      const g = { id: kennung, name: group?.name ?? "", data: group?.data ?? {} };
+      this.q.rlsGruppeSetzen.run(kennung, JSON.stringify(g), jetzt());
+      for (const i of items ?? []) this.itemSetzen(kennung, i.id, i);
+      for (const r of relations ?? []) this.relationSetzen(kennung, r.id, r);
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");

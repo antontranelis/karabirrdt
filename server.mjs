@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { WebSocketServer } from "ws";
 import { Speicher, gueltigeKennung } from "./speicher.mjs";
+import { altNachRls, normalisiereRls } from "./modell.mjs";
 
 const PORT = Number(process.env.PORT ?? 8124);
 const HOST = process.env.HOST ?? "0.0.0.0";
@@ -15,9 +16,14 @@ const MAX_BODY = 1024 * 1024; // ein Brett ist Kilobytes, nicht Megabytes
 const TYPEN = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".webp": "image/webp",
+  ".woff2": "font/woff2",
+  ".ico": "image/x-icon",
 };
 
 export function erstelleServer({ speicher }) {
@@ -47,7 +53,7 @@ export function erstelleServer({ speicher }) {
 
     if (p === "/api/bretter" && req.method === "GET") return json(res, speicher.bretter());
 
-    const api = p.match(/^\/api\/b\/([^/]+)(?:\/(meta|goals|tasks|import)(?:\/([^/]+))?)?$/);
+    const api = p.match(/^\/api\/b\/([^/]+)(?:\/(meta|goals|tasks|import|rls|items|relations|group)(?:\/([^/]+))?)?$/);
     if (api) {
       const [, brett, teil, id] = api;
       if (!gueltigeKennung(brett)) return fehler(res, 400, "Ungültige Brett-Kennung");
@@ -77,6 +83,41 @@ export function erstelleServer({ speicher }) {
           return json(res, { ok: true });
         }
       }
+      if (teil === "rls" && !id && req.method === "GET") return json(res, await rlsBrett(speicher, brett));
+      if (teil === "rls" && id === "import" && req.method === "POST") {
+        const daten = await koerper(req);
+        if (!daten || typeof daten !== "object" || Array.isArray(daten)) return fehler(res, 400, "Kein Objekt");
+        speicher.rlsErsetzen(brett, await normalisiereRls(daten, { brett }));
+        verteile(brett, { type: "reset", data: speicher.rlsBrett(brett) });
+        return json(res, { ok: true });
+      }
+      if (teil === "group" && !id && req.method === "PUT") {
+        const patch = await koerper(req);
+        if (!patch || typeof patch !== "object" || Array.isArray(patch)) return fehler(res, 400, "Kein Objekt");
+        await rlsBrett(speicher, brett); // eine alte Vorlage erst übersetzen, dann patchen
+        const group = speicher.gruppeSetzen(brett, patch);
+        verteile(brett, { type: "group", data: group });
+        return json(res, { ok: true });
+      }
+      if ((teil === "items" || teil === "relations") && id) {
+        if (!gueltigeId(id)) return fehler(res, 400, "Ungültige Kennung");
+        const art = teil === "items" ? "item" : "relation";
+        if (req.method === "PUT") {
+          const doc = await koerper(req);
+          if (!doc || typeof doc !== "object" || Array.isArray(doc)) return fehler(res, 400, "Kein Objekt");
+          const gespeichert = art === "item" ? pruefeItem(doc, id) : pruefeRelation(doc, id);
+          if (art === "item") speicher.itemSetzen(brett, id, gespeichert);
+          else speicher.relationSetzen(brett, id, gespeichert);
+          verteile(brett, { type: art, id, data: gespeichert });
+          return json(res, { ok: true });
+        }
+        if (req.method === "DELETE") {
+          if (art === "item") speicher.itemLoeschen(brett, id);
+          else speicher.relationLoeschen(brett, id);
+          verteile(brett, { type: art, id, data: null });
+          return json(res, { ok: true });
+        }
+      }
       if (teil === "import" && req.method === "POST") {
         const daten = await koerper(req);
         if (!daten || typeof daten !== "object") return fehler(res, 400, "Kein Objekt");
@@ -87,9 +128,13 @@ export function erstelleServer({ speicher }) {
       return fehler(res, 404, "Unbekannter Pfad");
     }
 
-    // Oberfläche: / und /<brett> liefern dieselbe Seite, alles andere aus public/.
+    // Oberfläche: `/` und `/<brett>` liefern die RLS-App, `/alt` und
+    // `/alt/<brett>` die ursprüngliche Seite, alles andere kommt aus public/.
     if (req.method !== "GET" && req.method !== "HEAD") return fehler(res, 405, "Nur GET");
-    let datei = p === "/" || /^\/[a-z0-9][a-z0-9-]*$/.test(p) ? "/index.html" : p;
+    const brettPfad = /^\/[a-z0-9][a-z0-9-]*$/;
+    let datei = p;
+    if (p === "/alt" || (p.startsWith("/alt/") && brettPfad.test(p.slice(4)))) datei = "/alt.html";
+    else if (p === "/" || brettPfad.test(p)) datei = "/index.html";
     datei = path.normalize(datei).replace(/^(\.\.[/\\])+/, "");
     const voll = path.join(PUBLIC, datei);
     if (!voll.startsWith(PUBLIC) || !fs.existsSync(voll) || fs.statSync(voll).isDirectory()) return fehler(res, 404, "Nicht gefunden");
@@ -101,7 +146,44 @@ export function erstelleServer({ speicher }) {
   return server;
 }
 
-const gueltigeId = (id) => /^[A-Za-z0-9_-]{1,64}$/.test(id);
+const gueltigeId = (id) => /^[A-Za-z0-9_-]{1,80}$/.test(id);
+
+/**
+ * Das Brett in RLS-Form. Gibt es noch keine, wohl aber ein altes Brett, wird
+ * es genau einmal übersetzt und weggeschrieben — danach ist die RLS-Form die
+ * Wahrheit und die alten Tabellen bedienen nur noch `/alt`.
+ */
+async function rlsBrett(speicher, brett) {
+  if (!speicher.hatRls(brett) && speicher.hatAlt(brett)) {
+    speicher.rlsErsetzen(brett, await altNachRls(speicher.brett(brett), { brett }));
+  }
+  return speicher.rlsBrett(brett);
+}
+
+function pruefeItem(doc, id) {
+  if (typeof doc.type !== "string" || !doc.type) throw Object.assign(new Error("Item ohne type"), { status: 400 });
+  if (doc.data != null && (typeof doc.data !== "object" || Array.isArray(doc.data)))
+    throw Object.assign(new Error("data ist kein Objekt"), { status: 400 });
+  return {
+    ...doc,
+    id,
+    data: doc.data ?? {},
+    createdBy: typeof doc.createdBy === "string" ? doc.createdBy : "anonymous",
+    createdAt: typeof doc.createdAt === "string" ? doc.createdAt : new Date().toISOString(),
+  };
+}
+
+function pruefeRelation(doc, id) {
+  for (const f of ["predicate", "from", "to"]) {
+    if (typeof doc[f] !== "string" || !doc[f]) throw Object.assign(new Error(`Relation ohne ${f}`), { status: 400 });
+  }
+  return {
+    ...doc,
+    id,
+    createdBy: typeof doc.createdBy === "string" ? doc.createdBy : "anonymous",
+    createdAt: typeof doc.createdAt === "string" ? doc.createdAt : new Date().toISOString(),
+  };
+}
 
 function pruefeMeta(m) {
   if (!m || typeof m !== "object") throw Object.assign(new Error("Kein Objekt"), { status: 400 });
