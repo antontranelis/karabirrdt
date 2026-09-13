@@ -25,6 +25,33 @@ export const FADEN_PRAEDIKAT = "blocks";
 export const ZUGEHOERIG_PRAEDIKAT = "partOf";
 export const MODUL = "karabirrdt";
 
+/** Die Adresse eines Bretts: klein, Ziffern, Bindestriche. */
+export const KENNUNG = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+/**
+ * Aus einem Namen eine freie Brett-Adresse machen. Der Server kennt keine
+ * „anlegen"-Bewegung — `PUT /group` ist idempotent —, also entscheidet der
+ * Client die Adresse und muss selbst dafür sorgen, kein fremdes Brett zu
+ * überschreiben.
+ */
+export function freieKennung(name, belegt = []) {
+  const stamm =
+    String(name ?? "")
+      .toLowerCase()
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48)
+      .replace(/-+$/g, "") || "brett";
+  const anfang = KENNUNG.test(stamm) ? stamm : `brett-${stamm}`.slice(0, 60);
+  if (!belegt.includes(anfang)) return anfang;
+  for (let n = 2; n < 1000; n++) if (!belegt.includes(`${anfang}-${n}`)) return `${anfang}-${n}`;
+  return `${anfang}-${Date.now()}`;
+}
+
 /**
  * Die App kennt keine Anmeldung: wer das Brett offen hat, ist „am Tisch".
  * Diese eine Kennung steht in jedem `createdBy` — auch in dem, was der Server
@@ -355,4 +382,39 @@ export async function normalisiereRls(json, optionen = {}) {
     };
   }
   return altNachRls(json ?? {}, optionen);
+}
+
+// ----------------------------------------------------------------- Kamera
+//
+// Zoomen und Schwenken wie in der Graph-Ansicht des Toolkits. Deren Kamera
+// (`GraphCamera`, `fitCamera` …) liegt in `force-layout.ts` und wird nicht
+// exportiert — siehe docs/rls-kompatibel.md, Upstream-Lücke. Also dasselbe
+// Muster hier, klein und prüfbar: die Welt ist das Raster in seinen eigenen
+// Maßen, der Schirm ist die Fläche in Bildschirmpunkten.
+//
+//   schirm = welt * zoom + ursprung        (CSS: translate(ox,oy) scale(zoom))
+
+export const KAMERA = { min: 0.15, max: 2.5, rand: 24 };
+
+const klemme = (z) => Math.max(KAMERA.min, Math.min(KAMERA.max, z));
+
+export const kameraStart = () => ({ ox: 0, oy: 0, zoom: 1 });
+
+export const weltZuSchirm = (p, k) => ({ x: p.x * k.zoom + k.ox, y: p.y * k.zoom + k.oy });
+export const schirmZuWelt = (p, k) => ({ x: (p.x - k.ox) / k.zoom, y: (p.y - k.oy) / k.zoom });
+
+/** Zoomen so, dass der Punkt unter dem Zeiger stehen bleibt. */
+export function zoomeAmZeiger(k, faktor, schirmX, schirmY) {
+  const zoom = klemme(k.zoom * faktor);
+  const w = schirmZuWelt({ x: schirmX, y: schirmY }, k);
+  return { ox: schirmX - w.x * zoom, oy: schirmY - w.y * zoom, zoom };
+}
+
+export const kameraSchwenken = (k, dx, dy) => ({ ox: k.ox + dx, oy: k.oy + dy, zoom: k.zoom });
+
+/** Das ganze Brett mittig in die Fläche legen. Kleine Bretter werden nicht aufgeblasen. */
+export function kameraEinpassen(breite, hoehe, flaecheBreite, flaecheHoehe, rand = KAMERA.rand) {
+  if (!(breite > 0) || !(hoehe > 0) || !(flaecheBreite > 0) || !(flaecheHoehe > 0)) return kameraStart();
+  const zoom = klemme(Math.min(1, (flaecheBreite - 2 * rand) / breite, (flaecheHoehe - 2 * rand) / hoehe));
+  return { ox: (flaecheBreite - breite * zoom) / 2, oy: (flaecheHoehe - hoehe * zoom) / 2, zoom };
 }

@@ -213,3 +213,60 @@ test("Fadenpfad: Bogen nach rechts, Umweg über den Zeilenrand, senkrecht in der
   const senkrecht = fadenPfad(50, 0, 50, 80, null, true);
   assert.match(senkrecht, /^M50,0 C6[0-9],/);
 });
+
+// ---------------------------------------------------------------- Kamera
+
+import { KAMERA, kameraStart, weltZuSchirm, schirmZuWelt, zoomeAmZeiger, kameraEinpassen, kameraSchwenken } from "../modell.mjs";
+
+test("Welt und Schirm rechnen ineinander um", () => {
+  const k = { ox: 30, oy: 10, zoom: 2 };
+  assert.deepEqual(weltZuSchirm({ x: 5, y: 7 }, k), { x: 40, y: 24 });
+  assert.deepEqual(schirmZuWelt({ x: 40, y: 24 }, k), { x: 5, y: 7 });
+});
+
+test("Zoom lässt den Punkt unter dem Zeiger stehen", () => {
+  const k = kameraStart();
+  const zeiger = { x: 300, y: 200 };
+  const vorher = schirmZuWelt(zeiger, k);
+  const neu = zoomeAmZeiger(k, 1.4, zeiger.x, zeiger.y);
+  const nachher = schirmZuWelt(zeiger, neu);
+  assert.ok(Math.abs(vorher.x - nachher.x) < 1e-9);
+  assert.ok(Math.abs(vorher.y - nachher.y) < 1e-9);
+  assert.ok(neu.zoom > k.zoom);
+});
+
+test("Zoom bleibt zwischen den Grenzen", () => {
+  let k = kameraStart();
+  for (let i = 0; i < 50; i++) k = zoomeAmZeiger(k, 1.3, 0, 0);
+  assert.equal(k.zoom, KAMERA.max);
+  for (let i = 0; i < 100; i++) k = zoomeAmZeiger(k, 0.7, 0, 0);
+  assert.equal(k.zoom, KAMERA.min);
+});
+
+test("Schwenken verschiebt nur den Ursprung", () => {
+  const k = { ox: 10, oy: 20, zoom: 1.5 };
+  assert.deepEqual(kameraSchwenken(k, 5, -7), { ox: 15, oy: 13, zoom: 1.5 });
+});
+
+test("Einpassen legt das ganze Brett mittig in die Fläche", () => {
+  const k = kameraEinpassen(1000, 500, 600, 400);
+  // passt in der Breite nicht → verkleinern, aber nie über 1 hinaus vergrößern
+  assert.ok(k.zoom < 1);
+  assert.ok(Math.abs(600 - (1000 * k.zoom + 2 * k.ox)) < 1e-9, "waagerecht mittig");
+  assert.ok(Math.abs(400 - (500 * k.zoom + 2 * k.oy)) < 1e-9, "senkrecht mittig");
+  const klein = kameraEinpassen(100, 100, 800, 600);
+  assert.equal(klein.zoom, 1, "ein kleines Brett wird nicht aufgeblasen");
+  assert.deepEqual(kameraEinpassen(0, 0, 800, 600), kameraStart());
+});
+
+import { KENNUNG, freieKennung } from "../modell.mjs";
+
+test("aus dem Namen eines Bretts wird eine freie Adresse", () => {
+  assert.equal(freieKennung("Real Life 2027", []), "real-life-2027");
+  assert.equal(freieKennung("Grüße aus Köln", []), "gruesse-aus-koeln");
+  assert.equal(freieKennung("  ///  ", []), "brett");
+  assert.equal(freieKennung("Garten", ["garten"]), "garten-2");
+  assert.equal(freieKennung("Garten", ["garten", "garten-2"]), "garten-3");
+  assert.equal(freieKennung("2027", []), "2027");
+  assert.ok(KENNUNG.test(freieKennung("Ein sehr langer Name, der über dreiundsechzig Zeichen hinausgeht und noch weiter", [])));
+});

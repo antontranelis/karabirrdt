@@ -55,6 +55,8 @@ export declare const FADEN_PRAEDIKAT: "blocks"
 export declare const ZUGEHOERIG_PRAEDIKAT: "partOf"
 export declare const MODUL: "karabirrdt"
 export declare const AUTOR: string
+export declare const KENNUNG: RegExp
+export declare function freieKennung(name: string, belegt?: readonly string[]): string
 export declare const PHASEN: Phase[]
 export declare const STUFEN: string[]
 export declare function phaseVonStufe(stufe: number): Phase
@@ -116,3 +118,26 @@ export declare function leeresRls(brett?: string): RlsBrett
 export declare function altNachRls(brett: Partial<AltesBrett>, optionen?: Optionen): Promise<RlsBrett>
 export declare function rlsNachAlt(brett: Partial<RlsBrett>): AltesBrett
 export declare function normalisiereRls(json: unknown, optionen?: Optionen): Promise<RlsBrett>
+
+export interface Kamera {
+  ox: number
+  oy: number
+  zoom: number
+}
+export interface Punkt {
+  x: number
+  y: number
+}
+export declare const KAMERA: { min: number; max: number; rand: number }
+export declare function kameraStart(): Kamera
+export declare function weltZuSchirm(p: Punkt, k: Kamera): Punkt
+export declare function schirmZuWelt(p: Punkt, k: Kamera): Punkt
+export declare function zoomeAmZeiger(k: Kamera, faktor: number, schirmX: number, schirmY: number): Kamera
+export declare function kameraSchwenken(k: Kamera, dx: number, dy: number): Kamera
+export declare function kameraEinpassen(
+  breite: number,
+  hoehe: number,
+  flaecheBreite: number,
+  flaecheHoehe: number,
+  rand?: number,
+): Kamera
