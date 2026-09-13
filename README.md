@@ -58,8 +58,9 @@ public/alt.html die ursprüngliche Seite, unverändert in Funktion
 - **Karte verschieben:** ziehen. Fäden dürfen dabei nie nach links laufen.
 - **Faden ziehen:** Karte öffnen, „Voraussetzung hinzufügen“, dann die Karte
   anklicken, die vorher fertig sein muss.
-- **Wer:** Initialen mit „kann ich“ (gefüllt) oder „will ich lernen“ (umrandet).
-- **Traum:** Traumsatz und Traumhorizont, im Kopf des Moduls.
+- **Wer:** Zuweisungen an Mitglieder des Spaces — „kann ich“ und „will lernen“.
+  Mitglieder verwaltet das Space-Menü oben links.
+- **Traum und Daten:** im Space-Menü oben links (Zahnrad neben dem Namen).
 - **Prüfung:** Phasenabdeckung je Ziel, Karten ohne Namen, Karten ohne Fäden,
   Hebelpunkte, Summe der Stunden und Euro.
 - **Daten:** JSON kopieren, als Datei speichern oder einfügen (ersetzt das Brett).
@@ -92,6 +93,7 @@ Basis-Anmeldung in Traefik davor ist deshalb nicht optional.
 | `PUT` / `DELETE /api/b/<brett>/items/<id>` | Item setzen oder löschen |
 | `PUT` / `DELETE /api/b/<brett>/relations/<id>` | RelationRecord setzen oder löschen |
 | `PUT /api/b/<brett>/group` | Group (Merge-Patch auf `data`, `null` löscht) |
+| `GET /api/b/<brett>/members` · `PUT` / `DELETE …/members/<id>` | Mitglieder des Spaces |
 | `POST /api/b/<brett>/rls/import` | Brett ersetzen (altes **und** neues Format) |
 | `DELETE /api/b/<brett>/rls` | Brett ganz entfernen (beide Formen) |
 | `GET /api/b/<brett>` | ganzes Brett in der alten Form (`meta`, `goals`, `tasks`) |

@@ -1,6 +1,6 @@
 import type { Item, RelationRecord } from "@real-life-stack/data-interface"
 import { cn } from "@real-life-stack/toolkit"
-import { PHASEN, istErledigt, ohnePraefix, stufeVon, zieleSortiert, zielVonKarte } from "../../../modell.mjs"
+import { KANN_PRAEDIKAT, LERNT_PRAEDIKAT, PHASEN, istErledigt, ohnePraefix, stufeVon, zieleSortiert, zielVonKarte, zugewiesen } from "../../../modell.mjs"
 
 interface Props {
   ziele: Item[]
@@ -14,7 +14,8 @@ export function PruefungPanel({ ziele, karten, faeden }: Props) {
   const euro = karten.reduce((a, k) => a + (Number(k.data?.euros) || 0), 0)
   const fertig = karten.filter(istErledigt).length
   const grad = (id: string) => faeden.filter((f) => ohnePraefix(f.from) === id || ohnePraefix(f.to) === id).length
-  const ohneNamen = karten.filter((k) => !(Array.isArray(k.data?.who) ? k.data.who : []).length)
+  // „Ohne Namen" heißt: niemand kann sie und niemand will sie lernen.
+  const ohneNamen = karten.filter((k) => !zugewiesen(k, KANN_PRAEDIKAT).length && !zugewiesen(k, LERNT_PRAEDIKAT).length)
   const ohneFaden = karten.filter((k) => grad(k.id) === 0)
   const hebel = karten
     .map((k) => ({ k, d: grad(k.id) }))

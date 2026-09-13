@@ -16,7 +16,10 @@ und [08 Relation Records](https://github.com/real-life-org/real-life-stack/blob/
 |---|---|---|
 | Brett | **Group** (Space) | `data: { name, dream, horizon, scope: "group", modules: ["karabirrdt"] }` |
 | Ziel (Zeile) | **Item** `type: "project"`, `@context` + `project/v1` | `data: { title, dots, order }` |
-| Karte (Zelle) | **Item** `type: "task"`, `@context` + `task/v1` | `data: { title, description, status, stage, who, hours, euros, order }` |
+| Karte (Zelle) | **Item** `type: "task"`, `@context` + `task/v1` | `data: { title, description, status, stage, hours, euros, order }` |
+| „kann ich" | **eingebettete Relation** `assignedTo` → `global:<userId>` | die normale Task-Zuweisung aus `TaskRelations.forward` |
+| „will lernen" | **eingebettete Relation** `wantsToLearn` → `global:<userId>` | zweites Zuweisungsprädikat, siehe Lücke 11 |
+| Mitglied | **User** des Spaces (`{id: "user:anton", displayName}`) | eigene Tabelle je Brett, `GET/PUT/DELETE /members` |
 | Karte → Zeile | **eingebettete Relation** `partOf` → `item:<zielId>` | |
 | Faden | **RelationRecord** `blocks`, `from` = Voraussetzung, `to` = abhängige Karte | |
 
@@ -51,7 +54,10 @@ liegen daneben in `modell.d.mts`.
 | Baustein | wofür |
 |---|---|
 | `ConnectorProvider`, `AppShell`, `AppShellMain`, `Navbar` | Rahmen |
-| `WorkspaceSwitcher` + `GroupDialog` | Bretter wechseln, anlegen, umbenennen, löschen — ein Brett **ist** ein Space |
+| `WorkspaceSwitcher` + `GroupDialog` | Bretter wechseln, anlegen, umbenennen, löschen, Mitglieder — ein Brett **ist** ein Space |
+| `CreateFab` | der Plus-Knopf unten rechts; die Typ-Auswahl macht der `ItemComposer` selbst |
+| `people`-Widget des Composers (`peopleRelation: assignedTo`) | „kann ich" — dasselbe Feld wie Zuständige im Kanban |
+| `ItemAssignees` | die Gesichter auf der Karte, für beide Zuweisungen |
 | `UserMenu` | rechts in der Navbar, wie in der Reference-App |
 | `ModuleFrame` (`fill="bleed"`) | die Modulfläche: Kopf im Fluss darüber, das Brett füllt den Rest |
 | `ModuleToolbar` + `FilterScope` + `useModuleFilteredItems` | Kopf des Moduls: Suche, Tag-Filter, Modul-Aktionen, Verbindungsstand |
@@ -150,7 +156,36 @@ umgangen.
    Beiträge nebeneinander setzen statt übereinander. Außerdem fehlt eine
    Angabe, wieviel Platz die Ecke belegt — das Einpassen einer Fläche muss
    das heute schätzen (`SCHWEBEND` in `App.tsx`).
-10. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
+10. **Ein Typ kann nur EIN Personen-Feld haben.** `ContentTypeConfig.peopleRelation`
+   nimmt genau ein Prädikat, und `PeopleWidget` ist nicht exportiert (nur
+   `PersonOption`). Eine Karte mit zwei Zuweisungsarten — „kann ich" und
+   „will lernen" — lässt sich damit nicht bauen; das zweite Feld ist aus
+   Toolkit-Bausteinen nachgezogen und sieht darum anders aus als das erste.
+   Auch im Prädikat-Katalog (`KnownPredicate`) gibt es nichts fürs Lernen:
+   `assignedTo`, `childOf`, `blocks`, `relatedTo`, `invited`, `commentOn`,
+   `reactsTo`, `votesOn`. Wir benutzen `wantsToLearn` in `item.relations[]`.
+   *Vorschlag:* `peopleRelations: readonly { predicate, widget, label }[]`
+   statt des einen `peopleRelation`, `PeopleWidget` exportieren, und im
+   Task-Manifest eine zweite Affordance
+   `{ predicate: "wantsToLearn", itemRole: "from", otherKind: "person" }`.
+   Beteiligung ist selten nur Zuständigkeit — wer etwas lernen will, ist
+   genauso beteiligt.
+11. **Der MockConnector nimmt nach dem Seed keine Menschen mehr auf.**
+   `users` ist privat, `inviteMember(groupId, userId)` kennt nur Kennungen,
+   und `injectSeedItems` gilt nur für Items. Ein Connector, der ihn benutzt,
+   kann Mitglieder eines nachgeladenen Spaces also nicht hineinreichen —
+   unsere Schicht führt die Mitgliederliste darum selbst und beantwortet
+   `getMembers`/`observeMembers`/`getUser` direkt.
+   *Vorschlag:* `injectSeedUsers(users, groupId)` analog zu `injectSeedItems`,
+   oder `inviteMember(groupId, user: string | User)`.
+12. **Die Space-Konfiguration hat keinen Platz für mehr.** `GroupDialog` nimmt
+   keine zusätzlichen Abschnitte und `WorkspaceSwitcher` keinen zweiten
+   Menüpunkt je Space. Traum, Traumhorizont und der JSON-Austausch gehören
+   zum Space und mussten darum in einen eigenen Dialog neben das Space-Menü.
+   *Vorschlag:* ein `sections`-Slot im `GroupDialog` (oder Tabs, in die eine
+   App eigene Abschnitte hängt) und ein `actions`-Slot je Space-Eintrag im
+   Switcher.
+13. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
    Mock-Connector ist speicherflüchtig, der Local-Connector einsam, Supabase
    und WoT bringen Identität mit. Diese App braucht dazwischen einen
    geteilten Raum ohne Konten — deshalb `ServerConnector`.
@@ -194,6 +229,11 @@ umgangen.
   heißt, ist im Stack eine Group. Dann erledigen `WorkspaceSwitcher` und
   `GroupDialog` Wechseln, Anlegen, Umbenennen und Löschen, ohne dass die App
   eine eigene Verwaltung baut — die wir in Runde 1 noch hatte.
+- **Core-Typen präsentieren sich selbst.** `registerTypePresentation` haben
+  wir NICHT benutzt: `project` und `task` sind Core-Typen, ihre Darstellung
+  liefert das Toolkit mit, und ein zweiter Eintrag für dieselbe Id ist nach
+  Spec 06 ein Konflikt (kein Override in v0.1). Die Regel „der Typ
+  entscheidet" gilt also schon, ohne dass die App etwas registriert.
 - **Eine Autor-Kennung.** Die Id eines RelationRecords leitet sich aus
   `(createdBy, predicate, from, to)` ab. Wer an zwei Stellen zwei Kennungen
   benutzt (Server-Migration und App), bekommt zwei Datensätze für dieselbe

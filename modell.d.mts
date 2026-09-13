@@ -41,11 +41,13 @@ export interface RlsBrett {
   group: Group
   items: Item[]
   relations: RelationRecord[]
+  members?: { id: string; displayName?: string }[]
 }
 export interface Optionen {
   createdBy?: string
   createdAt?: string
   brett?: string
+  mitglieder?: readonly { id: string; displayName?: string }[]
 }
 
 export declare const VOCAB: { BASE: string; TASK: string; PROJECT: string; RELATION: string }
@@ -116,7 +118,7 @@ export declare function recordVonRelationItem(item: Item | null | undefined): Re
 export declare function istRlsFormat(json: unknown): boolean
 export declare function leeresRls(brett?: string): RlsBrett
 export declare function altNachRls(brett: Partial<AltesBrett>, optionen?: Optionen): Promise<RlsBrett>
-export declare function rlsNachAlt(brett: Partial<RlsBrett>): AltesBrett
+export declare function rlsNachAlt(brett: Partial<RlsBrett>, mitglieder?: readonly { id: string; displayName?: string }[]): AltesBrett
 export declare function normalisiereRls(json: unknown, optionen?: Optionen): Promise<RlsBrett>
 
 export interface Kamera {
@@ -155,3 +157,19 @@ export declare function kameraEinpassen(
   flaecheHoehe: number,
   rand?: number | Raender,
 ): Kamera
+
+export declare const GLOBAL: "global:"
+export declare const KANN_PRAEDIKAT: "assignedTo"
+export declare const LERNT_PRAEDIKAT: "wantsToLearn"
+export declare const ZUWEISUNGEN: string[]
+export declare function initialenFuer(mitglieder: readonly { id: string; displayName?: string }[]): Map<string, string>
+export declare function zugewiesen(item: { relations?: EingebetteteRelation[] } | null | undefined, praedikat: string): string[]
+export declare function mitZuweisungen(
+  item: { relations?: EingebetteteRelation[] } | null | undefined,
+  kann?: readonly string[],
+  lernt?: readonly string[],
+): EingebetteteRelation[]
+export declare function migriereWho(
+  item: Item,
+  mitglieder?: readonly { id: string; displayName?: string }[],
+): { item: Item; unbekannt: string[] }

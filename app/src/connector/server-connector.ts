@@ -1,11 +1,14 @@
 import { MockConnector, type MockConnectorSeed } from "@real-life-stack/mock-connector"
-import type {
-  FullConnector,
-  Group,
-  Item,
-  RelationRecord,
-  RelationRecordInput,
-  RelationRecordUpdate,
+import {
+  createObservable,
+  type FullConnector,
+  type Group,
+  type Item,
+  type RelationRecord,
+  type RelationRecordInput,
+  type RelationRecordUpdate,
+  type ReactiveObservable,
+  type User,
 } from "@real-life-stack/data-interface"
 import { AUTOR, KENNUNG, freieKennung, relationItemVonRecord, recordVonRelationItem, leeresRls } from "../../../modell.mjs"
 
@@ -32,6 +35,7 @@ export interface BrettDaten {
   group: Group
   items: Item[]
   relations: RelationRecord[]
+  members?: User[]
 }
 
 const basis = (brett: string) => `/api/b/${encodeURIComponent(brett)}`
@@ -78,7 +82,7 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
   const seed: MockConnectorSeed = {
     items: alsItems,
     groups: alleGruppen,
-    users: [TISCH],
+    users: [TISCH, ...(daten.members ?? [])],
     groupMembers: Object.fromEntries(alleGruppen.map((g) => [g.id, [TISCH.id]])),
     groupItems: { [startBrett]: alsItems.map((i) => i.id) },
   }
@@ -91,6 +95,26 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
 
   let aktuell = startBrett
   const geladen = new Set([startBrett])
+
+  // Die Mitglieder je Brett. Der MockConnector kennt nur, was im Seed stand;
+  // nachträglich lassen sich dort weder Nutzer noch Mitgliedschaften
+  // ergänzen (Upstream-Lücke, siehe README). Darum führt diese Schicht die
+  // Liste selbst und beantwortet die Mitglieder-Fragen des Vertrags.
+  const mitglieder = new Map<string, User[]>([[startBrett, daten.members ?? []]])
+  const mitgliederObs = new Map<string, ReactiveObservable<User[]>>()
+  const beobachteMitglieder = (brett: string) => {
+    let obs = mitgliederObs.get(brett)
+    if (!obs) {
+      obs = createObservable<User[]>(mitglieder.get(brett) ?? [])
+      mitgliederObs.set(brett, obs)
+    }
+    return obs
+  }
+  const setzeMitglieder = (brett: string, liste: User[]) => {
+    mitglieder.set(brett, liste)
+    beobachteMitglieder(brett).set(liste)
+  }
+  setzeMitglieder(startBrett, daten.members ?? [])
 
   // Was wir gerade selbst geschrieben haben, kommt über die WebSocket zurück.
   // Signatur merken und die Rückmeldung überspringen, statt sie erneut
@@ -143,6 +167,7 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
     geladen.add(brett)
     try {
       const b = await ladeBrett(brett)
+      setzeMitglieder(brett, b.members ?? [])
       mock.injectSeedItems([...b.items, ...b.relations.map(relationItemVonRecord)], brett)
       await mock.updateGroup(brett, { name: b.group?.name, data: b.group?.data })
     } catch (e) {
@@ -204,6 +229,28 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
       await schreibe(`/relations/${encodeURIComponent(id)}`, "DELETE")
     },
 
+    // --- Mitglieder ---
+    getMembers: async (groupId: string | null) => mitglieder.get(groupId ?? aktuell) ?? [],
+    observeMembers: (groupId: string | null) => beobachteMitglieder(groupId ?? aktuell),
+    getUser: async (id: string) => {
+      for (const liste of mitglieder.values()) {
+        const gefunden = liste.find((u) => u.id === id)
+        if (gefunden) return gefunden
+      }
+      return id === TISCH.id ? TISCH : null
+    },
+    inviteMember: async (groupId: string, userId: string) => {
+      const bekannt = (await ueberschrieben.getUser as (id: string) => Promise<User | null>)(userId)
+      const nutzer: User = (await bekannt) ?? { id: userId, displayName: userId }
+      await schreibeAn(groupId, `/members/${encodeURIComponent(userId)}`, "PUT", { displayName: nutzer.displayName })
+      const liste = mitglieder.get(groupId) ?? []
+      if (!liste.some((u) => u.id === userId)) setzeMitglieder(groupId, [...liste, nutzer])
+    },
+    removeMember: async (groupId: string, userId: string) => {
+      await schreibeAn(groupId, `/members/${encodeURIComponent(userId)}`, "DELETE")
+      setzeMitglieder(groupId, (mitglieder.get(groupId) ?? []).filter((u) => u.id !== userId))
+    },
+
     // --- Bretter als Spaces -------------------------------------------------
     setCurrentGroup: (id: string | null) => {
       if (!id) return
@@ -230,6 +277,8 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
       const id = freieKennung(name, belegt)
       const vorlage = leeresRls(id).group.data
       await schreibeAn(id, "/group", "PUT", { name, data: { ...vorlage, ...(data ?? {}), name } })
+      // Wer ein Brett anlegt, ist sein erstes Mitglied.
+      await schreibeAn(id, `/members/${encodeURIComponent(TISCH.id)}`, "PUT", { displayName: TISCH.displayName })
       const group: Group = { id, name, data: { ...vorlage, ...(data ?? {}), name } }
       location.assign(`/${id}`)
       return group
@@ -267,6 +316,7 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
     const behalten = new Set(neuItems.map((i) => i.id))
     for (const alt of await mock.getItems()) if (!behalten.has(alt.id)) await mock.deleteItem(alt.id)
     for (const item of neuItems) await setzeItem(item, item.id)
+    setzeMitglieder(aktuell, neu.members ?? [])
     await mock.updateGroup(aktuell, { name: neu.group?.name, data: neu.group?.data })
   }
 
@@ -315,6 +365,11 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
         return void mock.updateGroup(brett, { name: g?.name, data: g?.data })
       }
       if (!n.id) return
+      if (n.type === "member") {
+        const liste = (mitglieder.get(brett) ?? []).filter((u) => u.id !== n.id)
+        setzeMitglieder(brett, n.data ? [...liste, n.data as User] : liste)
+        return
+      }
       if (n.type === "item") {
         if (warSelbst(`item:${n.id}`, n.data)) return
         return void setzeItem((n.data as Item) ?? null, n.id)

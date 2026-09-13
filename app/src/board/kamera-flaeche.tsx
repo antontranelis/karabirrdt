@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react"
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from "react"
 import { kameraBegrenzen, kameraEinpassen, kameraSchwenken, kameraStart, zoomeAmZeiger, type Kamera, type Raender } from "../../../modell.mjs"
 
 export interface FlaechenSteuerung {
@@ -22,6 +22,13 @@ interface Props {
    * schwebt — unten die Filter-Pille und die Kamera-Knöpfe.
    */
   raender?: Raender
+  /**
+   * Was über der Fläche schwebt: der Kopf des Moduls und die Ecke mit den
+   * Bedienelementen. Ihre Höhe wird gemessen, nicht geraten — sonst liegt
+   * das eingepasste Brett darunter.
+   */
+  kopfElement?: HTMLElement | null
+  fussElement?: HTMLElement | null
   children: (kamera: Kamera, hatGeschwenkt: () => boolean) => ReactNode
 }
 
@@ -34,7 +41,17 @@ interface Props {
  * bleiben die Karten echte DOM-Elemente und HTML5-Drag&Drop trifft weiter
  * die richtigen Zellen, ohne dass irgendwo umgerechnet werden müsste.
  */
-export function KameraFlaeche({ breite, hoehe, ziehbarSelektor, steuerung, einpassenSchluessel, raender, children }: Props) {
+export function KameraFlaeche({
+  breite,
+  hoehe,
+  ziehbarSelektor,
+  steuerung,
+  einpassenSchluessel,
+  raender,
+  kopfElement,
+  fussElement,
+  children,
+}: Props) {
   const flaeche = useRef<HTMLDivElement>(null)
   const [kamera, setKamera] = useState<Kamera>(kameraStart)
   const zeiger = useRef(new Map<number, { x: number; y: number }>())
@@ -43,21 +60,54 @@ export function KameraFlaeche({ breite, hoehe, ziehbarSelektor, steuerung, einpa
 
   const masse = useCallback(() => flaeche.current?.getBoundingClientRect() ?? null, [])
 
+  // Die Höhe der schwebenden Bereiche am DOM messen, nicht schätzen.
+  const [gemessen, setGemessen] = useState<Raender>({})
+  useEffect(() => {
+    const messen = () => {
+      const m = flaeche.current?.getBoundingClientRect()
+      if (!m) return
+      const kopf = kopfElement?.getBoundingClientRect()
+      const fuss = fussElement?.getBoundingClientRect()
+      setGemessen((alt) => {
+        const neu = {
+          oben: kopf && kopf.height > 0 ? Math.max(0, kopf.bottom - m.top) + 8 : 0,
+          unten: fuss && fuss.height > 0 ? Math.max(0, m.bottom - fuss.top) + 8 : 0,
+        }
+        return alt.oben === neu.oben && alt.unten === neu.unten ? alt : neu
+      })
+    }
+    messen()
+    if (typeof ResizeObserver === "undefined") return
+    const beobachter = new ResizeObserver(messen)
+    for (const el of [flaeche.current, kopfElement, fussElement]) if (el) beobachter.observe(el)
+    return () => beobachter.disconnect()
+  }, [kopfElement, fussElement, breite, hoehe])
+
+  const alleRaender = useMemo<Raender>(
+    () => ({
+      oben: Math.max(raender?.oben ?? 0, gemessen.oben ?? 0),
+      unten: Math.max(raender?.unten ?? 0, gemessen.unten ?? 0),
+      links: raender?.links ?? 0,
+      rechts: raender?.rechts ?? 0,
+    }),
+    [raender, gemessen],
+  )
+
   // Jede Kamerabewegung geht durch die Grenzen: nicht weiter hinaus als
   // eingepasst, und das Brett bleibt in der Fläche.
   const begrenzt = useCallback(
     (k: Kamera) => {
       const m = masse()
-      return m ? kameraBegrenzen(k, breite, hoehe, m.width, m.height, raender) : k
+      return m ? kameraBegrenzen(k, breite, hoehe, m.width, m.height, alleRaender) : k
     },
-    [breite, hoehe, masse, raender],
+    [breite, hoehe, masse, alleRaender],
   )
 
   const einpassen = useCallback(() => {
     const m = masse()
     if (!m) return
-    setKamera(kameraEinpassen(breite, hoehe, m.width, m.height, raender))
-  }, [breite, hoehe, masse, raender])
+    setKamera(kameraEinpassen(breite, hoehe, m.width, m.height, alleRaender))
+  }, [breite, hoehe, masse, alleRaender])
 
   useImperativeHandle(
     steuerung,
@@ -78,10 +128,11 @@ export function KameraFlaeche({ breite, hoehe, ziehbarSelektor, steuerung, einpa
   useEffect(() => {
     if (!(breite > 0) || !(hoehe > 0)) return
     const schluessel = einpassenSchluessel ?? "brett"
-    if (zuletztEingepasst.current === schluessel) return
-    zuletztEingepasst.current = schluessel
+    const voll = `${schluessel}:${alleRaender.oben}:${alleRaender.unten}`
+    if (zuletztEingepasst.current === voll) return
+    zuletztEingepasst.current = voll
     einpassen()
-  }, [breite, hoehe, einpassen, einpassenSchluessel])
+  }, [breite, hoehe, einpassen, einpassenSchluessel, alleRaender])
 
   // Das Rad muss abgefangen werden, sonst scrollt die Seite. React hängt
   // `onWheel` passiv ein, darum von Hand.

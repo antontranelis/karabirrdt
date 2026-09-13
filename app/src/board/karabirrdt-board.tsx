@@ -1,7 +1,18 @@
 import { useRef, useState, type DragEvent, type PointerEvent, type Ref } from "react"
-import type { Item, RelationRecord } from "@real-life-stack/data-interface"
-import { ItemPreview, cn } from "@real-life-stack/toolkit"
-import { MASSE, phaseVonStufe, stufeVon, istErledigt, zieleSortiert, schirmZuWelt, type Raender } from "../../../modell.mjs"
+import type { Item, RelationRecord, User } from "@real-life-stack/data-interface"
+import { ItemAssignees, ItemPreview, cn } from "@real-life-stack/toolkit"
+import {
+  KANN_PRAEDIKAT,
+  LERNT_PRAEDIKAT,
+  MASSE,
+  istErledigt,
+  phaseVonStufe,
+  schirmZuWelt,
+  stufeVon,
+  zieleSortiert,
+  zugewiesen,
+  type Raender,
+} from "../../../modell.mjs"
 import { raster as bauRaster, zelleBei } from "./raster"
 import { ThreadsOverlay } from "./threads-overlay"
 import { KameraFlaeche, type FlaechenSteuerung } from "./kamera-flaeche"
@@ -25,11 +36,15 @@ interface Props {
   aktiv: string | null
   /** Karte, für die gerade eine Voraussetzung gesucht wird. */
   fadenVon: string | null
+  /** Die Mitglieder des Spaces — für die Zuweisungen auf den Karten. */
+  mitglieder: User[]
   steuerung?: Ref<FlaechenSteuerung>
   /** Wechselt mit dem Brett — danach wird neu eingepasst. */
   einpassenSchluessel?: string
   /** Freiraum für die schwebenden Bedienelemente. */
   raender?: Raender
+  kopfElement?: HTMLElement | null
+  fussElement?: HTMLElement | null
   onKarte: (id: string) => void
   onZelle: (zielId: string, stufe: number) => void
   onZiel: (id: string) => void
@@ -42,9 +57,12 @@ export function KarabirrdtBoard({
   faeden,
   aktiv,
   fadenVon,
+  mitglieder,
   steuerung,
   einpassenSchluessel,
   raender,
+  kopfElement,
+  fussElement,
   onKarte,
   onZelle,
   onZiel,
@@ -70,28 +88,38 @@ export function KarabirrdtBoard({
       steuerung={steuerung}
       einpassenSchluessel={einpassenSchluessel}
       raender={raender}
+      kopfElement={kopfElement}
+      fussElement={fussElement}
     >
       {(kamera, hatGeschwenkt) => (
         <div ref={welt} className="relative" style={{ width: r.breite, height: r.hoehe }}>
           <ThreadsOverlay raster={r} karten={karten} faeden={faeden} hervorgehoben={aktiv} />
 
-          {/* Ziele als Zeilenköpfe */}
-          {r.zeilen.map((z) => (
-            <button
-              key={z.ziel.id}
-              type="button"
+          {/* Ziele als Zeilenköpfe — dieselbe Karte wie überall */}
+        {r.zeilen.map((z) => (
+          <div
+            key={z.ziel.id}
+            data-karte
+            className="absolute overflow-hidden"
+            style={{ left: MASSE.start, top: z.y + 4, width: MASSE.label, height: Math.max(60, z.h - 8) }}
+          >
+            <ItemPreview
+              item={z.ziel}
+              author={null}
+              density="compact"
+              active={aktiv === z.ziel.id}
               onClick={() => !hatGeschwenkt() && onZiel(z.ziel.id)}
-              className="absolute rounded-md p-2 text-left text-xs leading-snug hover:bg-accent/60"
-              style={{ left: MASSE.start, top: z.y, width: MASSE.label, height: z.h }}
-            >
-              <span className="block font-mono text-[10px] tracking-wide text-muted-foreground">
-                {Number(z.ziel.data?.dots) > 0 ? "●".repeat(Number(z.ziel.data?.dots)) : "keine Punkte"}
-              </span>
-              <span className="mt-0.5 block break-words font-semibold">{String(z.ziel.data?.title ?? "")}</span>
-            </button>
-          ))}
+              className="h-full"
+              metaAdornment={
+                <span className="font-mono text-[10px] tracking-wide text-muted-foreground">
+                  {Number(z.ziel.data?.dots) > 0 ? "●".repeat(Number(z.ziel.data?.dots)) : "keine Punkte"}
+                </span>
+              }
+            />
+          </div>
+        ))}
 
-          {/* Zellen: leere Fläche zum Anlegen und Ziel jedes Ablegens */}
+        {/* Zellen: leere Fläche zum Anlegen und Ziel jedes Ablegens */}
           {r.zeilen.flatMap((z) =>
             Array.from({ length: 12 }, (_, s) => {
               const schluessel = `${z.ziel.id}:${s}`
@@ -205,7 +233,7 @@ export function KarabirrdtBoard({
                       "h-full border-l-4 border-l-[var(--kb-phase)]",
                       istErledigt(k) && "bg-[var(--kb-phase)]/15",
                     )}
-                    footerAdornment={<KartenFuss item={k} />}
+                    footerAdornment={<KartenFuss item={k} mitglieder={mitglieder} />}
                   />
                 </div>
               )
@@ -217,29 +245,27 @@ export function KarabirrdtBoard({
 }
 
 /**
- * Die Fußzeile einer Karte: Initialen mit „kann ich" (gefüllt) und „will ich
- * lernen" (umrandet), dazu die Stunden. Sie geht über den `footerAdornment`-
- * Schlitz der geteilten `ItemPreview` — keine eigene Karte.
+ * Die Fußzeile einer Karte: wer sie kann und wer sie lernen will, dazu die
+ * Stunden. Die Gesichter zeichnet `ItemAssignees` — dieselbe Darstellung von
+ * Zuständigen wie überall im Stack; „will lernen" steht daneben beschriftet,
+ * weil es eine andere Aussage ist.
  */
-function KartenFuss({ item }: { item: Item }) {
-  const wer = Array.isArray(item.data?.who) ? (item.data.who as { ini: string; can: boolean }[]) : []
+function KartenFuss({ item, mitglieder }: { item: Item; mitglieder: User[] }) {
+  const finde = (ids: string[]) => ids.map((id) => mitglieder.find((m) => m.id === id)).filter((u): u is User => !!u)
+  const kann = finde(zugewiesen(item, KANN_PRAEDIKAT))
+  const lernt = finde(zugewiesen(item, LERNT_PRAEDIKAT))
   const stunden = Number(item.data?.hours) || 0
-  if (!wer.length && !stunden) return null
+  if (!kann.length && !lernt.length && !stunden) return null
   return (
-    <div className="flex items-center gap-1 overflow-hidden">
-      {wer.map((w) => (
-        <span
-          key={w.ini}
-          title={w.can ? "kann ich" : "will ich lernen"}
-          className={cn(
-            "rounded border border-foreground px-1 font-mono text-[9px] leading-4",
-            w.can ? "bg-foreground text-background" : "bg-transparent",
-          )}
-        >
-          {w.ini}
+    <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+      {!!kann.length && <ItemAssignees users={kann} />}
+      {!!lernt.length && (
+        <span className="flex min-w-0 items-center gap-1 opacity-70">
+          <span className="font-mono text-[9px] uppercase tracking-wide text-muted-foreground">lernt</span>
+          <ItemAssignees users={lernt} />
         </span>
-      ))}
-      {stunden > 0 && <span className="font-mono text-[10px] text-muted-foreground">{stunden}h</span>}
+      )}
+      {stunden > 0 && <span className="ml-auto font-mono text-[10px] text-muted-foreground">{stunden}h</span>}
     </div>
   )
 }

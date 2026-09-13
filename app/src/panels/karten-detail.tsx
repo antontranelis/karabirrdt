@@ -8,7 +8,7 @@ import {
   useDeleteItem,
   useUpdateItem,
 } from "@real-life-stack/toolkit"
-import { KARTEN_VORLAGE, WIDGETS, karteMapper, karteVorbelegung } from "../content-types"
+import { KARTEN_VORLAGE, WIDGETS, karteMapper, karteVorbelegung, useMitgliederOptionen } from "../content-types"
 import { STUFEN, phaseVonStufe, stufeVon, istErledigt, ohnePraefix, zielVonKarte } from "../../../modell.mjs"
 
 interface Props {
@@ -42,6 +42,7 @@ export function KartenDetail({
   onGeschlossen,
 }: Props) {
   const { mutate: aendere } = useUpdateItem()
+  const personen = useMitgliederOptionen()
   const { mutate: loesche } = useDeleteItem()
   const [loeschenOffen, setLoeschenOffen] = useState(false)
 
@@ -71,9 +72,9 @@ export function KartenDetail({
           contentTypes={[KARTEN_VORLAGE]}
           initialContentType={KARTEN_VORLAGE.id}
           existingItem={karte}
-          initialData={karteVorbelegung(karte.data)}
+          initialData={karteVorbelegung(karte)}
           mapper={karteMapper({ zielId: ziel?.id ?? "", stufe, order: Number(karte.data?.order) || 0 })}
-          composerProps={{ widgets: WIDGETS }}
+          composerProps={{ widgets: WIDGETS, peopleOptions: personen }}
           onDone={() => {}}
           onCancel={onGeschlossen}
         />

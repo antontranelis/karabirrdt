@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react"
-import type { Group, Item, RelationRecord } from "@real-life-stack/data-interface"
+import type { Group, Item, RelationRecord, User } from "@real-life-stack/data-interface"
 import { hasGroups } from "@real-life-stack/data-interface"
 import {
   AdaptivePanel,
   AppShell,
   AppShellMain,
   Button,
+  CreateFab,
   EmptyState,
   FilterScope,
   GroupDialog,
-  ModuleControls,
+  ItemComposer,
   ModuleFrame,
   ModuleToolbar,
   Navbar,
@@ -26,25 +27,28 @@ import {
   useDeleteGroup,
   useDeleteItem,
   useGroups,
+  useInviteMember,
   useItems,
+  useMembers,
   useModuleFilteredItems,
+  useOptionalModuleHead,
+  useRemoveMember,
   useUpdateGroup,
   useUpdateItem,
   type GroupDialogMode,
   type Workspace,
 } from "@real-life-stack/toolkit"
-import { Maximize2, Minus, Plus, Sparkles } from "lucide-react"
+import { Maximize2, Minus, Plus, Settings2, Sparkles } from "lucide-react"
 import { KarabirrdtBoard } from "./board/karabirrdt-board"
 import type { FlaechenSteuerung } from "./board/kamera-flaeche"
 import { KartenDetail } from "./panels/karten-detail"
-import { KarteAnlegen } from "./panels/karte-anlegen"
-import { ZielePanel } from "./panels/ziele-panel"
+import { ZielDetail } from "./panels/ziel-detail"
 import { PruefungPanel } from "./panels/pruefung-panel"
-import { DatenPanel } from "./panels/daten-panel"
-import { TraumPanel } from "./panels/traum-panel"
+import { SpaceDialog } from "./panels/space-dialog"
 import { useFaeden } from "./faeden"
 import { STARTZIELE } from "./startziele"
 import { TISCH } from "./connector/server-connector"
+import { KARTEN_VORLAGE, WIDGETS, ZIEL_VORLAGE, karteMapper, useMitgliederOptionen, zielMapper } from "./content-types"
 import {
   KARTEN_TYP,
   VOCAB,
@@ -56,20 +60,12 @@ import {
   zielVonKarte,
 } from "../../modell.mjs"
 
-/**
- * Was beim Einpassen frei bleibt: unten die Schutzzone mit der Filter-Pille
- * (links) und den Kamera-Knöpfen (rechts). Beides liegt in der `p-4`-Zone
- * des `ModuleFrame`; 16px Polster plus eine Knopfreihe.
- */
-const SCHWEBEND = { oben: 12, unten: 16 + 40 + 12, links: 12, rechts: 12 }
-
 type Ansicht =
   | { art: "karte"; id: string }
+  | { art: "ziel"; id: string }
   | { art: "neu"; zielId: string; stufe: number }
-  | { art: "traum" }
-  | { art: "ziele" }
+  | { art: "anlegen" }
   | { art: "pruefung" }
-  | { art: "daten" }
   | null
 
 interface Props {
@@ -82,6 +78,7 @@ export default function App({ aufZustand }: Props) {
   const brett = group?.id ?? "haupt"
   const { data: gruppen } = useGroups()
   const { data: nutzer } = useCurrentUser()
+  const { data: mitglieder } = useMembers(group?.id ?? null)
   const { data: ziele } = useItems({ type: ZIEL_TYP })
   const { data: karten } = useItems({ type: KARTEN_TYP })
   const { faeden, schreibbar: fadenSchreibbar, ziehe, loese } = useFaeden()
@@ -91,12 +88,15 @@ export default function App({ aufZustand }: Props) {
   const gruppeAnlegen = useCreateGroup()
   const gruppeAendern = useUpdateGroup()
   const gruppeLoeschen = useDeleteGroup()
+  const einladen = useInviteMember()
+  const entfernen = useRemoveMember()
 
   const [ansicht, setAnsicht] = useState<Ansicht>(null)
   const [fadenVon, setFadenVon] = useState<string | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [live, setLive] = useState(false)
   const [gruppenDialog, setGruppenDialog] = useState(false)
+  const [spaceDialog, setSpaceDialog] = useState(false)
   const [dialogModus, setDialogModus] = useState<GroupDialogMode>({ type: "create" })
   const kamera = useRef<FlaechenSteuerung>(null)
 
@@ -115,7 +115,6 @@ export default function App({ aufZustand }: Props) {
     document.addEventListener("keydown", taste)
     return () => document.removeEventListener("keydown", taste)
   }, [fadenVon])
-  // Beim Brettwechsel schließt, was zum alten Brett gehörte.
   useEffect(() => {
     setAnsicht(null)
     setFadenVon(null)
@@ -174,12 +173,13 @@ export default function App({ aufZustand }: Props) {
     })
   }
 
-  const aktiv = ansicht?.art === "karte" ? ansicht.id : null
-  const offeneKarte = aktiv ? karten.find((k) => k.id === aktiv) : undefined
+  const aktiv = ansicht?.art === "karte" || ansicht?.art === "ziel" ? ansicht.id : null
+  const offeneKarte = ansicht?.art === "karte" ? karten.find((k) => k.id === ansicht.id) : undefined
+  const offenesZiel = ansicht?.art === "ziel" ? ziele.find((z) => z.id === ansicht.id) : undefined
   useEffect(() => {
-    // Eine von jemand anderem gelöschte Karte lässt kein Panel zurück.
-    if (aktiv && !offeneKarte) setAnsicht(null)
-  }, [aktiv, offeneKarte])
+    if (ansicht?.art === "karte" && !offeneKarte) setAnsicht(null)
+    if (ansicht?.art === "ziel" && !offenesZiel) setAnsicht(null)
+  }, [ansicht, offeneKarte, offenesZiel])
 
   return (
     <AppShell>
@@ -200,24 +200,25 @@ export default function App({ aufZustand }: Props) {
               setGruppenDialog(true)
             }}
           />
+          <Button variant="ghost" size="icon-sm" title="Traum und Daten dieses Spaces" onClick={() => setSpaceDialog(true)}>
+            <Settings2 className="h-4 w-4" />
+          </Button>
         </NavbarStart>
         <NavbarEnd>
           <UserMenu user={{ id: nutzer?.id ?? TISCH.id, name: nutzer?.displayName ?? TISCH.displayName }} />
         </NavbarEnd>
       </Navbar>
 
-      <AppShellMain>
-        {/* `fill="bleed"`: das Brett IST die Fläche. Ohne `panelFit="overlay"`
-            steht der Kopf des Moduls IM Fluss darüber (mit eigenem Grund),
-            statt über den Phasenbändern zu schweben. */}
-        <ModuleFrame fill="bleed">
-          {/* Die Steuerleiste des Moduls und das Brett teilen sich einen
-              Filter: Was der Kopf zeigt, ist das, was die Fläche anwendet. */}
+      <AppShellMain inset={false}>
+        {/* Wie Karte und Graph: das Brett IST die Fläche, der Kopf schwebt
+            darüber. Was er verdeckt, zieht das Einpassen als Rand ab. */}
+        <ModuleFrame fill="bleed" panelFit="overlay">
           <FilterScope>
             <BrettModul
               ziele={ziele}
               karten={karten}
               faeden={faeden}
+              mitglieder={mitglieder}
               aktiv={aktiv}
               fadenVon={fadenVon}
               live={live}
@@ -227,7 +228,7 @@ export default function App({ aufZustand }: Props) {
               onAnsicht={setAnsicht}
               onKarte={(id) => void kartenKlick(id)}
               onZelle={(zielId, stufe) => (fadenVon ? setFadenVon(null) : setAnsicht({ art: "neu", zielId, stufe }))}
-              onZiel={() => setAnsicht({ art: "ziele" })}
+              onZiel={(id) => setAnsicht({ art: "ziel", id })}
               onVerschieben={(id, zielId, stufe) => void verschieben(id, zielId, stufe)}
               onStartziele={async () => {
                 for (const [i, titel] of STARTZIELE.entries())
@@ -244,7 +245,7 @@ export default function App({ aufZustand }: Props) {
       </AppShellMain>
 
       <AdaptivePanel open={!!ansicht} onClose={() => setAnsicht(null)} allowedModes={["sidebar", "drawer"]}>
-        {ansicht?.art === "karte" && offeneKarte && (
+        {offeneKarte && (
           <KartenDetail
             karte={offeneKarte}
             ziele={ziele}
@@ -263,19 +264,26 @@ export default function App({ aufZustand }: Props) {
             onGeschlossen={() => setAnsicht(null)}
           />
         )}
-        {ansicht?.art === "neu" && (
-          <KarteAnlegen
-            zielId={ansicht.zielId}
-            zielTitel={String(ziele.find((z: Item) => z.id === ansicht.zielId)?.data?.title ?? "")}
-            stufe={ansicht.stufe}
-            onFertig={(item) => setAnsicht({ art: "karte", id: item.id })}
+        {offenesZiel && (
+          <ZielDetail
+            ziel={offenesZiel}
+            karten={karten.filter((k) => zielVonKarte(k) === offenesZiel.id).length}
+            onLoeschen={async () => {
+              for (const k of karten.filter((k) => zielVonKarte(k) === offenesZiel.id)) await karteLoeschen(k.id)
+            }}
+            onGeschlossen={() => setAnsicht(null)}
+          />
+        )}
+        {(ansicht?.art === "neu" || ansicht?.art === "anlegen") && (
+          <Anlegen
+            zielId={ansicht.art === "neu" ? ansicht.zielId : (ziele[0]?.id ?? "")}
+            stufe={ansicht.art === "neu" ? ansicht.stufe : 0}
+            nurKarte={ansicht.art === "neu"}
+            onFertig={(item) => setAnsicht({ art: item.type === ZIEL_TYP ? "ziel" : "karte", id: item.id })}
             onAbbruch={() => setAnsicht(null)}
           />
         )}
-        {ansicht?.art === "traum" && <TraumPanel group={group} />}
-        {ansicht?.art === "ziele" && <ZielePanel ziele={ziele} karten={karten} onKarteLoeschen={karteLoeschen} />}
         {ansicht?.art === "pruefung" && <PruefungPanel ziele={ziele} karten={karten} faeden={faeden} />}
-        {ansicht?.art === "daten" && <DatenPanel brett={brett} group={group} items={[...ziele, ...karten]} relations={faeden} />}
       </AdaptivePanel>
 
       <GroupDialog
@@ -292,6 +300,17 @@ export default function App({ aufZustand }: Props) {
         onDeleteGroup={async (id) => {
           await gruppeLoeschen(id)
         }}
+        onInviteMember={einladen}
+        onRemoveMember={entfernen}
+      />
+
+      <SpaceDialog
+        open={spaceDialog}
+        onOpenChange={setSpaceDialog}
+        brett={brett}
+        group={group}
+        items={[...ziele, ...karten]}
+        relations={faeden}
       />
 
       {meldung && (
@@ -303,6 +322,40 @@ export default function App({ aufZustand }: Props) {
   )
 }
 
+/**
+ * Anlegen — eine Form für beide Arten. Welche es wird, entscheidet die
+ * Typ-Auswahl des `ItemComposer`; aus einer Zelle heraus steht sie fest.
+ */
+function Anlegen({
+  zielId,
+  stufe,
+  nurKarte,
+  onFertig,
+  onAbbruch,
+}: {
+  zielId: string
+  stufe: number
+  nurKarte: boolean
+  onFertig: (item: Item) => void
+  onAbbruch: () => void
+}) {
+  const personen = useMitgliederOptionen()
+  const karte = karteMapper({ zielId, stufe, order: Date.now() })
+  const ziel = zielMapper(Date.now())
+  return (
+    <div className="p-4">
+      <ItemComposer
+        contentTypes={nurKarte ? [KARTEN_VORLAGE] : [KARTEN_VORLAGE, ZIEL_VORLAGE]}
+        initialContentType={KARTEN_VORLAGE.id}
+        initialData={{ status: "open" }}
+        mapper={(eingabe, ctx) => (eingabe.contentType === ZIEL_TYP ? ziel(eingabe, ctx) : karte(eingabe, ctx))}
+        composerProps={{ widgets: WIDGETS, peopleOptions: personen }}
+        onDone={onFertig}
+        onCancel={onAbbruch}
+      />
+    </div>
+  )
+}
 
 // ------------------------------------------------------------- Modulfläche
 
@@ -310,6 +363,7 @@ interface ModulProps {
   ziele: Item[]
   karten: Item[]
   faeden: RelationRecord[]
+  mitglieder: User[]
   aktiv: string | null
   fadenVon: string | null
   live: boolean
@@ -325,15 +379,15 @@ interface ModulProps {
 }
 
 /**
- * Alles, was zum Modul gehört, liegt im Modul: die Steuerleiste über dem
- * Brett (`ModuleToolbar` — Suche, Filter, Modul-Aktionen, Verbindungsstand),
- * die Fläche selbst und die schwebende Ecke mit der Kamera
- * (`ModuleControls`). Die Navbar bleibt davon frei.
+ * Alles, was zum Modul gehört, liegt im Modul: die Steuerleiste (Suche links,
+ * Modul-Aktionen und Kamera rechts), die Fläche und der Plus-Knopf unten
+ * rechts. Die Navbar bleibt davon frei.
  */
 function BrettModul({
   ziele,
   karten,
   faeden,
+  mitglieder,
   aktiv,
   fadenVon,
   live,
@@ -347,26 +401,13 @@ function BrettModul({
   onVerschieben,
   onStartziele,
 }: ModulProps) {
-  // Suche und Tag-Auswahl kommen aus der Leiste im Kopf. Die Regeln (Fäden,
-  // Verschieben) rechnen weiter mit ALLEN Karten — was ausgeblendet ist, ist
-  // nicht weg.
+  const kopf = useOptionalModuleHead()
   const sichtbar = useModuleFilteredItems(karten)
   const tags = useMemo(() => {
     const alle = new Set<string>()
     for (const k of [...karten, ...ziele]) for (const t of k.tags ?? []) alle.add(t)
     return [...alle].sort()
   }, [karten, ziele])
-
-  const aktion = (art: Exclude<Ansicht, null>["art"], text: string) => (
-    <Button
-      key={art}
-      variant={ansicht?.art === art ? "secondary" : "ghost"}
-      size="sm"
-      onClick={() => onAnsicht(ansicht?.art === art ? null : ({ art } as Ansicht))}
-    >
-      {text}
-    </Button>
-  )
 
   return (
     <>
@@ -382,10 +423,22 @@ function BrettModul({
               <i className={cn("inline-block h-2 w-2 rounded-full", live ? "bg-primary" : "bg-muted-foreground/40")} />
               {live ? "live" : "getrennt"}
             </span>
-            {aktion("traum", "Traum")}
-            {aktion("ziele", "Ziele")}
-            {aktion("pruefung", "Prüfung")}
-            {aktion("daten", "Daten")}
+            <Button
+              variant={ansicht?.art === "pruefung" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => onAnsicht(ansicht?.art === "pruefung" ? null : { art: "pruefung" })}
+            >
+              Prüfung
+            </Button>
+            <Button variant="ghost" size="icon-sm" title="Kleiner" onClick={() => kamera.current?.zoomen(1 / 1.25)}>
+              <Minus className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon-sm" title="Größer" onClick={() => kamera.current?.zoomen(1.25)}>
+              <Plus className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon-sm" title="Einpassen" onClick={() => kamera.current?.einpassen()}>
+              <Maximize2 className="h-4 w-4" />
+            </Button>
           </>
         }
       />
@@ -399,7 +452,7 @@ function BrettModul({
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button onClick={() => void onStartziele()}>Die acht Ziele vom Whiteboard laden</Button>
-                <Button variant="outline" onClick={() => onAnsicht({ art: "ziele" })}>
+                <Button variant="outline" onClick={() => onAnsicht({ art: "anlegen" })}>
                   Mit eigenen Zielen starten
                 </Button>
               </div>
@@ -411,11 +464,13 @@ function BrettModul({
           ziele={ziele}
           karten={sichtbar}
           faeden={faeden}
+          mitglieder={mitglieder}
           aktiv={aktiv}
           fadenVon={fadenVon}
           steuerung={kamera}
           einpassenSchluessel={brett}
-          raender={SCHWEBEND}
+          kopfElement={kopf?.element ?? null}
+          fussElement={kopf?.controlsElement ?? null}
           onKarte={onKarte}
           onZelle={onZelle}
           onZiel={onZiel}
@@ -423,19 +478,7 @@ function BrettModul({
         />
       )}
 
-      <ModuleControls className="justify-end">
-        <div className="flex items-center gap-1 rounded-full border bg-card/90 p-1 shadow-sm backdrop-blur">
-          <Button variant="ghost" size="icon-sm" title="Kleiner" onClick={() => kamera.current?.zoomen(1 / 1.25)}>
-            <Minus className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon-sm" title="Größer" onClick={() => kamera.current?.zoomen(1.25)}>
-            <Plus className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon-sm" title="Einpassen" onClick={() => kamera.current?.einpassen()}>
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </ModuleControls>
+      <CreateFab label="Neu" onClick={() => onAnsicht({ art: "anlegen" })} />
     </>
   )
 }
