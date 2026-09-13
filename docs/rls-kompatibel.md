@@ -51,6 +51,11 @@ liegen daneben in `modell.d.mts`.
 | Baustein | wofür |
 |---|---|
 | `ConnectorProvider`, `AppShell`, `AppShellMain`, `Navbar` | Rahmen |
+| `WorkspaceSwitcher` + `GroupDialog` | Bretter wechseln, anlegen, umbenennen, löschen — ein Brett **ist** ein Space |
+| `UserMenu` | rechts in der Navbar, wie in der Reference-App |
+| `ModuleFrame` (`fill="bleed"`, `panelFit="overlay"`) | die Modulfläche: schwebender Kopf über der Fläche, wie Karte und Graph |
+| `ModuleToolbar` + `FilterScope` + `useModuleFilteredItems` | Kopf des Moduls: Suche, Tag-Filter, Modul-Aktionen, Verbindungsstand |
+| `ModuleControls` | schwebende Ecke unten links: kleiner / größer / einpassen |
 | `ItemPreview` (`density="compact"`, `footerAdornment`) | **jede** Karte auf dem Brett |
 | `ItemComposer` + `ContentTypeConfig` + eigene `widgets` | Karte anlegen **und** bearbeiten — eine Form für beides |
 | `ItemDetailPanel` | die geöffnete Karte, inklusive Diskussion |
@@ -107,7 +112,36 @@ umgangen.
    „bearbeiten"-Knopf ruhiger.
    *Vorschlag:* `ItemDetailBody` ist genau das — in einer künftigen Fassung
    dieser App der bessere Inhalt des Panels.
-6. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
+6. **Die Kamera der Graph-Ansicht ist nicht wiederverwendbar.** `GraphCamera`,
+   `fitCamera`, `focusCamera` und `interpolateCamera` liegen in
+   `components/graph/force-layout.ts` und werden weder von
+   `components/graph/index.ts` noch vom Paket-Root exportiert; `GraphView`
+   gibt nur `fitView`/`focusNode` nach außen. Zoomen und Schwenken ist aber
+   keine Graph-Eigenschaft, sondern die Geste jeder Fläche, die größer ist als
+   das Fenster — Karte, Graph, Karabirrdt. Wir haben sie darum im selben
+   Muster nachgebaut (`modell.mjs` → Kamera, `app/src/board/kamera-flaeche.tsx`
+   → Gesten); die Rechnung ist mit `node --test` geprüft.
+   *Vorschlag:* die vier Funktionen exportieren und eine `CameraSurface`
+   (oder `useCamera`) im Toolkit anbieten: Welt-Maße hinein, Kamera und
+   Gesten heraus, `fit`/`zoom` über einen Handle wie bei `GraphViewHandle`.
+   Dann teilen sich alle Flächen dieselbe Geste — heute unterscheiden sich
+   Karte und Graph schon voneinander.
+7. **`GroupManager.createGroup` vergibt die Id selbst.** `MockConnector`
+   schreibt `group-<zeit>` und nimmt keine Id entgegen. Ein Connector, der
+   den MockConnector benutzt (siehe Lücke 9) kann eine vom Server oder von
+   der Spec bestimmte Id also nicht durchreichen; wir laden beim Anlegen
+   eines Bretts deshalb die Seite neu. `ItemWriter.createItem` akzeptiert
+   eine Client-Id längst — Spec 08 Regel 4 verlangt sie für RelationRecords
+   sogar —, Groups können das nicht.
+   *Vorschlag:* `createGroup(name, data?, options?: { id?: string })`, und im
+   Mock-Connector die übergebene Id übernehmen statt zu erfinden.
+8. **`ModuleToolbar` wirft ohne Filter-Kontext.** `useSharedFilter` verlangt
+   einen `<FilterProvider>`; die Leiste selbst bringt keinen mit. Der Ausweg
+   heißt `FilterScope` (setzt einen, wenn keiner da ist) und steht in keiner
+   Typ-Signatur — man findet ihn nur im Quelltext.
+   *Vorschlag:* `ModuleToolbar` intern in `FilterScope` wickeln; ein Kopf, der
+   ohne unsichtbare Umgebung abstürzt, ist kein Baustein, sondern eine Falle.
+9. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
    Mock-Connector ist speicherflüchtig, der Local-Connector einsam, Supabase
    und WoT bringen Identität mit. Diese App braucht dazwischen einen
    geteilten Raum ohne Konten — deshalb `ServerConnector`.
@@ -134,6 +168,16 @@ umgangen.
   ohne `@source ".../toolkit/dist/**/*.js"` in der eigenen CSS fehlen alle
   Toolkit-Klassen und die App sieht unformatiert aus. Das ist die Falle, die
   am meisten Zeit kostet.
+- **Module-Kopfzeilen gehören dem Toolkit.** In die Navbar kommt nur, was für
+  die ganze App gilt (Space-Switch, Benutzer). Alles Modul-eigene —
+  Aktionen, Suche, Filter, Verbindungsstand — geht über `ModuleToolbar` in
+  den Kopf der Modulfläche, die Kamera-Knöpfe über `ModuleControls` in die
+  schwebende Ecke. Eine Modul-Schaltfläche in der Navbar ist der sicherste
+  Weg, eine App zu bauen, die nie ein zweites Modul verträgt.
+- **Ein Space ist ein Brett.** Was in der App „Raum", „Board", „Projekt"
+  heißt, ist im Stack eine Group. Dann erledigen `WorkspaceSwitcher` und
+  `GroupDialog` Wechseln, Anlegen, Umbenennen und Löschen, ohne dass die App
+  eine eigene Verwaltung baut — die wir in Runde 1 noch hatte.
 - **Eine Autor-Kennung.** Die Id eines RelationRecords leitet sich aus
   `(createdBy, predicate, from, to)` ab. Wer an zwei Stellen zwei Kennungen
   benutzt (Server-Migration und App), bekommt zwei Datensätze für dieselbe
@@ -143,10 +187,14 @@ umgangen.
 
 ## Offene Punkte
 
-- Die Oberfläche ist **nicht im Browser geprüft** worden (in dieser Umgebung
-  war keiner verfügbar). Geprüft sind: Datenmodell und Server über
-  `node --test`, Typen über `tsc --noEmit`, Bau über `vite build`, die
-  Auslieferung über `curl`. Ein Blick auf Raster, Fäden und Panel steht aus.
+- Die Oberfläche ist **nicht in einem echten Browser geprüft** worden (in
+  dieser Umgebung ist keiner verfügbar). Geprüft sind: Datenmodell, Kamera und
+  Server über `node --test`, Typen über `tsc --noEmit`, Bau über `vite build`,
+  die Auslieferung über `curl` — und eine Rauchprobe, die das gebaute Bündel
+  unter jsdom startet und Navbar, Brett, Fäden, die vier Panels, das
+  Space-Menü, das Kartendetail und den Rad-Zoom anfasst. Was sie nicht sieht,
+  ist, wie es aussieht: Abstände, Überlappungen, Lesbarkeit der Karten im
+  eingepassten Zoom.
 - Die Bündelgröße liegt bei rund 1,2 MB (409 kB gzip) — das Toolkit bringt
   Editor, Karten- und Graph-Bausteine mit, von denen diese App wenig braucht.
   Aufteilen lohnt erst, wenn die App öffentlich läuft.

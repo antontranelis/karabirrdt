@@ -35,9 +35,10 @@ Die Daten liegen in einer SQLite-Datei unter `data/karabirrdt.sqlite`
 
 ## Bretter
 
-Jedes Brett hat eine eigene Adresse: `/` ist das Brett `haupt`, `/emil` das
-Brett `emil`. Kleinbuchstaben, Ziffern und Bindestriche. Über den Knopf
-„Brett“ in der Kopfzeile wechselt man oder legt ein neues an.
+Ein Brett ist ein Space: Es wird oben links im Space-Menü gewechselt und
+angelegt, und die Adresse folgt — `/` ist das Brett `haupt`, `/emil` das
+Brett `emil`. Kleinbuchstaben, Ziffern und Bindestriche; die Adresse eines
+neuen Bretts leitet sich aus seinem Namen ab.
 
 ## Aufbau
 
@@ -51,11 +52,14 @@ public/alt.html die ursprüngliche Seite, unverändert in Funktion
 
 ## Bedienung
 
+- **Bewegen:** Mausrad zoomt zum Zeiger, Ziehen auf leerer Fläche schwenkt,
+  zwei Finger zoomen. Unten links: kleiner, größer, einpassen.
 - **Karte anlegen:** Klick auf eine leere Zelle.
 - **Karte verschieben:** ziehen. Fäden dürfen dabei nie nach links laufen.
 - **Faden ziehen:** Karte öffnen, „Voraussetzung hinzufügen“, dann die Karte
   anklicken, die vorher fertig sein muss.
 - **Wer:** Initialen mit „kann ich“ (gefüllt) oder „will ich lernen“ (umrandet).
+- **Traum:** Traumsatz und Traumhorizont, im Kopf des Moduls.
 - **Prüfung:** Phasenabdeckung je Ziel, Karten ohne Namen, Karten ohne Fäden,
   Hebelpunkte, Summe der Stunden und Euro.
 - **Daten:** JSON kopieren, als Datei speichern oder einfügen (ersetzt das Brett).
@@ -83,11 +87,13 @@ Basis-Anmeldung in Traefik davor ist deshalb nicht optional.
 | Aufruf | Wirkung |
 |---|---|
 | `GET /api/bretter` | Liste der Bretter |
+| `GET /api/gruppen` | dieselben Bretter als RLS-Groups (für den Space-Switch) |
 | `GET /api/b/<brett>/rls` | ganzes Brett als `group`, `items`, `relations` |
 | `PUT` / `DELETE /api/b/<brett>/items/<id>` | Item setzen oder löschen |
 | `PUT` / `DELETE /api/b/<brett>/relations/<id>` | RelationRecord setzen oder löschen |
 | `PUT /api/b/<brett>/group` | Group (Merge-Patch auf `data`, `null` löscht) |
 | `POST /api/b/<brett>/rls/import` | Brett ersetzen (altes **und** neues Format) |
+| `DELETE /api/b/<brett>/rls` | Brett ganz entfernen (beide Formen) |
 | `GET /api/b/<brett>` | ganzes Brett in der alten Form (`meta`, `goals`, `tasks`) |
 | `PUT /api/b/<brett>/meta` | Name, Traumsatz, Horizont |
 | `PUT` / `DELETE /api/b/<brett>/goals/<id>` | Ziel setzen oder löschen |
