@@ -184,7 +184,13 @@ export async function erstelleServerConnector(brett: string): Promise<Verbindung
   }
 
   const zustandHoerer = new Set<(live: boolean) => void>()
-  const melde = (live: boolean) => zustandHoerer.forEach((h) => h(live))
+  // Der Socket öffnet oft, bevor die Oberfläche zuhört: den letzten Stand merken
+  // und jedem neuen Hörer sofort mitteilen.
+  let letzterZustand = false
+  const melde = (live: boolean) => {
+    letzterZustand = live
+    zustandHoerer.forEach((h) => h(live))
+  }
 
   let warte = 1000
   const verbinde = () => {
@@ -234,6 +240,7 @@ export async function erstelleServerConnector(brett: string): Promise<Verbindung
     connector,
     aufZustand(hoerer) {
       zustandHoerer.add(hoerer)
+      hoerer(letzterZustand)
       return () => zustandHoerer.delete(hoerer)
     },
   }

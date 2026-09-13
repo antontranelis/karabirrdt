@@ -145,7 +145,7 @@ export const MASSE = {
   label: 250,
   colW: 224,
   cardW: 208,
-  cardH: 92,
+  cardH: 112, // drei Titelzeilen plus Fußzeile in der Dichte `compact`
   gap: 8,
   rowPad: 16,
   head: 76,
