@@ -521,7 +521,7 @@ import { FADEN_STRICH, KACHEL, fadenStil, labelHoehe, zielKurz, zielRest } from 
 test("das Spaltenraster leitet sich aus einer einzigen Kachelbreite ab", () => {
   assert.equal(MASSE.cardW, KACHEL);
   assert.equal(MASSE.colW, KACHEL + MASSE.luft);
-  assert.equal(MASSE.head, MASSE.band + MASSE.stufe + MASSE.luft);
+  assert.equal(MASSE.head, MASSE.luft + MASSE.band + MASSE.luft + MASSE.stufe + MASSE.luft);
   assert.equal(spaltenX(0), MASSE.start + MASSE.label + MASSE.colW / 2);
   assert.equal(spaltenX(11) - spaltenX(10), MASSE.colW);
 });
