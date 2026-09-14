@@ -519,8 +519,8 @@ test("Fäden ins Leere lassen sich benennen", () => {
 import { FADEN_STRICH, KACHEL, fadenStil, labelHoehe, zielKurz, zielRest } from "../modell.mjs";
 
 test("das Spaltenraster leitet sich aus einer einzigen Kachelbreite ab", () => {
-  assert.equal(KACHEL, 112, "die dichte Kachel des Toolkits");
-  assert.equal(MASSE.colW, 116, "Spaltenraster mit 4 px Luft");
+  assert.equal(KACHEL, 106, "gut 5 % schmaler als die dichte Kachel des Toolkits (112)");
+  assert.equal(MASSE.colW, 110, "Spaltenraster mit 4 px Luft");
   assert.equal(MASSE.label, 192, "Zielspalte links");
   assert.equal(MASSE.cardW, KACHEL);
   assert.equal(MASSE.colW, KACHEL + MASSE.luft);
