@@ -174,7 +174,7 @@ export function verschiebenFehler(karten, relations, id, neueStufe) {
  * da ist (`density="dense"`, 112×62), wird hier 112 gesetzt und das Raster
  * folgt — Spaltenbreite, Stufenmitten, Kartenbreite.
  */
-export const KACHEL = 112; // die dichte Kachel des Toolkits (`density="dense"`)
+export const KACHEL = 106; // gut 5 % schmaler als die dichte Kachel des Toolkits (`density="dense"`, 112)
 const LUFT = 4;
 
 export const MASSE = {
