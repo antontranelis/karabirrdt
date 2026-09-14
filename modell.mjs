@@ -189,7 +189,7 @@ export const MASSE = {
   rowPad: 8,
   band: 20, // Höhe eines Phasenbandes
   stufe: 18, // Höhe der Stufenzeile
-  head: 20 + 18 + LUFT,
+  head: LUFT + 20 + LUFT + 18 + LUFT, // Innenabstand oben, Band, Luft, Stufenzeile, Luft zur ersten Zeile
   end: 16,
 };
 
