@@ -29,6 +29,7 @@ import {
   useItems,
   useMembers,
   useModuleFilteredItems,
+  useOptionalModuleHead,
   useRemoveMember,
   useUpdateGroup,
   useUpdateItem,
@@ -207,13 +208,13 @@ export default function App() {
         </NavbarEnd>
       </Navbar>
 
-      <AppShellMain>
-        {/* Eine scrollende Fläche (Spec 01: „Was scrollt, ist der Inhalt"):
-            `fill="bleed"` gibt dem Brett die ganze Breite, die Vorgabe
-            `panelFit: "inset"` setzt den Kopf IN den Fluss und rückt die
-            Fläche neben dem offenen Panel ein. Ein schwebender Kopf läge
-            sonst auf dem, was gerade unter ihm durchscrollt. */}
-        <ModuleFrame fill="bleed" maxWidth="max-w-none">
+      <AppShellMain inset={false}>
+        {/* Wie Karte und Graph: das Brett IST die Fläche, das Panel legt sich
+            darüber, statt sie schmaler zu machen (Spec 01 → Content-Bereich).
+            Der Kopf schwebt dann über dem Brett; was er verdeckt, deckt die
+            klebende Phasenleiste mit ab — ihre Höhe kommt aus der Messung,
+            nicht aus einer Schätzung. */}
+        <ModuleFrame fill="bleed" panelFit="overlay" maxWidth="max-w-none">
           <FilterScope>
             <BrettModul
               ziele={ziele}
@@ -398,6 +399,7 @@ function BrettModul({
   onVerschieben,
   onStartziele,
 }: ModulProps) {
+  const kopf = useOptionalModuleHead()
   const sichtbar = useModuleFilteredItems(karten)
   const tags = useMemo(() => {
     const alle = new Set<string>()
@@ -450,6 +452,7 @@ function BrettModul({
           karten={sichtbar}
           faeden={faeden}
           mitglieder={mitglieder}
+          kopfElement={kopf?.element ?? null}
           aktiv={aktiv}
           fadenVon={fadenVon}
           onKarte={onKarte}

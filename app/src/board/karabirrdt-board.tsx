@@ -35,6 +35,8 @@ interface Props {
   aktiv: string | null
   fadenVon: string | null
   mitglieder: User[]
+  /** Der schwebende Kopf der Modulfläche — seine Höhe wird gemessen. */
+  kopfElement?: HTMLElement | null
   onKarte: (id: string) => void
   onZelle: (zielId: string, stufe: number) => void
   onZiel: (id: string) => void
@@ -48,6 +50,7 @@ export function KarabirrdtBoard({
   aktiv,
   fadenVon,
   mitglieder,
+  kopfElement,
   onKarte,
   onZelle,
   onZiel,
@@ -99,6 +102,20 @@ export function KarabirrdtBoard({
     [holeBeobachter],
   )
 
+  // Der Kopf der Modulfläche schwebt über dem Brett (`panelFit="overlay"`,
+  // wie Karte und Graph). Was er verdeckt, muss die klebende Phasenleiste
+  // mit abdecken — sonst scrollen Karten durch den Streifen darunter. Die
+  // Höhe wird gemessen, nicht geraten.
+  const [kopfHoehe, setKopfHoehe] = useState(0)
+  useEffect(() => {
+    if (!kopfElement || typeof ResizeObserver === "undefined") return
+    const messen = () => setKopfHoehe(Math.round(kopfElement.getBoundingClientRect().height))
+    messen()
+    const o = new ResizeObserver(messen)
+    o.observe(kopfElement)
+    return () => o.disconnect()
+  }, [kopfElement])
+
   const r = bauRaster(sortiert, karten, hoehen)
 
   const ablegen = (id: string, zielId: string, stufe: number) => {
@@ -116,9 +133,20 @@ export function KarabirrdtBoard({
           Scrollbereichs, nicht unter einem Innenabstand. Alle drei haben
           keine eigene Höhe im Fluss, damit das Raster darunter bei y = 0
           beginnt wie bisher. */}
-      <StickySchichten raster={r} aktiv={aktiv} onZiel={onZiel} messen={messen} />
-      <div ref={welt} className="relative" style={{ width: r.breite, height: r.hoehe }}>
+      <KlebenderKopf raster={r} kopfHoehe={kopfHoehe} />
+      <div ref={welt} className="relative" style={{ width: r.breite, height: r.hoehe, marginTop: kopfHoehe }}>
           <ThreadsOverlay raster={r} karten={karten} faeden={faeden} hervorgehoben={aktiv} />
+
+          {/* Die Ziele gehören zum Inhalt und scrollen waagerecht mit. */}
+          {r.zeilen.map((z) => (
+            <div
+              key={z.ziel.id}
+              className="absolute"
+              style={{ left: MASSE.start, top: z.y + MASSE.rowPad, width: MASSE.label }}
+            >
+              <ZeilenKopf ziel={z.ziel} aktiv={aktiv === z.ziel.id} messen={messen} onClick={() => onZiel(z.ziel.id)} />
+            </div>
+          ))}
 
           {/* Zellen: leere Fläche zum Anlegen und Ziel jedes Ablegens */}
           {r.zeilen.flatMap((z) =>
@@ -143,8 +171,9 @@ export function KarabirrdtBoard({
                     if (id) ablegen(id, z.ziel.id, s)
                   }}
                   className={cn(
-                    "absolute cursor-copy rounded-md border border-transparent transition-colors",
-                    ueber === schluessel ? "border-primary bg-primary/10" : "hover:bg-accent/40",
+                    // Keine Rahmen: das Raster trägt keine senkrechten Linien.
+                    "absolute cursor-copy rounded-md transition-colors",
+                    ueber === schluessel ? "bg-primary/15" : "hover:bg-accent/40",
                   )}
                   style={{ left: r.spalte(s) - MASSE.colW / 2, top: z.y, width: MASSE.colW, height: z.h }}
                 />
@@ -232,59 +261,21 @@ export function KarabirrdtBoard({
  * stehen bleiben. Sie liegen direkt im Scroll-Container und tragen keine
  * eigene Höhe, damit das Raster daneben unberührt bleibt.
  */
-function StickySchichten({
-  raster: r,
-  aktiv,
-  onZiel,
-  messen,
-}: {
-  raster: ReturnType<typeof bauRaster>
-  aktiv: string | null
-  onZiel: (id: string) => void
-  messen: (el: HTMLDivElement | null) => void
-}) {
-  const spaltenBreite = MASSE.start + MASSE.label
+function KlebenderKopf({ raster: r, kopfHoehe }: { raster: ReturnType<typeof bauRaster>; kopfHoehe: number }) {
   return (
-    <>
-      {/* Die Kopfzeile: senkrecht stehen bleiben, waagerecht mit den Spalten
-          wandern. Vom oberen Rand des Scrollbereichs bis unter die
-          Stufenzeile ist alles undurchsichtig, damit dort keine Karte
-          durchscheint — die Luft über den Bändern liegt als Innenabstand
-          darin. */}
-      <div data-kb-kopf className="sticky top-0 z-30 h-0">
-        <div
-          className="absolute left-0 top-0 border-b border-border bg-background"
-          style={{ width: r.breite, height: MASSE.head, paddingTop: LUFT }}
-        >
-          <RasterKopf raster={r} />
-        </div>
+    // Die Kopfzeile bleibt senkrecht stehen und wandert waagerecht mit den
+    // Spalten. Sie beginnt bei x = 0, also über den Zielen — eine eigene Ecke
+    // braucht es dadurch nicht. Sie deckt vom oberen Rand des Scrollbereichs
+    // bis unter die Stufenzeile ALLES ab, einschließlich der Höhe des
+    // schwebenden Modul-Kopfs: dort darf keine Karte durchscrollen.
+    <div data-kb-kopf className="sticky top-0 z-30 h-0">
+      <div
+        className="absolute left-0 top-0 bg-background"
+        style={{ width: r.breite, height: kopfHoehe + MASSE.head, paddingTop: kopfHoehe + LUFT }}
+      >
+        <RasterKopf raster={r} />
       </div>
-
-      {/* Die Zielspalte: waagerecht stehen bleiben, senkrecht mitscrollen. */}
-      <div data-kb-spalte className="sticky left-0 z-10 h-0 w-0">
-        <div
-          className="absolute left-0 border-r border-border bg-background"
-          style={{ top: MASSE.head, width: spaltenBreite, height: Math.max(0, r.hoehe - MASSE.head) }}
-        />
-        {r.zeilen.map((z) => (
-          <div
-            key={z.ziel.id}
-            className="absolute"
-            style={{ left: MASSE.start, top: z.y + MASSE.rowPad, width: MASSE.label }}
-          >
-            <ZeilenKopf ziel={z.ziel} aktiv={aktiv === z.ziel.id} messen={messen} onClick={() => onZiel(z.ziel.id)} />
-          </div>
-        ))}
-      </div>
-
-      {/* Die Ecke gehört beiden und klebt in beide Richtungen. */}
-      <div data-kb-ecke className="sticky left-0 top-0 z-40 h-0 w-0">
-        <div
-          className="absolute left-0 top-0 border-b border-r border-border bg-background"
-          style={{ width: spaltenBreite, height: MASSE.head }}
-        />
-      </div>
-    </>
+    </div>
   )
 }
 

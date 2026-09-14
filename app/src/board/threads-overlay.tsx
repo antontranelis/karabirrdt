@@ -38,7 +38,8 @@ export function ThreadsOverlay({ raster, karten, faeden, hervorgehoben }: Props)
       aria-hidden
       data-modul={MODUL}
     >
-      {raster.zeilen.map((z) => (
+      {/* Zeilentrenner — die oberste nicht: dort sitzt schon die Kopfzeile. */}
+      {raster.zeilen.slice(1).map((z) => (
         <line key={z.ziel.id} x1={MASSE.start} y1={z.y} x2={breite - MASSE.end} y2={z.y} stroke="var(--border)" strokeWidth={1} />
       ))}
 
