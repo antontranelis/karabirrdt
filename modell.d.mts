@@ -88,17 +88,32 @@ export declare function verschiebenFehler(
   neueStufe: number,
 ): string | null
 
+export declare const KACHEL: number
+export declare const FADEN_STRICH: number
 export declare const MASSE: {
   start: number
   label: number
+  kachel: number
+  luft: number
   colW: number
   cardW: number
   cardH: number
   gap: number
   rowPad: number
+  band: number
+  stufe: number
   head: number
   end: number
 }
+export interface FadenStil {
+  farbe: string
+  gestrichelt: boolean
+  strichmuster?: string
+  strich: number
+}
+export declare function fadenStil(von: Item, nach: Item): FadenStil
+export declare function zielKurz(titel: string): string
+export declare function zielRest(titel: string): string
 export declare function spaltenX(stufe: number): number
 export declare function labelHoehe(titel: string): number
 export declare function layout(
@@ -106,14 +121,7 @@ export declare function layout(
   karten: readonly Item[],
   hoehen?: Record<string, number>,
 ): Raster
-export declare function fadenPfad(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  via?: number | null,
-  senkrecht?: boolean,
-): string
+export declare function fadenPfad(x1: number, y1: number, x2: number, y2: number): string
 
 export declare function fadenId(createdBy: string, from: string, to: string, predicate?: string): Promise<string>
 export declare function relationItemVonRecord(rec: RelationRecord): Item

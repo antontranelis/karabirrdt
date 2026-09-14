@@ -87,6 +87,40 @@ Nichts davon wurde geforkt oder umgestylt. Die vier Phasenfarben des Dragon
 Dreaming sind eigene App-Tokens (`--kb-dream` …) in `app/src/index.css`, in
 beiden Signalen (`prefers-color-scheme` **und** `.dark`/`[data-theme]`).
 
+## Der Entwurf „Brett-Dichte" (Variante 1a)
+
+Anton hat das Brett im Claude-Design-Projekt „RLS System Design" entwerfen
+lassen und Variante 1a gewählt: alle zwölf Stufen und sieben Ziele ohne
+Scrollen auf 1920 px. Was daraus im Code steht:
+
+- **Ein Maß trägt alles.** `KACHEL` in `modell.mjs` ist die Kachelbreite;
+  Spaltenraster, Kartenbreite und Stufenmitten leiten sich daraus ab. Heute
+  ist eine Kachel eine `ItemPreview` in der Dichte `compact`; sobald die
+  dichte Karte des Toolkits da ist (`density="dense"`, 112×62, PR 360), wird
+  hier 112 gesetzt — sonst nichts.
+- **Phasenband 20 hoch, Stufenzeile 18, 4 px Luft** (`MASSE.band`,
+  `MASSE.stufe`, `MASSE.luft`). Die Stufenschrift nimmt die dunkle
+  Phasenfarbe (`--kb-<phase>-dunkel`), die Fläche die helle.
+- **Der Zeilenkopf ist KEINE Item-Karte**, sondern die Beschriftung der Linse
+  — so wie der Spaltenkopf im Kanban: Punktereihe, Kurztitel (vor dem
+  Doppelpunkt), darunter der Rest in drei Zeilen mit Auslassung. Ein Klick
+  öffnet weiterhin das Ziel als Item (`ItemDetailView`). Das ist eine
+  Entscheidung aus dem Entwurf, kein Eigenbau am Toolkit vorbei: die Karte
+  des Ziels ist sein Detail, nicht sein Zeilenkopf.
+- **Fäden** liegen bei 1.2 Strichstärke, kubisch mit
+  `dx = max(30, (x2−x1)/2)` von Kante zu Kante. Innerhalb einer Zeile tragen
+  sie die Phasenfarbe der abhängigen Karte, über Zeilen hinweg sind sie grau
+  (`--muted-foreground`) und gestrichelt (`3 3`). Die Umwege um fremde Karten
+  und die Start-/Ziel-Knoten mit ihren gestrichelten Kanten sind entfallen;
+  die Regel „Fäden laufen nur nach rechts" bleibt und steht im Modell.
+- **Erledigt** zeigt die dichte Karte selbst (Häkchen, Opazität 0.55) — das
+  Brett färbt nichts zusätzlich ein.
+- **Der Traumhorizont** steht als Text rechts im Modul-Kopf, neben „Prüfung";
+  geändert wird er im Space-Dialog.
+- **Noch nicht gebaut:** die Pille „Brett · Phase · Ziel" unten links neben
+  dem Filter. Sie schaltet im Entwurf zwischen drei Linsen desselben Bretts;
+  die Varianten 1b und 1c gibt es noch nicht.
+
 ## Upstream-Lücken
 
 **0. ✅ BEHOBEN (toolkit 0.1.7, data-interface 0.2.0, mock-connector 0.1.5).**

@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type PointerEvent } from "react"
 import type { Item, RelationRecord, User } from "@real-life-stack/data-interface"
 import { ItemAssignees, ItemCommentCount, ItemPreview, cn } from "@real-life-stack/toolkit"
-import { KANN_PRAEDIKAT, LERNT_PRAEDIKAT, MASSE, phaseVonStufe, stufeVon, zieleSortiert, zugewiesen } from "../../../modell.mjs"
+import {
+  KANN_PRAEDIKAT,
+  LERNT_PRAEDIKAT,
+  MASSE,
+  phaseVonStufe,
+  stufeVon,
+  zielKurz,
+  zielRest,
+  zieleSortiert,
+  zugewiesen,
+} from "../../../modell.mjs"
 import { raster as bauRaster, zelleBei } from "./raster"
 import { ThreadsOverlay } from "./threads-overlay"
 import { LUFT, RasterKopf } from "./raster-kopf"
@@ -105,7 +115,7 @@ export function KarabirrdtBoard({
           Scrollbereichs, nicht unter einem Innenabstand. Alle drei haben
           keine eigene Höhe im Fluss, damit das Raster darunter bei y = 0
           beginnt wie bisher. */}
-      <StickySchichten raster={r} mitglieder={mitglieder} aktiv={aktiv} onZiel={onZiel} messen={messen} />
+      <StickySchichten raster={r} aktiv={aktiv} onZiel={onZiel} messen={messen} />
       <div ref={welt} className="relative" style={{ width: r.breite, height: r.hoehe }}>
           <ThreadsOverlay raster={r} karten={karten} faeden={faeden} hervorgehoben={aktiv} />
 
@@ -223,13 +233,11 @@ export function KarabirrdtBoard({
  */
 function StickySchichten({
   raster: r,
-  mitglieder,
   aktiv,
   onZiel,
   messen,
 }: {
   raster: ReturnType<typeof bauRaster>
-  mitglieder: User[]
   aktiv: string | null
   onZiel: (id: string) => void
   messen: (el: HTMLDivElement | null) => void
@@ -260,17 +268,10 @@ function StickySchichten({
         {r.zeilen.map((z) => (
           <div
             key={z.ziel.id}
-            data-karte
             className="absolute"
             style={{ left: MASSE.start, top: z.y + MASSE.rowPad, width: MASSE.label }}
           >
-            <Karte
-              item={z.ziel}
-              mitglieder={mitglieder}
-              aktiv={aktiv === z.ziel.id}
-              messen={messen}
-              onClick={() => onZiel(z.ziel.id)}
-            />
+            <ZeilenKopf ziel={z.ziel} aktiv={aktiv === z.ziel.id} messen={messen} onClick={() => onZiel(z.ziel.id)} />
           </div>
         ))}
       </div>
@@ -283,6 +284,52 @@ function StickySchichten({
         />
       </div>
     </>
+  )
+}
+
+/**
+ * Der Kopf einer Zeile: Punktereihe, Kurztitel, Rest.
+ *
+ * Bewusst KEINE `ItemPreview` — im Entwurf „Brett-Dichte" ist der Zeilenkopf
+ * die Beschriftung der Linse, so wie ein Spaltenkopf im Kanban, nicht die
+ * Karte des Ziels. Die Karte des Ziels ist sein Detail; ein Klick öffnet es.
+ */
+function ZeilenKopf({
+  ziel,
+  aktiv,
+  messen,
+  onClick,
+}: {
+  ziel: Item
+  aktiv: boolean
+  messen: (el: HTMLDivElement | null) => void
+  onClick: () => void
+}) {
+  const punkte = Math.max(0, Math.min(12, Number(ziel.data?.dots) || 0))
+  const titel = String(ziel.data?.title ?? "")
+  return (
+    <div ref={messen} data-item-id={ziel.id}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "w-full rounded-md px-1.5 py-1 text-left transition-colors hover:bg-accent/60",
+          aktiv && "bg-accent",
+        )}
+      >
+        <span className="mb-1 flex items-center gap-[3px]">
+          {Array.from({ length: punkte }, (_, i) => (
+            <span key={i} className="inline-block h-[5px] w-[5px] rounded-full bg-primary" />
+          ))}
+        </span>
+        <span className="block text-[11.5px] font-semibold leading-tight text-foreground">{zielKurz(titel)}</span>
+        {!!zielRest(titel) && (
+          <span className="mt-0.5 line-clamp-3 block text-[10.5px] leading-snug text-muted-foreground">
+            {zielRest(titel)}
+          </span>
+        )}
+      </button>
+    </div>
   )
 }
 

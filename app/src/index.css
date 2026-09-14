@@ -37,6 +37,10 @@
     --kb-plan-weich: oklch(0.91 0.04 190);
     --kb-do-weich: oklch(0.91 0.05 55);
     --kb-fete-weich: oklch(0.91 0.05 5);
+    --kb-dream-dunkel: oklch(0.36 0.12 300);
+    --kb-plan-dunkel: oklch(0.36 0.08 190);
+    --kb-do-dunkel: oklch(0.38 0.12 55);
+    --kb-fete-dunkel: oklch(0.36 0.13 5);
     --kb-auf-farbe: oklch(0.98 0.005 90);
     --kb-auf-weich: oklch(0.25 0.01 90);
   }
@@ -51,6 +55,10 @@
       --kb-plan-weich: oklch(0.32 0.05 190);
       --kb-do-weich: oklch(0.33 0.06 55);
       --kb-fete-weich: oklch(0.32 0.06 5);
+      --kb-dream-dunkel: oklch(0.86 0.07 300);
+      --kb-plan-dunkel: oklch(0.88 0.05 190);
+      --kb-do-dunkel: oklch(0.88 0.07 55);
+      --kb-fete-dunkel: oklch(0.87 0.07 5);
       --kb-auf-farbe: oklch(0.18 0.01 90);
       --kb-auf-weich: oklch(0.95 0.005 90);
     }
@@ -66,26 +74,12 @@
     --kb-plan-weich: oklch(0.32 0.05 190);
     --kb-do-weich: oklch(0.33 0.06 55);
     --kb-fete-weich: oklch(0.32 0.06 5);
+    --kb-dream-dunkel: oklch(0.86 0.07 300);
+    --kb-plan-dunkel: oklch(0.88 0.05 190);
+    --kb-do-dunkel: oklch(0.88 0.07 55);
+    --kb-fete-dunkel: oklch(0.87 0.07 5);
     --kb-auf-farbe: oklch(0.18 0.01 90);
     --kb-auf-weich: oklch(0.95 0.005 90);
   }
 
-  .kb-faden {
-    fill: none;
-    stroke: var(--foreground);
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    opacity: 0.75;
-  }
-  .kb-faden-rand {
-    stroke: var(--muted-foreground);
-    stroke-width: 1.2;
-    stroke-dasharray: 3 4;
-    opacity: 0.6;
-  }
-  .kb-faden-hell {
-    stroke: var(--primary);
-    stroke-width: 2.6;
-    opacity: 1;
-  }
 }

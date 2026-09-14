@@ -165,30 +165,62 @@ export function verschiebenFehler(karten, relations, id, neueStufe) {
 
 // --------------------------------------------------------------- Geometrie
 
-// Die Zelle ist so breit wie eine Kanban-Karte: `ItemPreview` in der Dichte
-// `compact` mit Titel, Tags und Fußzeile. `cardH` ist nur das Grundmaß für
-// noch nicht gemessene Karten — die wirkliche Höhe misst das Brett am DOM.
+/**
+ * Die Maße aus dem Entwurf „Brett-Dichte" (Variante 1a, Claude Design):
+ * alle zwölf Stufen und sieben Ziele ohne Scrollen auf 1920 px.
+ *
+ * Alles hängt an EINER Zahl: `KACHEL`. Heute ist eine Kachel noch eine
+ * `ItemPreview` in der Dichte `compact`; sobald die dichte Karte des Toolkits
+ * da ist (`density="dense"`, 112×62), wird hier 112 gesetzt und das Raster
+ * folgt — Spaltenbreite, Stufenmitten, Kartenbreite.
+ */
+export const KACHEL = 208; // → 112 mit `density="dense"`
+const LUFT = 4;
+
 export const MASSE = {
-  start: 46,
-  label: 260,
-  colW: 308, // 276 Karte + 16 Luft je Seite: Karten nebeneinander kleben nicht
-  cardW: 276,
-  cardH: 96,
-  gap: 16, // Mindestabstand zwischen gestapelten Karten in einer Zelle
-  rowPad: 20,
-  head: 76,
-  end: 46,
+  start: 16,
+  label: 192, // Zielspalte links, 184–200 laut Entwurf
+  kachel: KACHEL,
+  luft: LUFT,
+  colW: KACHEL + LUFT,
+  cardW: KACHEL,
+  cardH: 96, // Grundmaß, bis die Karte gemessen ist
+  gap: LUFT,
+  rowPad: 8,
+  band: 20, // Höhe eines Phasenbandes
+  stufe: 18, // Höhe der Stufenzeile
+  head: 20 + 18 + LUFT,
+  end: 16,
 };
+
+/** Strichstärke der Fäden (Entwurf 1a). */
+export const FADEN_STRICH = 1.2;
 
 export const spaltenX = (s) => MASSE.start + MASSE.label + s * MASSE.colW + MASSE.colW / 2;
 
+/** Der Kurztitel eines Ziels: was vor dem Doppelpunkt steht. */
+export function zielKurz(titel) {
+  const t = text(titel).trim();
+  if (!t) return "Ohne Titel";
+  const i = t.indexOf(":");
+  return (i > 0 ? t.slice(0, i) : t).trim();
+}
+
+/** Der Rest dahinter — der ausführliche Satz des Ziels. */
+export function zielRest(titel) {
+  const t = text(titel).trim();
+  const i = t.indexOf(":");
+  return i > 0 ? t.slice(i + 1).trim() : "";
+}
+
 /**
- * Startwert für die Höhe einer Zielkarte, solange sie noch nicht gemessen ist:
- * rund 30 Zeichen je Zeile, dazu Polster und Rahmen der `ItemPreview`.
+ * Startwert für die Höhe eines Zeilenkopfs, solange er nicht gemessen ist:
+ * Punktereihe, Kurztitel und bis zu drei Zeilen Rest (danach Auslassung).
  */
 export function labelHoehe(titel) {
-  const zeilen = Math.max(1, Math.ceil(text(titel).length / 30));
-  return zeilen * 20 + 52;
+  const proZeile = Math.max(12, Math.floor((MASSE.label - 16) / 5.6));
+  const zeilen = Math.min(3, Math.ceil(zielRest(titel).length / proZeile));
+  return 10 + 16 + zeilen * 14;
 }
 
 /**
@@ -234,25 +266,25 @@ export function layout(ziele, karten, hoehen = {}) {
   };
 }
 
+/** Der Pfad eines Fadens: eine kubische Kurve von Kante zu Kante. */
+export function fadenPfad(x1, y1, x2, y2) {
+  const dx = Math.max(30, (x2 - x1) / 2);
+  return `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
+}
+
 /**
- * Der Pfad eines Fadens.
- * `via` legt einen Umweg über den Zeilenrand, damit der Faden nicht durch
- * fremde Karten läuft; `senkrecht` ist der Fall zweier Karten in derselben Spalte.
+ * Wie ein Faden aussieht (Entwurf 1a): innerhalb einer Zeile in der
+ * Phasenfarbe der ABHÄNGIGEN Karte — dort kommt er an, dorthin zieht er —,
+ * über Zeilen hinweg grau und gestrichelt, damit man den Sprung sieht.
  */
-export function fadenPfad(x1, y1, x2, y2, via = null, senkrecht = false) {
-  if (senkrecht) {
-    const dy = (y2 - y1) / 2;
-    return `M${x1},${y1} C${x1 + 10},${y1 + dy} ${x1 + 10},${y2 - dy} ${x2},${y2}`;
-  }
-  const dx = Math.max(28, Math.abs(x2 - x1) / 2);
-  if (via != null) {
-    const xa = x1 + Math.min(40, dx);
-    const xb = x2 - Math.min(40, dx);
-    return `M${x1},${y1} C${xa},${y1} ${xa},${via} ${(xa + xb) / 2},${via} S${xb},${y2} ${x2},${y2}`;
-  }
-  return x2 >= x1
-    ? `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`
-    : `M${x1},${y1} C${x1 + 40},${y1} ${x2 - 40},${y2} ${x2},${y2}`;
+export function fadenStil(von, nach) {
+  const gleicheZeile = !!zielVonKarte(von) && zielVonKarte(von) === zielVonKarte(nach);
+  return {
+    farbe: gleicheZeile ? `var(--kb-${phaseVonStufe(stufeVon(nach)).key})` : "var(--muted-foreground)",
+    gestrichelt: !gleicheZeile,
+    strichmuster: gleicheZeile ? undefined : "3 3",
+    strich: FADEN_STRICH,
+  };
 }
 
 // ------------------------------------------------------ Fäden als Datensätze

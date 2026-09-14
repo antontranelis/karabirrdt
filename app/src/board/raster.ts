@@ -17,12 +17,14 @@ export interface Raster {
   hoehe: number
   breite: number
   spalte: (stufe: number) => number
+  /** Die gemessenen Kartenhöhen, damit Fäden die Mitte treffen. */
+  kartenHoehe: Record<string, number>
 }
 
 /** Das Raster des Bretts. Die Rechnung selbst steht in `modell.mjs`. */
 export function raster(ziele: Item[], karten: Item[], hoehen: Record<string, number> = {}): Raster {
-  const L = layout(ziele, karten, hoehen) as Omit<Raster, "spalte">
-  return { ...L, spalte: spaltenX }
+  const L = layout(ziele, karten, hoehen) as Omit<Raster, "spalte" | "kartenHoehe">
+  return { ...L, spalte: spaltenX, kartenHoehe: hoehen }
 }
 
 /** Welche Zelle liegt unter diesem Punkt im Raster? */

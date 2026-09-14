@@ -20,6 +20,9 @@ export default defineConfig({
     },
   },
   server: {
+    // 5173 gehört der Reference-App des Stacks; das Karabirrdt hört daneben.
+    port: 5174,
+    strictPort: true,
     fs: { allow: [".", ".."] },
     proxy: {
       "/api": "http://127.0.0.1:8124",

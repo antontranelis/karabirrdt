@@ -240,12 +240,6 @@ test("gemessene Kartenhöhen bestimmen Stapel und Zeilenhöhe", () => {
   assert.equal(layout(ziele, karten).pos.b.y, layout(ziele, karten).pos.a.y + MASSE.cardH + MASSE.gap);
 });
 
-test("Fadenpfad: Bogen nach rechts, Umweg über den Zeilenrand, senkrecht in derselben Spalte", () => {
-  assert.match(fadenPfad(0, 0, 100, 40), /^M0,0 C/);
-  assert.ok(fadenPfad(0, 0, 100, 40, 90).includes("S"));
-  const senkrecht = fadenPfad(50, 0, 50, 80, null, true);
-  assert.match(senkrecht, /^M50,0 C6[0-9],/);
-});
 
 // --------------------------------------------------------- Mitglieder
 
@@ -517,4 +511,62 @@ test("Fäden ins Leere lassen sich benennen", () => {
   assert.deepEqual(verwaisteFaeden(items, relations), []);
   const ohneB = items.filter((i) => i.id !== "b");
   assert.deepEqual(verwaisteFaeden(ohneB, relations).sort(), ["r1", "r2"]);
+});
+
+
+// ------------------------------------------- Entwurf „Brett-Dichte" (1a)
+
+import { FADEN_STRICH, KACHEL, fadenStil, labelHoehe, zielKurz, zielRest } from "../modell.mjs";
+
+test("das Spaltenraster leitet sich aus einer einzigen Kachelbreite ab", () => {
+  assert.equal(MASSE.cardW, KACHEL);
+  assert.equal(MASSE.colW, KACHEL + MASSE.luft);
+  assert.equal(MASSE.head, MASSE.band + MASSE.stufe + MASSE.luft);
+  assert.equal(spaltenX(0), MASSE.start + MASSE.label + MASSE.colW / 2);
+  assert.equal(spaltenX(11) - spaltenX(10), MASSE.colW);
+});
+
+test("Fäden sind kubisch, mit mindestens 30 Auslenkung", () => {
+  assert.equal(fadenPfad(0, 0, 100, 40), "M0,0 C50,0 50,40 100,40");
+  // kurze Strecke: die Auslenkung bleibt bei 30
+  assert.equal(fadenPfad(0, 0, 20, 40), "M0,0 C30,0 -10,40 20,40");
+});
+
+test("ein Faden in derselben Zeile trägt die Phasenfarbe der abhängigen Karte", () => {
+  const karte = (id, stufe, ziel) => ({
+    id,
+    type: KARTEN_TYP,
+    data: { title: id, stage: stufe },
+    relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: `item:${ziel}` }],
+  });
+  // Voraussetzung in Träumen, abhängige Karte in Handeln → Farbe von Handeln
+  const gleich = fadenStil(karte("a", 0, "z1"), karte("b", 7, "z1"));
+  assert.equal(gleich.farbe, "var(--kb-do)");
+  assert.equal(gleich.gestrichelt, false);
+  assert.equal(gleich.strich, FADEN_STRICH);
+
+  // über Ziele hinweg: grau und gestrichelt
+  const quer = fadenStil(karte("a", 0, "z1"), karte("c", 7, "z2"));
+  assert.equal(quer.farbe, "var(--muted-foreground)");
+  assert.equal(quer.gestrichelt, true);
+  assert.equal(quer.strichmuster, "3 3");
+});
+
+test("der Zeilenkopf zerfällt in Kurztitel und Rest", () => {
+  assert.equal(zielKurz("Team-Organisation: Aus einem Dokument heraus"), "Team-Organisation");
+  assert.equal(zielRest("Team-Organisation: Aus einem Dokument heraus"), "Aus einem Dokument heraus");
+  assert.equal(zielKurz("Ohne Doppelpunkt"), "Ohne Doppelpunkt");
+  assert.equal(zielRest("Ohne Doppelpunkt"), "");
+  assert.equal(zielKurz(""), "Ohne Titel");
+});
+
+test("die Höhe des Zeilenkopfs wächst mit dem Text und deckelt bei drei Zeilen", () => {
+  const kurz = labelHoehe("Medien");
+  const lang = labelHoehe("Medien: Ein Portfolio aus unterschiedlichen Medien, die mit unserer Vision, Konzepten und Werkzeugen gezielt verschiedene Zielgruppen ansprechen.");
+  assert.ok(lang > kurz, "mehr Text, mehr Höhe");
+  const sehrLang = labelHoehe("Medien: " + "sehr viel Text ".repeat(40));
+  assert.equal(sehrLang, lang, "nach drei Zeilen wird abgeschnitten, nicht höher");
+  // und die Zeile folgt dem gemessenen Block, nicht der Schätzung
+  const ziele = [{ id: "z1", type: ZIEL_TYP, data: { title: "Z", dots: 0, order: 0 } }];
+  assert.equal(layout(ziele, [], { z1: 140 }).zeilen[0].h, 140 + MASSE.rowPad * 2);
 });

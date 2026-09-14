@@ -223,6 +223,7 @@ export default function App() {
               aktiv={aktiv}
               fadenVon={fadenVon}
               ansicht={ansicht}
+              horizont={String(group?.data?.horizon ?? "")}
               onAnsicht={setAnsicht}
               onKarte={(id) => void kartenKlick(id)}
               onZelle={(zielId, stufe) => (fadenVon ? setFadenVon(null) : setAnsicht({ art: "neu", zielId, stufe }))}
@@ -366,6 +367,8 @@ interface ModulProps {
   aktiv: string | null
   fadenVon: string | null
   ansicht: Ansicht
+  /** Nur Anzeige — geändert wird er im Space-Dialog. */
+  horizont: string
   onAnsicht: (a: Ansicht) => void
   onKarte: (id: string) => void
   onZelle: (zielId: string, stufe: number) => void
@@ -387,6 +390,7 @@ function BrettModul({
   aktiv,
   fadenVon,
   ansicht,
+  horizont,
   onAnsicht,
   onKarte,
   onZelle,
@@ -408,6 +412,11 @@ function BrettModul({
         searchLabel="Karten durchsuchen"
         trailingActions={
           <>
+            {!!horizont && (
+              <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
+                Traumhorizont · {horizont}
+              </span>
+            )}
             <Button
               variant={ansicht?.art === "pruefung" ? "secondary" : "outline"}
               size="sm"
