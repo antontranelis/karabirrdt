@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type PointerEvent } from "react"
 import type { Item, RelationRecord, User } from "@real-life-stack/data-interface"
-import { ItemAssignees, ItemCommentCount, ItemPreview, cn } from "@real-life-stack/toolkit"
+import { ItemAssignees, ItemPreview, cn, type ItemAssigneeUser } from "@real-life-stack/toolkit"
 import {
   KANN_PRAEDIKAT,
   LERNT_PRAEDIKAT,
   MASSE,
   phaseVonStufe,
+  istErledigt,
   stufeVon,
   zielKurz,
   zielRest,
@@ -365,11 +366,12 @@ function Karte({
   onClick: () => void
 }) {
   const nachId = new Map(mitglieder.map((m) => [m.id, m]))
-  const zugeteilt = [...zugewiesen(item, KANN_PRAEDIKAT), ...zugewiesen(item, LERNT_PRAEDIKAT)]
-    .map((id) => nachId.get(id))
-    .filter((u): u is User => !!u)
-  const kommentare = Number(item.data?.commentCount) || 0
-  const hatFuss = zugeteilt.length > 0 || kommentare > 0
+  // Gefüllt heißt „kann ich", umrandet „will lernen" — dieselbe Komponente,
+  // zwei Stile, wie die Story „Raster 12 Spalten dense" sie benutzt.
+  const zugeteilt: ItemAssigneeUser[] = [
+    ...zugewiesen(item, KANN_PRAEDIKAT).map((id) => nachId.get(id)),
+    ...zugewiesen(item, LERNT_PRAEDIKAT).map((id) => (nachId.get(id) ? { ...nachId.get(id)!, variant: "outline" as const } : undefined)),
+  ].filter((u): u is ItemAssigneeUser => !!u)
   const mitTitel =
     typeof item.data?.title === "string" && item.data.title.length > 0
       ? item
@@ -392,22 +394,12 @@ function Karte({
       <ItemPreview
         item={mitTitel}
         author={null}
-        density="compact"
+        density="dense"
+        completed={istErledigt(item)}
         active={aktiv}
         activeColor={PHASEN_HEX[phase.key]}
         onClick={onClick}
-        footerAdornment={
-          hatFuss ? (
-            <>
-              <ItemAssignees users={zugeteilt} />
-              {kommentare > 0 && (
-                <div className="ml-auto">
-                  <ItemCommentCount count={kommentare} />
-                </div>
-              )}
-            </>
-          ) : undefined
-        }
+        footerAdornment={zugeteilt.length ? <ItemAssignees users={zugeteilt} size="xs" /> : undefined}
       />
     </div>
   )

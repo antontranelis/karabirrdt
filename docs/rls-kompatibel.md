@@ -94,10 +94,10 @@ lassen und Variante 1a gewählt: alle zwölf Stufen und sieben Ziele ohne
 Scrollen auf 1920 px. Was daraus im Code steht:
 
 - **Ein Maß trägt alles.** `KACHEL` in `modell.mjs` ist die Kachelbreite;
-  Spaltenraster, Kartenbreite und Stufenmitten leiten sich daraus ab. Heute
-  ist eine Kachel eine `ItemPreview` in der Dichte `compact`; sobald die
-  dichte Karte des Toolkits da ist (`density="dense"`, 112×62, PR 360), wird
-  hier 112 gesetzt — sonst nichts.
+  Spaltenraster, Kartenbreite und Stufenmitten leiten sich daraus ab. Seit
+  der dichten Karte des Toolkits (`density="dense"`, 112×62, PR 360) steht
+  dort 112: das Raster ist damit 1616 px breit, alle zwölf Stufen und die
+  Zielspalte passen ohne Scrollen auf 1920 px.
 - **Phasenband 20 hoch, Stufenzeile 18, 4 px Luft** (`MASSE.band`,
   `MASSE.stufe`, `MASSE.luft`). Die Stufenschrift nimmt die dunkle
   Phasenfarbe (`--kb-<phase>-dunkel`), die Fläche die helle.
@@ -113,8 +113,11 @@ Scrollen auf 1920 px. Was daraus im Code steht:
   (`--muted-foreground`) und gestrichelt (`3 3`). Die Umwege um fremde Karten
   und die Start-/Ziel-Knoten mit ihren gestrichelten Kanten sind entfallen;
   die Regel „Fäden laufen nur nach rechts" bleibt und steht im Modell.
-- **Erledigt** zeigt die dichte Karte selbst (Häkchen, Opazität 0.55) — das
-  Brett färbt nichts zusätzlich ein.
+- **Erledigt** zeigt die dichte Karte selbst über `completed` (Häkchen,
+  Opazität 0.55) — das Brett färbt nichts zusätzlich ein.
+- **Kann ich / will lernen** sind ein `ItemAssignees`-Stapel in `size="xs"`;
+  „will lernen" trägt `variant: "outline"`. Genau so benutzt die Story
+  „Raster 12 Spalten dense" des Toolkits die Kachel.
 - **Der Traumhorizont** steht als Text rechts im Modul-Kopf, neben „Prüfung";
   geändert wird er im Space-Dialog.
 - **Noch nicht gebaut:** die Pille „Brett · Phase · Ziel" unten links neben
