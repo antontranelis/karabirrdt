@@ -154,6 +154,7 @@ export declare function faedenEinbetten(
   relations: readonly RelationRecord[],
 ): { items: Item[]; entfernt: string[]; verwaist: string[] }
 export declare function migriereLernen(item: Item): { item: Item; geaendert: boolean }
+export declare function ohneNullAufwand(item: Item): { item: Item; geaendert: boolean }
 export declare function umziehen(
   items: readonly Item[],
   relations: readonly RelationRecord[],

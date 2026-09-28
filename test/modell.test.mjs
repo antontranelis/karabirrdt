@@ -615,6 +615,17 @@ test("Umzug im Ganzen ist idempotent und lässt fremde Datensätze stehen", () =
   assert.deepEqual(zweit.items, erst.items);
 });
 
+test("Umzug: Aufwand 0 hieß „nicht geschätzt“ und fällt weg, jeder andere Wert bleibt", () => {
+  const karte = (hours, euros) => ({ ...kk("a", 0), data: { title: "a", stage: 0, hours, euros } });
+  const { items, geaendert } = umziehen([karte(0, 0), { ...karte(3, 0), id: "b" }, { ...karte(2, 40), id: "c" }], []);
+  assert.deepEqual(items.map((i) => [i.data.hours, i.data.euros]), [[undefined, undefined], [3, undefined], [2, 40]]);
+  assert.deepEqual(geaendert.sort(), ["a", "b"]);
+  assert.equal("hours" in items[0].data, false);
+  assert.deepEqual(umziehen(items, []).geaendert, []);
+  // das alte Format liest fehlenden Aufwand weiter als 0
+  assert.equal(rlsNachAlt({ items }).tasks.a.hours, 0);
+});
+
 test("ein Import im Format vor dem Umzug kommt umgezogen an", async () => {
   const alt = {
     group: { id: "b", name: "B", data: {} },

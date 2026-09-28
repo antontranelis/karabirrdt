@@ -450,8 +450,8 @@ export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = AUTO
         status: t?.done ? "done" : "open",
         stage: Math.max(0, Math.min(11, Math.round(zahl(t?.stage)))),
         who: Array.isArray(t?.who) ? t.who.map((w) => ({ ini: text(w?.ini), can: !!w?.can })) : [],
-        hours: zahl(t?.hours),
-        euros: zahl(t?.euros),
+        ...(zahl(t?.hours) ? { hours: zahl(t.hours) } : {}),
+        ...(zahl(t?.euros) ? { euros: zahl(t.euros) } : {}),
         order: zahl(t?.order),
       },
       relations: t?.goal ? [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: ziel(t.goal) }] : [],
@@ -580,7 +580,17 @@ export function migriereLernen(item) {
   return { item: { ...item, relations: neu }, geaendert: true };
 }
 
-/** Beides auf einmal, für Import und Umzugsskript. */
+/** Aufwand 0 (Stunden, Euro) als „nicht geschätzt": das Feld fällt weg. */
+export function ohneNullAufwand(item) {
+  if (!istKarte(item)) return { item, geaendert: false };
+  const d = item.data ?? {};
+  if (d.hours !== 0 && d.euros !== 0) return { item, geaendert: false };
+  const { hours, euros, ...rest } = d;
+  const data = { ...rest, ...(hours !== 0 && hours !== undefined ? { hours } : {}), ...(euros !== 0 && euros !== undefined ? { euros } : {}) };
+  return { item: { ...item, data }, geaendert: true };
+}
+
+/** Alles auf einmal, für Import und Umzugsskript. */
 export function umziehen(items, relations) {
   const f = faedenEinbetten(items, relations);
   const weg = new Set([...f.entfernt, ...f.verwaist]);
@@ -589,8 +599,9 @@ export function umziehen(items, relations) {
   const neu = (items ?? []).map((i) => {
     const basis = ersetzt.get(i.id) ?? i;
     const l = migriereLernen(basis);
-    if (l.geaendert) geaendert.add(i.id);
-    return l.item;
+    const n = ohneNullAufwand(l.item);
+    if (l.geaendert || n.geaendert) geaendert.add(i.id);
+    return n.item;
   });
   return {
     items: neu,
