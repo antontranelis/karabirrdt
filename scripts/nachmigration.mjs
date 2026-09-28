@@ -58,11 +58,15 @@ for (const item of daten.items) {
 
 console.log(`${geaendert} Karten ${probe ? "wären geändert" : "geändert"}.`);
 
-// Reste früherer Löschungen: Fäden, deren Enden es nicht mehr gibt.
-const verwaist = verwaisteFaeden(speicher.rlsBrett(brett).items, daten.relations);
+// Reste früherer Löschungen: eingebettete Fäden, deren Ziel es nicht mehr
+// gibt. (Fäden als Datensätze zieht `npm run umzug` um.)
+const verwaist = verwaisteFaeden(speicher.rlsBrett(brett).items);
 if (verwaist.length) {
-  if (!probe) for (const id of verwaist) speicher.relationLoeschen(brett, id);
-  console.log(`${verwaist.length} Fäden ins Leere ${probe ? "wären entfernt" : "entfernt"}.`);
+  if (!probe) {
+    const aktuell = new Map(speicher.rlsBrett(brett).items.map((i) => [i.id, i]));
+    for (const { id, relations } of verwaist) speicher.itemSetzen(brett, id, { ...aktuell.get(id), relations });
+  }
+  console.log(`${verwaist.length} Karten mit Fäden ins Leere ${probe ? "wären repariert" : "repariert"}.`);
 } else {
   console.log("Keine Fäden ins Leere.");
 }

@@ -15,6 +15,14 @@ export interface Wer {
 export interface EingebetteteRelation {
   predicate: string
   target: string
+  meta?: Record<string, unknown>
+}
+/** Ein Faden als Sicht (abgeleitet aus der Einbettung, nie gespeichert). */
+export interface Faden {
+  id: string
+  predicate: "blocks"
+  from: string
+  to: string
 }
 export interface Zeile {
   ziel: Item
@@ -72,18 +80,24 @@ export declare function stufeVon(karte: { data?: Record<string, unknown> } | nul
 export declare function istErledigt(karte: { data?: Record<string, unknown> } | null | undefined): boolean
 export declare function zieleSortiert(items: readonly Item[]): Item[]
 export declare function kartenInZelle(items: readonly Item[], zielId: string, stufe: number): Item[]
-export declare function voraussetzungen(relations: readonly RelationRecord[], id: string): string[]
-export declare function nachfolger(relations: readonly RelationRecord[], id: string): string[]
+export declare function voraussetzungen(relations: readonly Faden[] | readonly RelationRecord[], id: string): string[]
+export declare function nachfolger(relations: readonly Faden[] | readonly RelationRecord[], id: string): string[]
+export declare function fadenSchluessel(vonId: string, nachId: string): string
+export declare function faeden(items: readonly Item[]): Faden[]
+export declare function mitFaden(item: { relations?: EingebetteteRelation[] } | null | undefined, nachId: string): EingebetteteRelation[]
+export declare function ohneFaden(item: { relations?: EingebetteteRelation[] } | null | undefined, nachId: string): EingebetteteRelation[]
+export declare function fadenVerstoesse(items: readonly Item[]): Map<string, string>
+export declare function neuerFadenVerstoss(vorher: readonly Item[], nachher: readonly Item[]): string | null
 
 export declare function fadenFehler(
   karten: readonly Item[],
-  relations: readonly RelationRecord[],
+  relations: readonly Faden[],
   vonId: string,
   nachId: string,
 ): string | null
 export declare function verschiebenFehler(
   karten: readonly Item[],
-  relations: readonly RelationRecord[],
+  relations: readonly Faden[],
   id: string,
   neueStufe: number,
 ): string | null
@@ -123,7 +137,6 @@ export declare function layout(
 ): Raster
 export declare function fadenPfad(x1: number, y1: number, x2: number, y2: number): string
 
-export declare function fadenId(createdBy: string, from: string, to: string, predicate?: string): Promise<string>
 export declare function relationItemVonRecord(rec: RelationRecord): Item
 export declare function recordVonRelationItem(item: Item | null | undefined): RelationRecord | null
 
@@ -136,13 +149,23 @@ export declare function rlsNachAlt(
   tabelle?: Record<string, string>,
 ): AltesBrett
 export declare function normalisiereRls(json: unknown, optionen?: Optionen): Promise<RlsBrett>
+export declare function faedenEinbetten(
+  items: readonly Item[],
+  relations: readonly RelationRecord[],
+): { items: Item[]; entfernt: string[]; verwaist: string[] }
+export declare function migriereLernen(item: Item): { item: Item; geaendert: boolean }
+export declare function umziehen(
+  items: readonly Item[],
+  relations: readonly RelationRecord[],
+): { items: Item[]; relations: RelationRecord[]; geaendert: string[]; faedenUmgezogen: number; faedenVerwaist: string[] }
 
 export declare const GLOBAL: "global:"
-export declare const KANN_PRAEDIKAT: "assignedTo"
-export declare const LERNT_PRAEDIKAT: "wantsToLearn"
-export declare const ZUWEISUNGEN: string[]
+export declare const ZUWEISUNG: "assignedTo"
+export declare const ROLLE_KANN: "can"
+export declare const ROLLE_LERNT: "learns"
+export declare const LERNT_ALT: "wantsToLearn"
 export declare function initialenFuer(mitglieder: readonly { id: string; displayName?: string }[]): Map<string, string>
-export declare function zugewiesen(item: { relations?: EingebetteteRelation[] } | null | undefined, praedikat: string): string[]
+export declare function zugewiesen(item: { relations?: EingebetteteRelation[] } | null | undefined, rolle: string): string[]
 export declare function mitZuweisungen(
   item: { relations?: EingebetteteRelation[] } | null | undefined,
   kann?: readonly string[],
@@ -171,7 +194,7 @@ export declare function nachmigriereNotiz(
 
 export declare function kaskade(
   items: readonly Item[],
-  relations: readonly RelationRecord[],
   id: string,
-): { items: string[]; relations: string[] }
-export declare function verwaisteFaeden(items: readonly Item[], relations: readonly RelationRecord[]): string[]
+  relations?: readonly RelationRecord[],
+): { items: string[]; aendern: { id: string; relations: EingebetteteRelation[] }[]; relations: string[] }
+export declare function verwaisteFaeden(items: readonly Item[]): { id: string; relations: EingebetteteRelation[] }[]

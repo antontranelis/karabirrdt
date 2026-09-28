@@ -17,18 +17,27 @@ import {
   istRlsFormat,
   normalisiereRls,
   leeresRls,
-  fadenId,
   relationItemVonRecord,
   recordVonRelationItem,
   zielVonKarte,
   zieleSortiert,
   kartenInZelle,
+  voraussetzungen,
+  nachfolger,
   fadenFehler,
   verschiebenFehler,
   MASSE,
   spaltenX,
   layout,
   fadenPfad,
+  faeden,
+  mitFaden,
+  ohneFaden,
+  fadenVerstoesse,
+  neuerFadenVerstoss,
+  faedenEinbetten,
+  migriereLernen,
+  umziehen,
 } from "../modell.mjs";
 
 test("zwölf Stufen in vier Phasen", () => {
@@ -54,7 +63,7 @@ const altesBrett = {
   },
 };
 
-test("altes Brett wird zu Group, Items und RelationRecords", async () => {
+test("altes Brett wird zu Group und Items, Fäden eingebettet", async () => {
   const rls = await altNachRls(altesBrett, { createdBy: "did:example:x", createdAt: "2026-01-01T00:00:00.000Z" });
   assert.equal(rls.group.data.name, "Garten");
   assert.equal(rls.group.data.dream, "Es ist …");
@@ -78,18 +87,19 @@ test("altes Brett wird zu Group, Items und RelationRecords", async () => {
   assert.deepEqual(karte.data.who, [{ ini: "AT", can: true }]);
   assert.ok(karte["@context"].includes(VOCAB.TASK));
   // Zugehörigkeit zum Ziel als eingebettete Relation, nicht als Fremdschlüssel
-  assert.deepEqual(karte.relations, [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z1" }]);
+  assert.deepEqual(karte.relations[0], { predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z1" });
   assert.equal(zielVonKarte(karte), "z1");
 
   assert.equal(rls.items.find((i) => i.id === "k2").data.status, "done");
 
-  // Faden k1 → k2: die Voraussetzung blockiert die abhängige Karte
-  assert.equal(rls.relations.length, 1);
-  const faden = rls.relations[0];
-  assert.equal(faden.predicate, FADEN_PRAEDIKAT);
-  assert.equal(faden.from, "item:k1");
-  assert.equal(faden.to, "item:k2");
-  assert.equal(faden.id, await fadenId("did:example:x", "item:k1", "item:k2"));
+  // Faden k1 → k2: eingebettet an der Voraussetzung, zeigt auf die abhängige Karte
+  assert.deepEqual(rls.relations, []);
+  const k1 = rls.items.find((i) => i.id === "k1");
+  assert.deepEqual(
+    k1.relations.filter((r) => r.predicate === FADEN_PRAEDIKAT),
+    [{ predicate: FADEN_PRAEDIKAT, target: "item:k2" }],
+  );
+  assert.deepEqual(faeden(rls.items).map((f) => [f.from, f.to]), [["item:k1", "item:k2"]]);
 });
 
 test("RLS-Brett wird wieder zum alten Format", async () => {
@@ -117,15 +127,6 @@ test("beide JSON-Formate werden erkannt und vereinheitlicht", async () => {
   assert.deepEqual(leer.items, []);
   assert.deepEqual(leer.relations, []);
   assert.equal(leer.group.data.name, "");
-});
-
-test("Faden-Id ist deterministisch aus Autor, Prädikat und Endpunkten", async () => {
-  const a = await fadenId("u", "item:a", "item:b");
-  const b = await fadenId("u", "item:a", "item:b");
-  const c = await fadenId("u", "item:b", "item:a");
-  assert.equal(a, b);
-  assert.notEqual(a, c);
-  assert.match(a, /^rel-[0-9a-f]{64}$/);
 });
 
 test("RelationRecord und Relation-Item sind dasselbe, zweimal geschrieben", () => {
@@ -244,8 +245,10 @@ test("gemessene Kartenhöhen bestimmen Stapel und Zeilenhöhe", () => {
 // --------------------------------------------------------- Mitglieder
 
 import {
-  KANN_PRAEDIKAT,
-  LERNT_PRAEDIKAT,
+  ROLLE_KANN as KANN_PRAEDIKAT,
+  ROLLE_LERNT as LERNT_PRAEDIKAT,
+  ZUWEISUNG,
+  LERNT_ALT,
   initialenFuer,
   zugewiesen,
   mitZuweisungen,
@@ -293,7 +296,8 @@ test("Zuweisungen liegen als Relationen am Item, nicht als eigenes Feld", () => 
   assert.deepEqual(zugewiesen(neu, LERNT_PRAEDIKAT), ["user:emil", "user:timo"]);
   // die Zeile bleibt unangetastet
   assert.equal(zielVonKarte(neu), "z");
-  assert.ok(neu.relations.some((r) => r.target === `${GLOBAL}user:anton` && r.predicate === KANN_PRAEDIKAT));
+  assert.ok(neu.relations.some((r) => r.target === `${GLOBAL}user:anton` && r.predicate === ZUWEISUNG && r.meta.role === "can"));
+  assert.ok(neu.relations.some((r) => r.target === `${GLOBAL}user:emil` && r.predicate === ZUWEISUNG && r.meta.role === "learns"));
   // leeren
   assert.deepEqual(zugewiesen({ ...neu, relations: mitZuweisungen(neu, [], []) }, KANN_PRAEDIKAT), []);
   assert.equal(zielVonKarte({ ...neu, relations: mitZuweisungen(neu, [], []) }), "z");
@@ -348,8 +352,8 @@ test("zurück ins alte Format werden die Zuweisungen wieder zu who", () => {
         data: { title: "K", stage: 1 },
         relations: [
           { predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z" },
-          { predicate: KANN_PRAEDIKAT, target: `${GLOBAL}user:anton` },
-          { predicate: LERNT_PRAEDIKAT, target: `${GLOBAL}user:emil` },
+          { predicate: ZUWEISUNG, target: `${GLOBAL}user:anton` },
+          { predicate: ZUWEISUNG, target: `${GLOBAL}user:emil`, meta: { role: "learns" } },
         ],
       },
     ],
@@ -407,7 +411,7 @@ test("zurück ins alte Format gewinnt ebenfalls die Tabelle", () => {
     id: "k",
     type: KARTEN_TYP,
     data: { title: "K", stage: 0 },
-    relations: [{ predicate: KANN_PRAEDIKAT, target: `${GLOBAL}user:emil` }],
+    relations: [{ predicate: ZUWEISUNG, target: `${GLOBAL}user:emil` }],
   };
   const alt = rlsNachAlt({ group: { id: "b", name: "", data: {} }, items: [karte], relations: [] }, MITGLIEDER, TABELLE);
   assert.deepEqual(alt.tasks.k.who, [{ ini: "DEK", can: true }]);
@@ -473,44 +477,177 @@ import { kaskade, verwaisteFaeden } from "../modell.mjs";
 
 const brettZumLoeschen = () => {
   const ziel = (id) => ({ id, type: ZIEL_TYP, data: { title: id, dots: 0, order: 0 } });
-  const karte = (id, zielId) => ({
+  const karte = (id, zielId, nach = []) => ({
     id,
     type: KARTEN_TYP,
     data: { title: id, stage: 0, order: 0 },
-    relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: `item:${zielId}` }],
+    relations: [
+      { predicate: ZUGEHOERIG_PRAEDIKAT, target: `item:${zielId}` },
+      ...nach.map((n) => ({ predicate: FADEN_PRAEDIKAT, target: `item:${n}` })),
+    ],
   });
-  const faden = (id, von, nach) => ({ id, predicate: FADEN_PRAEDIKAT, from: `item:${von}`, to: `item:${nach}` });
-  return {
-    items: [ziel("z1"), ziel("z2"), karte("a", "z1"), karte("b", "z1"), karte("c", "z2")],
-    relations: [faden("r1", "a", "b"), faden("r2", "b", "c"), faden("r3", "c", "c")],
-  };
+  // Fäden a→b, b→c (über die Zeile hinweg), c→c
+  return [ziel("z1"), ziel("z2"), karte("a", "z1", ["b"]), karte("b", "z1", ["c"]), karte("c", "z2", ["c"])];
 };
 
-test("ein Ziel nimmt seine Zeile mit: Karten und deren Fäden", () => {
-  const { items, relations } = brettZumLoeschen();
-  const weg = kaskade(items, relations, "z1");
+test("ein Ziel nimmt seine Zeile mit, und wer auf die Zeile zeigt, verliert den Faden", () => {
+  const items = brettZumLoeschen();
+  const weg = kaskade(items, "z1");
   assert.deepEqual(weg.items.sort(), ["a", "b", "z1"]);
-  // r1 hängt zwischen a und b, r2 hängt an b — beide gehen mit; r3 bleibt
-  assert.deepEqual(weg.relations.sort(), ["r1", "r2"]);
+  // c zeigt nicht in die Zeile, a und b gehen selbst — nichts zu ändern
+  assert.deepEqual(weg.aendern, []);
 });
 
-test("eine Karte nimmt nur ihre eigenen Fäden mit", () => {
-  const { items, relations } = brettZumLoeschen();
-  const weg = kaskade(items, relations, "b");
+test("eine Karte nimmt ihre Fäden mit: die eingehenden verschwinden an der Voraussetzung", () => {
+  const items = brettZumLoeschen();
+  const weg = kaskade(items, "b");
   assert.deepEqual(weg.items, ["b"]);
-  assert.deepEqual(weg.relations.sort(), ["r1", "r2"]);
+  assert.deepEqual(weg.aendern, [{ id: "a", relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z1" }] }]);
+});
+
+test("übrig gebliebene Datensätze gehen beim Löschen mit", () => {
+  const items = brettZumLoeschen();
+  const alt = [{ id: "r1", predicate: FADEN_PRAEDIKAT, from: "item:b", to: "item:c" }, { id: "r2", predicate: "x", from: "item:c", to: "item:z2" }];
+  assert.deepEqual(kaskade(items, "b", alt).relations, ["r1"]);
 });
 
 test("was es nicht gibt, nimmt nichts mit", () => {
-  const { items, relations } = brettZumLoeschen();
-  assert.deepEqual(kaskade(items, relations, "gibtsnicht"), { items: ["gibtsnicht"], relations: [] });
+  assert.deepEqual(kaskade(brettZumLoeschen(), "gibtsnicht"), { items: ["gibtsnicht"], aendern: [], relations: [] });
 });
 
-test("Fäden ins Leere lassen sich benennen", () => {
-  const { items, relations } = brettZumLoeschen();
-  assert.deepEqual(verwaisteFaeden(items, relations), []);
+test("Fäden ins Leere lassen sich reparieren", () => {
+  const items = brettZumLoeschen();
+  assert.deepEqual(verwaisteFaeden(items), []);
   const ohneB = items.filter((i) => i.id !== "b");
-  assert.deepEqual(verwaisteFaeden(ohneB, relations).sort(), ["r1", "r2"]);
+  assert.deepEqual(verwaisteFaeden(ohneB), [{ id: "a", relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z1" }] }]);
+});
+
+// ------------------------------------------------------- Fäden eingebettet
+
+const kk = (id, stage, nach = [], zielId = "z") => ({
+  id,
+  type: KARTEN_TYP,
+  data: { title: id, stage, order: 0 },
+  relations: [
+    { predicate: ZUGEHOERIG_PRAEDIKAT, target: `item:${zielId}` },
+    ...nach.map((n) => ({ predicate: FADEN_PRAEDIKAT, target: `item:${n}` })),
+  ],
+});
+
+test("Fäden liegen an der Voraussetzung und lassen sich als Sicht lesen", () => {
+  const items = [kk("a", 0, ["b", "b"]), kk("b", 3), { id: "z", type: ZIEL_TYP, data: {}, relations: [{ predicate: FADEN_PRAEDIKAT, target: "item:a" }] }];
+  // doppelt eingebettet zählt einmal; ein Ziel trägt keine Fäden
+  assert.deepEqual(faeden(items), [{ id: "a>b", predicate: FADEN_PRAEDIKAT, from: "item:a", to: "item:b" }]);
+  // Voraussetzungen und Nachfolger lesen dieselbe Sicht
+  assert.deepEqual(voraussetzungen(faeden(items), "b"), ["a"]);
+  assert.deepEqual(nachfolger(faeden(items), "a"), ["b"]);
+  // space-qualifizierte Ziele zählen wie lokale
+  assert.deepEqual(faeden([{ ...kk("a", 0), relations: [{ predicate: FADEN_PRAEDIKAT, target: "space:x/item:b" }] }])[0].to, "item:b");
+});
+
+test("Faden ziehen und lösen ändert nur die Relations der Voraussetzung", () => {
+  const a = kk("a", 0);
+  const mit = mitFaden(a, "b");
+  assert.deepEqual(mit.at(-1), { predicate: FADEN_PRAEDIKAT, target: "item:b" });
+  assert.equal(mitFaden({ ...a, relations: mit }, "b"), mit, "doppelt wird nichts");
+  assert.deepEqual(ohneFaden({ ...a, relations: mit }, "b"), a.relations);
+});
+
+test("Regelverstöße: nach links, im Kreis, auf sich selbst", () => {
+  assert.equal(fadenVerstoesse([kk("a", 0, ["b"]), kk("b", 3)]).size, 0);
+  assert.match([...fadenVerstoesse([kk("a", 5, ["b"]), kk("b", 3)]).values()][0], /nur nach rechts/);
+  assert.match([...fadenVerstoesse([kk("a", 3, ["a"])]).values()][0], /sich selbst/);
+  assert.equal(fadenVerstoesse([kk("a", 3, ["b"]), kk("b", 3, ["a"])]).size, 2);
+  // Nur NEUE Verstöße zählen — ein alter Rest blockiert nicht jede Änderung
+  const vorher = [kk("a", 5, ["b"]), kk("b", 3), kk("c", 0)];
+  assert.equal(neuerFadenVerstoss(vorher, vorher), null);
+  assert.match(neuerFadenVerstoss(vorher, [kk("a", 5, ["b"]), kk("b", 3), kk("c", 6, ["b"])]), /nur nach rechts/);
+});
+
+test("Umzug: Fäden-Datensätze wandern an die Voraussetzung, Richtung bleibt", () => {
+  const items = [kk("a", 0), kk("b", 3, ["c"]), kk("c", 4)];
+  const relations = [
+    { id: "r1", predicate: FADEN_PRAEDIKAT, from: "item:a", to: "item:b" },
+    { id: "r2", predicate: FADEN_PRAEDIKAT, from: "item:b", to: "item:c" }, // schon eingebettet
+    { id: "r3", predicate: FADEN_PRAEDIKAT, from: "item:weg", to: "item:b" }, // Voraussetzung fehlt
+    { id: "r4", predicate: "anderes", from: "item:a", to: "item:c" },
+  ];
+  const f = faedenEinbetten(items, relations);
+  assert.deepEqual(f.items.map((i) => i.id), ["a"], "nur a bekommt etwas dazu");
+  assert.deepEqual(f.items[0].relations.at(-1), { predicate: FADEN_PRAEDIKAT, target: "item:b" });
+  assert.deepEqual(f.entfernt, ["r1", "r2"]);
+  assert.deepEqual(f.verwaist, ["r3"]);
+});
+
+test("Umzug: wantsToLearn wird assignedTo mit Rolle learns, assignedTo ohne Rolle bleibt", () => {
+  const karte = {
+    id: "k",
+    type: KARTEN_TYP,
+    data: {},
+    relations: [
+      { predicate: ZUWEISUNG, target: "global:user:anton" },
+      { predicate: LERNT_ALT, target: "global:user:timo" },
+      { predicate: LERNT_ALT, target: "global:user:anton" }, // kann schon — die Kante bleibt
+    ],
+  };
+  const { item, geaendert } = migriereLernen(karte);
+  assert.equal(geaendert, true);
+  assert.deepEqual(item.relations, [
+    { predicate: ZUWEISUNG, target: "global:user:anton" },
+    { predicate: ZUWEISUNG, target: "global:user:timo", meta: { role: "learns" } },
+  ]);
+  assert.deepEqual(zugewiesen(item, "can"), ["user:anton"]);
+  assert.deepEqual(zugewiesen(item, "learns"), ["user:timo"]);
+  const zweiter = migriereLernen(item);
+  assert.equal(zweiter.geaendert, false);
+  assert.equal(zweiter.item, item);
+});
+
+test("Umzug im Ganzen ist idempotent und lässt fremde Datensätze stehen", () => {
+  const items = [kk("a", 0), { ...kk("b", 3), relations: [...kk("b", 3).relations, { predicate: LERNT_ALT, target: "global:u" }] }];
+  const relations = [{ id: "r1", predicate: FADEN_PRAEDIKAT, from: "item:a", to: "item:b" }, { id: "r9", predicate: "x", from: "item:a", to: "item:b" }];
+  const erst = umziehen(items, relations);
+  assert.deepEqual(erst.geaendert.sort(), ["a", "b"]);
+  assert.equal(erst.faedenUmgezogen, 1);
+  assert.deepEqual(erst.relations.map((r) => r.id), ["r9"]);
+  const zweit = umziehen(erst.items, erst.relations);
+  assert.deepEqual(zweit.geaendert, []);
+  assert.deepEqual(zweit.items, erst.items);
+});
+
+test("ein Import im Format vor dem Umzug kommt umgezogen an", async () => {
+  const alt = {
+    group: { id: "b", name: "B", data: {} },
+    items: [kk("a", 0), kk("b", 2)],
+    relations: [{ id: "r1", predicate: FADEN_PRAEDIKAT, from: "item:a", to: "item:b" }],
+  };
+  const neu = await normalisiereRls(alt, { brett: "b" });
+  assert.deepEqual(neu.relations, []);
+  assert.deepEqual(faeden(neu.items).map((f) => f.id), ["a>b"]);
+  // und zurück ins alte Format stimmen die deps
+  assert.deepEqual(rlsNachAlt(neu).tasks.b.deps, ["a"]);
+  // ein noch nicht umgezogenes Brett liefert die deps ebenfalls
+  assert.deepEqual(rlsNachAlt(alt).tasks.b.deps, ["a"]);
+});
+
+test("Zuweisungen: eine Kante je Person, fremde Rollen bleiben erhalten", () => {
+  const karte = {
+    id: "k",
+    type: KARTEN_TYP,
+    data: {},
+    relations: [
+      { predicate: ZUWEISUNG, target: "global:user:x", meta: { role: "leads" } },
+      { predicate: ZUWEISUNG, target: "global:user:anton" },
+    ],
+  };
+  const rel = mitZuweisungen(karte, ["user:anton", "user:emil"], ["user:emil"]);
+  assert.deepEqual(rel, [
+    { predicate: ZUWEISUNG, target: "global:user:x", meta: { role: "leads" } },
+    { predicate: ZUWEISUNG, target: "global:user:anton" },
+    { predicate: ZUWEISUNG, target: "global:user:emil", meta: { role: "can" } },
+  ]);
+  assert.deepEqual(zugewiesen({ relations: rel }, "can"), ["user:anton", "user:emil"]);
+  assert.deepEqual(zugewiesen({ relations: rel }, "learns"), []);
 });
 
 
@@ -519,6 +656,11 @@ test("Fäden ins Leere lassen sich benennen", () => {
 import { FADEN_STRICH, KACHEL, fadenStil, labelHoehe, zielKurz, zielRest } from "../modell.mjs";
 
 test("das Spaltenraster leitet sich aus einer einzigen Kachelbreite ab", () => {
+  assert.equal(KACHEL, 106, "gut 5 % schmaler als die dichte Kachel des Toolkits (112)");
+  assert.equal(MASSE.colW, 110, "Spaltenraster mit 4 px Luft");
+  assert.equal(MASSE.label, 192, "Zielspalte links");
+  // Alle zwölf Stufen plus Zielspalte passen auf einen breiten Schirm.
+  assert.ok(MASSE.start + MASSE.label + 12 * MASSE.colW + MASSE.end < 1700);
   assert.equal(MASSE.cardW, KACHEL);
   assert.equal(MASSE.colW, KACHEL + MASSE.luft);
   assert.equal(MASSE.head, MASSE.luft + MASSE.band + MASSE.luft + MASSE.stufe + MASSE.luft);

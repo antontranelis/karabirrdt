@@ -15,7 +15,8 @@
     "build": "npm --prefix app run build",
     "typecheck": "npm --prefix app run typecheck",
     "dev:app": "npm --prefix app run dev",
-    "nachmigration": "node scripts/nachmigration.mjs"
+    "nachmigration": "node scripts/nachmigration.mjs",
+    "umzug": "node scripts/umzug-register.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"

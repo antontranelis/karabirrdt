@@ -6,11 +6,14 @@
 // kennt weder DOM noch node-eigene Module und läuft darum in beiden Welten.
 //
 //   Brett  = Group (Space)   data: { name, dream, horizon, modules: ["karabirrdt"] }
-//   Ziel   = Item  project   data: { title, dots, order }                → eine Zeile
-//   Karte  = Item  task      data: { title, description, status, stage, who, hours, euros, order }
+//   Ziel   = Item  project   data: { title, description, dots, order }   → eine Zeile
+//   Karte  = Item  task      data: { title, description, status, stage, hours, euros, order }
 //            Zugehörigkeit zum Ziel als eingebettete Relation `partOf` (Spec 04, Regel 9:
 //            wenige feste Forward-Beziehungen, vom Autor des Items gesetzt).
-//   Faden  = RelationRecord  predicate `blocks`, from = Voraussetzung, to = abhängige Karte.
+//   Faden  = eingebettete Relation `blocks` an der Voraussetzung, Ziel = abhängige Karte
+//            (Stack-Register seit S3: „eingebettet am blockierenden Item, 0..n").
+//   Wer    = eingebettete Relation `assignedTo` → `global:<userId>`, Qualifier
+//            `meta.role`: `can` („kann") oder `learns` („lernt"); ohne Rolle gilt `can`.
 
 export const VOCAB = {
   BASE: "https://real-life-stack.org/vocab/base/v1",
@@ -118,6 +121,50 @@ export function kartenInZelle(items, zielId, stufe) {
     );
 }
 
+// ------------------------------------------------------------------ Fäden
+//
+// Ein Faden liegt eingebettet an der Voraussetzung: `{ predicate: "blocks",
+// target: "item:<abhängige Karte>" }`. So führt das Stack-Register die Kante
+// seit S3 (TOOLKIT_RELATION_PREDICATES: „eingebettet am blockierenden Item,
+// 0..n"); „Braucht" und „Ermöglicht" im Detail lesen und schreiben genau dort.
+// Für Regeln, Geometrie und das alte Format sieht ein Faden aber weiter aus
+// wie ein Datensatz `{ id, predicate, from, to }` — `faeden(items)` liefert
+// diese Sicht, abgeleitet, nie gespeichert.
+
+/** Die Kennung eines eingebetteten Fadens: aus seinen Enden, eindeutig je Paar. */
+export const fadenSchluessel = (vonId, nachId) => `${vonId}>${nachId}`;
+
+/** Alle Fäden des Bretts als Sicht `{ id, predicate, from, to }`. */
+export function faeden(items) {
+  const liste = [];
+  const gesehen = new Set();
+  for (const item of items ?? []) {
+    if (!istKarte(item)) continue;
+    for (const r of item.relations ?? []) {
+      if (r?.predicate !== FADEN_PRAEDIKAT) continue;
+      const nach = ohnePraefix(r.target);
+      if (!nach) continue;
+      const id = fadenSchluessel(item.id, nach);
+      if (gesehen.has(id)) continue;
+      gesehen.add(id);
+      liste.push({ id, predicate: FADEN_PRAEDIKAT, from: ziel(item.id), to: ziel(nach) });
+    }
+  }
+  return liste;
+}
+
+/** Die Relations der Voraussetzung mit einem Faden zu `nachId` (doppelt wird er nicht). */
+export function mitFaden(item, nachId) {
+  const rel = item?.relations ?? [];
+  if (rel.some((r) => r?.predicate === FADEN_PRAEDIKAT && ohnePraefix(r.target) === nachId)) return rel;
+  return [...rel, { predicate: FADEN_PRAEDIKAT, target: ziel(nachId) }];
+}
+
+/** Die Relations der Voraussetzung ohne den Faden zu `nachId`. */
+export function ohneFaden(item, nachId) {
+  return (item?.relations ?? []).filter((r) => !(r?.predicate === FADEN_PRAEDIKAT && ohnePraefix(r.target) === nachId));
+}
+
 /** Fäden, die in diese Karte laufen (ihre Voraussetzungen). */
 export const voraussetzungen = (relations, id) =>
   relations.filter((r) => r.predicate === FADEN_PRAEDIKAT && ohnePraefix(r.to) === id).map((r) => ohnePraefix(r.from));
@@ -163,18 +210,52 @@ export function verschiebenFehler(karten, relations, id, neueStufe) {
   return null;
 }
 
+/**
+ * Alle Fäden, die gegen die Regeln des Bretts verstoßen, mit Grund:
+ * Faden auf sich selbst, Faden nach links, zwei Fäden gegeneinander.
+ * Der Connector vergleicht vorher und nachher und lehnt eine Änderung ab,
+ * die einen NEUEN Verstoß bringt — gleich, woher sie kommt (Formular,
+ * Selbstaktion, Modul-Pick, Ziehen).
+ */
+export function fadenVerstoesse(items) {
+  const karten = new Map((items ?? []).filter(istKarte).map((k) => [k.id, k]));
+  const liste = faeden(items);
+  const paare = new Set(liste.map((f) => fadenSchluessel(ohnePraefix(f.from), ohnePraefix(f.to))));
+  const verstoesse = new Map();
+  for (const f of liste) {
+    const von = ohnePraefix(f.from);
+    const nach = ohnePraefix(f.to);
+    if (von === nach) verstoesse.set(f.id, "Eine Karte kann nicht von sich selbst abhängen.");
+    else if (paare.has(fadenSchluessel(nach, von))) verstoesse.set(f.id, "Das wäre ein Kreis.");
+    else {
+      const v = karten.get(von);
+      const n = karten.get(nach);
+      if (v && n && stufeVon(v) > stufeVon(n))
+        verstoesse.set(f.id, "Fäden laufen nur nach rechts. Die Voraussetzung muss in einer früheren oder gleichen Stufe liegen.");
+    }
+  }
+  return verstoesse;
+}
+
+/** Der Grund des ersten Verstoßes, den `nachher` neu bringt, oder null. */
+export function neuerFadenVerstoss(vorher, nachher) {
+  const alt = fadenVerstoesse(vorher);
+  for (const [id, grund] of fadenVerstoesse(nachher)) if (!alt.has(id)) return grund;
+  return null;
+}
+
 // --------------------------------------------------------------- Geometrie
 
 /**
  * Die Maße aus dem Entwurf „Brett-Dichte" (Variante 1a, Claude Design):
  * alle zwölf Stufen und sieben Ziele ohne Scrollen auf 1920 px.
  *
- * Alles hängt an EINER Zahl: `KACHEL`. Heute ist eine Kachel noch eine
- * `ItemPreview` in der Dichte `compact`; sobald die dichte Karte des Toolkits
- * da ist (`density="dense"`, 112×62), wird hier 112 gesetzt und das Raster
- * folgt — Spaltenbreite, Stufenmitten, Kartenbreite.
+ * Alles hängt an EINER Zahl: `KACHEL`. Eine Kachel ist eine `ItemPreview`
+ * in der Dichte `dense` (Toolkit 0.3.0, 112×61); das Brett setzt sie gut 5 %
+ * schmaler (Anton, Vorschau zu rls#360). Spaltenbreite, Stufenmitten und
+ * Kartenbreite folgen daraus.
  */
-export const KACHEL = 208; // → 112 mit `density="dense"`
+export const KACHEL = 106; // gut 5 % schmaler als die dichte Kachel des Toolkits (`density="dense"`, 112)
 const LUFT = 4;
 
 export const MASSE = {
@@ -184,7 +265,7 @@ export const MASSE = {
   luft: LUFT,
   colW: KACHEL + LUFT,
   cardW: KACHEL,
-  cardH: 96, // Grundmaß, bis die Karte gemessen ist
+  cardH: 62, // Grundmaß der dichten Kachel, bis sie gemessen ist
   gap: LUFT,
   rowPad: 8,
   band: 20, // Höhe eines Phasenbandes
@@ -287,18 +368,11 @@ export function fadenStil(von, nach) {
   };
 }
 
-// ------------------------------------------------------ Fäden als Datensätze
-
-/**
- * Die Kennung eines RelationRecords, deterministisch aus (Autor, Prädikat,
- * from, to) — dieselbe Ableitung wie in `@real-life-stack/data-interface`
- * (Spec 08, Regel 4), damit Server und Connector auf dieselbe Id kommen.
- */
-export async function fadenId(createdBy, from, to, predicate = FADEN_PRAEDIKAT) {
-  const bytes = new TextEncoder().encode(JSON.stringify([createdBy, predicate, from, to]));
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-  return `rel-${Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")}`;
-}
+// ------------------------------------------------------------ Datensätze
+//
+// Fäden sind keine Datensätze mehr. Der Weg für RelationRecords bleibt: Der
+// Server führt eine Ablage dafür, der Connector legt sie als Items vom Typ
+// `relation` in den MockConnector (Spec 08: ein Record IST ein Item).
 
 /** RelationRecord → Item mit `type: "relation"` (Spec 08: ein Record IST ein Item). */
 export function relationItemVonRecord(rec) {
@@ -362,7 +436,7 @@ export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = AUTO
       data: { title: text(g?.title), dots: zahl(g?.dots), order: zahl(g?.order) },
     });
   }
-  const relations = [];
+  const karten = new Map();
   for (const [id, t] of Object.entries(tasks ?? {})) {
     const karte = {
       id,
@@ -384,17 +458,21 @@ export async function altNachRls({ meta, goals, tasks } = {}, { createdBy = AUTO
     };
     // Mit bekannten Mitgliedern werden aus den Kürzeln gleich Zuweisungen;
     // ohne sie bleibt `who` stehen, statt still verloren zu gehen.
-    items.push(mitglieder.length ? migriereWho(karte, mitglieder).item : karte);
+    karten.set(id, mitglieder.length ? migriereWho(karte, mitglieder).item : karte);
+  }
+  // Fäden: `deps` einer Karte nennt ihre Voraussetzungen; der Faden liegt
+  // eingebettet an der Voraussetzung und zeigt auf die abhängige Karte.
+  for (const [id, t] of Object.entries(tasks ?? {})) {
     for (const d of Array.isArray(t?.deps) ? t.deps : []) {
-      const from = ziel(d);
-      const to = ziel(id);
-      relations.push({ id: await fadenId(createdBy, from, to), predicate: FADEN_PRAEDIKAT, from, to, createdBy, createdAt });
+      const von = karten.get(String(d));
+      if (von) karten.set(von.id, { ...von, relations: mitFaden(von, id) });
     }
   }
+  items.push(...karten.values());
   return {
     group: { id: brett, name: m.name, data: { scope: "group", ...m, modules: [MODUL] } },
     items,
-    relations,
+    relations: [],
   };
 }
 
@@ -404,6 +482,8 @@ export function rlsNachAlt({ group, items = [], relations = [] } = {}, mitgliede
   const goals = {};
   const tasks = {};
   const ini = kuerzelFuer(mitglieder, tabelle);
+  // Eingebettete Fäden, dazu Datensätze eines noch nicht umgezogenen Bretts.
+  const alleFaeden = [...faeden(items), ...relations.filter((r) => r?.predicate === FADEN_PRAEDIKAT)];
   for (const i of items) {
     if (istZiel(i)) goals[i.id] = { id: i.id, title: text(i.data?.title), dots: zahl(i.data?.dots), order: zahl(i.data?.order) };
     else if (istKarte(i))
@@ -413,14 +493,14 @@ export function rlsNachAlt({ group, items = [], relations = [] } = {}, mitgliede
         goal: zielVonKarte(i),
         stage: stufeVon(i),
         who: [
-          ...zugewiesen(i, KANN_PRAEDIKAT).map((id) => ({ ini: ini.get(id) ?? id, can: true })),
-          ...zugewiesen(i, LERNT_PRAEDIKAT).map((id) => ({ ini: ini.get(id) ?? id, can: false })),
+          ...zugewiesen(i, ROLLE_KANN).map((id) => ({ ini: ini.get(id) ?? id, can: true })),
+          ...zugewiesen(i, ROLLE_LERNT).map((id) => ({ ini: ini.get(id) ?? id, can: false })),
           ...(Array.isArray(i.data?.who) ? i.data.who : []),
         ],
         hours: zahl(i.data?.hours),
         euros: zahl(i.data?.euros),
         done: istErledigt(i),
-        deps: voraussetzungen(relations, i.id),
+        deps: [...new Set(voraussetzungen(alleFaeden, i.id))],
         note: text(i.data?.description),
         order: zahl(i.data?.order),
       };
@@ -428,31 +508,117 @@ export function rlsNachAlt({ group, items = [], relations = [] } = {}, mitgliede
   return { meta: { name: text(d.name), dream: text(d.dream), horizon: text(d.horizon) }, goals, tasks };
 }
 
-/** Nimmt beide Formate an und liefert immer das RLS-Format. */
+/**
+ * Nimmt beide Formate an und liefert immer das RLS-Format in der heutigen
+ * Form: Fäden eingebettet, „will lernen" als Rolle an `assignedTo`. Ein
+ * Export aus der Zeit davor wird dabei umgezogen.
+ */
 export async function normalisiereRls(json, optionen = {}) {
   if (istRlsFormat(json)) {
     const leer = leeresRls(optionen.brett);
+    const umzug = umziehen(json.items ?? [], json.relations ?? []);
     return {
       group: { ...leer.group, ...json.group, data: { ...leer.group.data, ...(json.group?.data ?? {}) } },
-      items: json.items ?? [],
-      relations: json.relations ?? [],
+      items: umzug.items,
+      relations: umzug.relations,
     };
   }
   return altNachRls(json ?? {}, optionen);
 }
 
+// -------------------------------------------------------------- Umzug 0.3
+//
+// Zwei Formen aus der Zeit vor toolkit 0.3.0 ziehen um:
+//   1. Fäden als RelationRecord `blocks` (from = Voraussetzung, to = abhängige
+//      Karte) → eingebettet an der Voraussetzung, gleiche Richtung.
+//   2. „will lernen" als eigenes Prädikat `wantsToLearn` → `assignedTo` mit
+//      `meta.role: "learns"`. Ein `assignedTo` ohne Rolle bleibt, wie es ist
+//      (gilt als `can`).
+// Beides ist idempotent: ein zweiter Lauf findet nichts mehr.
+
+/**
+ * Fäden-Datensätze in die Voraussetzung einbetten.
+ * Liefert die geänderten Karten, die umgezogenen Datensätze (`entfernt`) und
+ * die, deren Voraussetzung es nicht mehr gibt (`verwaist`, ebenfalls weg).
+ */
+export function faedenEinbetten(items, relations) {
+  const nachId = new Map((items ?? []).map((i) => [i.id, i]));
+  const geaendert = new Map();
+  const entfernt = [];
+  const verwaist = [];
+  for (const r of relations ?? []) {
+    if (r?.predicate !== FADEN_PRAEDIKAT) continue;
+    const vonId = ohnePraefix(r.from);
+    const nachKarte = ohnePraefix(r.to);
+    const von = geaendert.get(vonId) ?? nachId.get(vonId);
+    if (!von || !istKarte(von) || !nachId.has(nachKarte)) {
+      verwaist.push(r.id);
+      continue;
+    }
+    const rel = mitFaden(von, nachKarte);
+    if (rel !== (von.relations ?? [])) geaendert.set(vonId, { ...von, relations: rel });
+    entfernt.push(r.id);
+  }
+  return { items: [...geaendert.values()], entfernt, verwaist };
+}
+
+/** `wantsToLearn` → `assignedTo` mit Rolle `learns`. Wer schon zugewiesen ist, behält seine Kante. */
+export function migriereLernen(item) {
+  const rel = item?.relations ?? [];
+  if (!rel.some((r) => r?.predicate === LERNT_ALT)) return { item, geaendert: false };
+  const schon = new Set(rel.filter((r) => r?.predicate === ZUWEISUNG).map((r) => r.target));
+  const neu = [];
+  for (const r of rel) {
+    if (r?.predicate !== LERNT_ALT) {
+      neu.push(r);
+      continue;
+    }
+    if (schon.has(r.target)) continue;
+    schon.add(r.target);
+    neu.push({ predicate: ZUWEISUNG, target: r.target, meta: { ...(r.meta ?? {}), role: ROLLE_LERNT } });
+  }
+  return { item: { ...item, relations: neu }, geaendert: true };
+}
+
+/** Beides auf einmal, für Import und Umzugsskript. */
+export function umziehen(items, relations) {
+  const f = faedenEinbetten(items, relations);
+  const weg = new Set([...f.entfernt, ...f.verwaist]);
+  const ersetzt = new Map(f.items.map((i) => [i.id, i]));
+  const geaendert = new Set(ersetzt.keys());
+  const neu = (items ?? []).map((i) => {
+    const basis = ersetzt.get(i.id) ?? i;
+    const l = migriereLernen(basis);
+    if (l.geaendert) geaendert.add(i.id);
+    return l.item;
+  });
+  return {
+    items: neu,
+    relations: (relations ?? []).filter((r) => !weg.has(r.id)),
+    geaendert: [...geaendert],
+    faedenUmgezogen: f.entfernt.length,
+    faedenVerwaist: f.verwaist,
+  };
+}
+
 // ------------------------------------------------------------ Mitglieder
 //
 // „Wer" an einer Karte sind Zuweisungen an Mitglieder des Spaces, keine
-// freien Kürzel mehr: „kann ich" ist die normale Task-Zuweisung `assignedTo`
-// (TaskRelations.forward), „will lernen" ein zweites Zuweisungsprädikat.
-// Beide liegen als eingebettete Relations am Item, Ziel `global:<userId>`
-// nach den Target-Konventionen aus Spec 04.
+// freien Kürzel mehr: die normale Task-Zuweisung `assignedTo`, eingebettet,
+// Ziel `global:<userId>` (Spec 04). „Kann" oder „lernt" steht als Qualifier
+// `meta.role` an der Kante (Spec 06, Regel 20: das Vokabular bringt die
+// Register-Schicht der App mit, der Kern kennt nur den Schlüssel `role`).
+// Eine Zuweisung ohne Rolle gilt als „kann".
 
 export const GLOBAL = "global:";
-export const KANN_PRAEDIKAT = "assignedTo";
-export const LERNT_PRAEDIKAT = "wantsToLearn";
-export const ZUWEISUNGEN = [KANN_PRAEDIKAT, LERNT_PRAEDIKAT];
+export const ZUWEISUNG = "assignedTo";
+export const ROLLE_KANN = "can";
+export const ROLLE_LERNT = "learns";
+/** Das frühere zweite Prädikat für „will lernen" — nur noch für den Umzug. */
+export const LERNT_ALT = "wantsToLearn";
+
+/** Die Rolle einer Zuweisung: `learns`, sonst `can` (auch ohne Angabe). */
+const rolleVon = (r) => (r?.predicate === LERNT_ALT || r?.meta?.role === ROLLE_LERNT ? ROLLE_LERNT : r?.meta?.role ?? ROLLE_KANN);
 
 /**
  * Die Initialen der Mitglieder, eindeutig innerhalb eines Bretts.
@@ -480,21 +646,49 @@ export function initialenFuer(mitglieder = []) {
   return ini;
 }
 
-/** Wem ist diese Karte unter diesem Prädikat zugewiesen? */
-export function zugewiesen(item, praedikat) {
-  return (item?.relations ?? [])
-    .filter((r) => r?.predicate === praedikat && String(r.target ?? "").startsWith(GLOBAL))
-    .map((r) => String(r.target).slice(GLOBAL.length));
+/**
+ * Wer steht mit dieser Rolle an der Karte? `can` schließt Zuweisungen ohne
+ * Rolle ein; `learns` liest auch das alte Prädikat, bis der Umzug gelaufen ist.
+ * Eine Rolle, die keine der beiden ist, zählt zu keiner — sie bleibt aber am
+ * Item stehen (Spec 06, Regel 20: Unbekanntes bewahren).
+ */
+export function zugewiesen(item, rolle) {
+  const ids = [];
+  for (const r of item?.relations ?? []) {
+    if (r?.predicate !== ZUWEISUNG && r?.predicate !== LERNT_ALT) continue;
+    if (!String(r.target ?? "").startsWith(GLOBAL)) continue;
+    if (rolleVon(r) !== rolle) continue;
+    const id = String(r.target).slice(GLOBAL.length);
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
 }
 
-/** Die Relations einer Karte mit neuen Zuweisungen. Alles andere bleibt. */
+/**
+ * Die Relations einer Karte mit neuen Zuweisungen „kann" und „lernt". Alles
+ * andere bleibt, auch eine vorhandene Kante mit passender Rolle wird nicht
+ * neu geschrieben (ein `assignedTo` ohne Rolle bleibt ohne Rolle).
+ */
 export function mitZuweisungen(item, kann = [], lernt = []) {
-  const rest = (item?.relations ?? []).filter((r) => !ZUWEISUNGEN.includes(r?.predicate));
-  return [
-    ...rest,
-    ...kann.map((id) => ({ predicate: KANN_PRAEDIKAT, target: GLOBAL + id })),
-    ...lernt.map((id) => ({ predicate: LERNT_PRAEDIKAT, target: GLOBAL + id })),
-  ];
+  const alt = item?.relations ?? [];
+  const istZuweisung = (r) => r?.predicate === ZUWEISUNG || r?.predicate === LERNT_ALT;
+  const rest = alt.filter((r) => !istZuweisung(r));
+  const vorhanden = (id, rolle) =>
+    alt.find((r) => r?.predicate === ZUWEISUNG && r.target === GLOBAL + id && rolleVon(r) === rolle);
+  const neu = [];
+  const gesetzt = new Set();
+  for (const [ids, rolle] of [[kann, ROLLE_KANN], [lernt, ROLLE_LERNT]]) {
+    for (const id of ids) {
+      if (gesetzt.has(id)) continue; // eine Kante je Person; „kann" geht vor
+      gesetzt.add(id);
+      neu.push(vorhanden(id, rolle) ?? { predicate: ZUWEISUNG, target: GLOBAL + id, meta: { role: rolle } });
+    }
+  }
+  // Zuweisungen mit einer Rolle, die diese App nicht kennt, bleiben stehen.
+  const fremd = alt.filter(
+    (r) => r?.predicate === ZUWEISUNG && ![ROLLE_KANN, ROLLE_LERNT].includes(rolleVon(r)) && !gesetzt.has(String(r.target).slice(GLOBAL.length)),
+  );
+  return [...rest, ...fremd, ...neu];
 }
 
 /** Die Zeile, unter der unaufgelöste Kürzel in der Notiz stehen. */
@@ -568,8 +762,8 @@ export function migriereWho(item, mitglieder = [], tabelle = {}) {
 export function nachmigriereNotiz(item, mitglieder = [], tabelle = {}) {
   if (!istKarte(item)) return { item, geaendert: false, offen: [] };
   const nachIni = initialenTabelle(mitglieder, tabelle);
-  const kann = new Set(zugewiesen(item, KANN_PRAEDIKAT));
-  const lernt = new Set(zugewiesen(item, LERNT_PRAEDIKAT));
+  const kann = new Set(zugewiesen(item, ROLLE_KANN));
+  const lernt = new Set(zugewiesen(item, ROLLE_LERNT));
   const offen = [];
   let geaendert = false;
 
@@ -622,24 +816,42 @@ export function nachmigriereNotiz(item, mitglieder = [], tabelle = {}) {
 /**
  * Was mit diesem Item verschwinden muss, damit das Brett heil bleibt.
  *
- * Ein Ziel ist eine Zeile: mit ihm gehen die Karten dieser Zeile und deren
- * Fäden. Eine Karte nimmt ihre Fäden mit. Sonst blieben Karten ohne Zeile
- * (unsichtbar, aber in den Daten) und Fäden ins Leere zurück.
+ * Ein Ziel ist eine Zeile: mit ihm gehen die Karten dieser Zeile. Fäden
+ * liegen eingebettet an der Voraussetzung; wer auf ein gelöschtes Item zeigt,
+ * verliert diesen Faden (`aendern`: Item-Id und seine neuen Relations). Sonst
+ * blieben Karten ohne Zeile (unsichtbar, aber in den Daten) und Fäden ins
+ * Leere zurück. `relations` sind übrig gebliebene Datensätze, die ein
+ * gelöschtes Item berühren (vor dem Umzug), und gehen ebenfalls mit.
  */
-export function kaskade(items, relations, id) {
-  const item = items.find((i) => i.id === id);
+export function kaskade(items, id, relations = []) {
+  const item = (items ?? []).find((i) => i.id === id);
   const weg = new Set([id]);
   if (item && istZiel(item)) {
     for (const k of items) if (istKarte(k) && zielVonKarte(k) === id) weg.add(k.id);
   }
-  const faeden = relations
-    .filter((r) => weg.has(ohnePraefix(r.from)) || weg.has(ohnePraefix(r.to)))
-    .map((r) => r.id);
-  return { items: [...weg], relations: [...new Set(faeden)] };
+  return {
+    items: [...weg],
+    aendern: fadenReste(items, weg),
+    relations: [...new Set((relations ?? []).filter((r) => weg.has(ohnePraefix(r.from)) || weg.has(ohnePraefix(r.to))).map((r) => r.id))],
+  };
 }
 
-/** Fäden, deren Enden es nicht mehr gibt — Reste früherer Löschungen. */
-export function verwaisteFaeden(items, relations) {
-  const da = new Set(items.map((i) => i.id));
-  return relations.filter((r) => !da.has(ohnePraefix(r.from)) || !da.has(ohnePraefix(r.to))).map((r) => r.id);
+/** Karten, deren eingebettete Fäden in `weg` zeigen, mit bereinigten Relations. */
+function fadenReste(items, weg) {
+  const aendern = [];
+  for (const k of items ?? []) {
+    if (weg.has(k.id) || !istKarte(k)) continue;
+    const rel = k.relations ?? [];
+    const rest = rel.filter((r) => !(r?.predicate === FADEN_PRAEDIKAT && weg.has(ohnePraefix(r.target))));
+    if (rest.length !== rel.length) aendern.push({ id: k.id, relations: rest });
+  }
+  return aendern;
+}
+
+/** Fäden, deren Ziel es nicht mehr gibt — Reste früherer Löschungen, als Reparatur. */
+export function verwaisteFaeden(items) {
+  const da = new Set((items ?? []).map((i) => i.id));
+  const fehlt = new Set();
+  for (const f of faeden(items)) if (!da.has(ohnePraefix(f.to))) fehlt.add(ohnePraefix(f.to));
+  return fadenReste(items, fehlt);
 }

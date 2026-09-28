@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import WebSocket from "ws";
 import { erstelleServer } from "../server.mjs";
 import { Speicher } from "../speicher.mjs";
-import { AUTOR, KARTEN_TYP, ZIEL_TYP, FADEN_PRAEDIKAT, ZUGEHOERIG_PRAEDIKAT, MODUL, KANN_PRAEDIKAT, LERNT_PRAEDIKAT, GLOBAL, zugewiesen } from "../modell.mjs";
+import { AUTOR, KARTEN_TYP, ZIEL_TYP, FADEN_PRAEDIKAT, ZUGEHOERIG_PRAEDIKAT, MODUL, ROLLE_KANN as KANN_PRAEDIKAT, ROLLE_LERNT as LERNT_PRAEDIKAT, GLOBAL, zugewiesen, faeden } from "../modell.mjs";
 
 let server, basis, speicher;
 before(async () => {
@@ -116,12 +116,9 @@ test("ein altes Brett wird beim ersten RLS-Zugriff einmalig übersetzt", async (
   assert.equal(karte.type, KARTEN_TYP);
   assert.equal(karte.data.stage, 4);
   assert.equal(karte.relations[0].target, "item:z");
-  assert.equal(b.relations.length, 1);
-  assert.equal(b.relations[0].from, "item:a");
-  assert.equal(b.relations[0].to, "item:b");
-  // Eine einzige Kennung für alle: sonst hätte dieselbe Kante je nach
-  // Schreiber zwei Datensätze (Spec 08, Regel 4).
-  assert.equal(b.relations[0].createdBy, AUTOR);
+  // Der Faden liegt eingebettet an der Voraussetzung a, nicht als Datensatz
+  assert.equal(b.relations.length, 0);
+  assert.deepEqual(faeden(b.items).map((f) => [f.from, f.to]), [["item:a", "item:b"]]);
   assert.equal(b.items.find((i) => i.id === "b").createdBy, AUTOR);
 
   // einmalig: danach liegen die Daten wirklich da und ändern sich nicht mehr mit
