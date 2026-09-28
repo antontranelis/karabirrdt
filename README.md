@@ -93,6 +93,16 @@ Traefik mit automatischem Zertifikat und Auto-Update über Watchtower. Die App
 kennt keine Benutzer: wer die Adresse hat, liest und ändert das Brett. Eine
 Basis-Anmeldung in Traefik davor ist deshalb nicht optional.
 
+Der Server zieht das Abbild `latest`. Das entsteht nur aus einem
+Versions-Tag, nicht aus einem Merge auf `main`; `main` baut `:main` zum
+Ausprobieren. Ausrollen heißt also:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+Vorher die Datenbank auf dem Server sichern.
+
 ## API
 
 | Aufruf | Wirkung |
