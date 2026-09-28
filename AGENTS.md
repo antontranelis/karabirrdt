@@ -15,15 +15,15 @@ Die Doku gilt in der Version, die installiert ist. Exporte gegen `app/node_modul
 
 | Zone | Hier |
 |---|---|
-| Navbar | `Navbar` mit `WorkspaceSwitcher` und `UserMenu`. Sonst nichts. |
+| Navbar | `Navbar` mit `WorkspaceSwitcher` und `UserMenu` („Profil“ = Wahl „Wer bist du?“). Sonst nichts. |
 | Space-Konfiguration | `GroupDialog` des Toolkits für Name und Mitglieder; Traumsatz, Horizont, JSON-Export und -Import in einem Dialog am Space-Menü (Lücke: kein Slot im `GroupDialog`). |
-| Modul-Kopf | `ModuleFrame fill="bleed" panelFit="overlay"`, `ModuleToolbar` mit Suche links, Prüfung und Zoom rechts. |
-| Inhalt | eigenes Raster Ziele × zwölf Stufen (`app/src/board/`), Karten als `ItemPreview`, Fäden als SVG-Overlay, Kamera als CSS-Transformation. Diese drei sind die Fachlichkeit des Moduls. |
-| Ecken | `FilterPill` unten links, `CreateFab` unten rechts. |
-| Panel | `ItemDetailView`: erst lesen, ⋮-Menü mit Bearbeiten und Löschen, dann `ContentComposer`. Fäden als Beziehungen in der Fakten-Box. |
-| Formular | deklarierte Widgets; „Kann ich“ ist das Personen-Widget mit den Mitgliedern als Schnellvorschläge. |
+| Modul-Kopf | `ModuleFrame fill="bleed" panelFit="inset"` unter einem `FilterScope`: Suche und Filter-Pille stellt die Fläche, `ModuleToolbar` trägt Traumhorizont und Prüfung. |
+| Inhalt | eigenes Raster Ziele × zwölf Stufen (`app/src/board/`), Karten als `ItemPreview density="dense"` (106 px), Fäden als SVG-Overlay. Das ist die Fachlichkeit des Moduls. |
+| Ecken | `FilterPill` unten links (von der Fläche), `CreateFab` unten rechts. |
+| Panel | `ItemDetailView` mit `ItemDetailRead`: alles aus dem Register (`app/src/register.ts`), ⋮-Menü mit Bearbeiten und Löschen. Kein eigenes Panel für Karte oder Ziel. |
+| Formular | `ItemComposer` aus dem Register (`pickContentTypes`, `createComposerMapping`); die App gibt nur die Zelle einer neuen Karte dazu und den Modul-Pick („Im Modul wählen“ → Klick aufs Brett). |
 
-Datenmodell: Brett = Group, Ziel = Item `project`, Karte = Item `task` mit `stage`, Zeile über eingebettete Relation `partOf`, Faden = RelationRecord `blocks`, Zuweisungen `assignedTo` und `wantsToLearn` auf `global:<userId>`. Alles in `modell.mjs`, ohne DOM, getestet.
+Datenmodell: Brett = Group, Ziel = Item `project` (`dots` als Zahl), Karte = Item `task` mit `stage`, Zeile über eingebettete Relation `partOf`, Faden = eingebettete Relation `blocks` an der Voraussetzung, Zuweisung `assignedTo` auf `global:<userId>` mit `meta.role` `can` oder `learns`. Alles in `modell.mjs`, ohne DOM, getestet. Die Register-Schicht in `app/src/register.ts` ergänzt die Toolkit-Typen additiv; umdefinieren darf sie nichts.
 
 Connector: `app/src/connector/server-connector.ts` komponiert den `MockConnector` und reicht Schreibzugriffe an den Server weiter. Der Tausch gegen den WoT-Connector ist dort beschrieben.
 
@@ -32,7 +32,8 @@ Connector: `app/src/connector/server-connector.ts` komponiert den `MockConnector
 - Kein Baustein wird neu gebaut, den das Toolkit hat. Vorher im Toolkit-Index und in der Reference-App nachsehen.
 - Fehlt ein Baustein wirklich: nicht bauen. Fundstelle im Paket, fehlende Prop, Vorschlag, und die Lücke in `docs/rls-kompatibel.md` eintragen. Anton entscheidet, ob es ein Toolkit-PR oder ein weggelassenes Feld wird.
 - Keine Erklärtexte, Legenden oder eigenen Kopfzeilen in Panels. Ein Karten-Detail sieht aus wie ein Task-Detail in der Reference-App.
-- Server und Modell mit `node --test`, erst Test, dann Code. `npm test`, `npm run typecheck`, `npm run build` vor jedem Handoff.
+- Server und Modell mit `node --test`, die App-Schicht (Register, Formular, Connector) mit Vitest unter jsdom; erst Test, dann Code. `npm test`, `npm run typecheck`, `npm run build` vor jedem Handoff.
+- Sichtbare Änderungen im Browser prüfen (Server 8124, Vite 5174) und gegen den Entwurf im Detail-Simulator vergleichen; nie gegen die Live-Datenbank.
 - Kein Push auf `main` ohne Freigabe. Arbeit auf Branches, Pull Request, Beschreibung auf Deutsch.
 
 ## Was hier gelernt wurde

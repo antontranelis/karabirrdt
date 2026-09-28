@@ -22,17 +22,22 @@ im Stack entstanden; die Lesereihenfolge steht in [`AGENTS.md`](../AGENTS.md).
 
 ## Die Abbildung
 
+Stand: toolkit 0.3.0, data-interface 0.4.0, mock-connector 0.2.2 (exakt
+gepinnt). Seit diesem Stand kommen Karten- und Ziel-Detail samt Formular aus
+dem **Register des Stacks** (Spec 06, Feld- und Kantenregister); die App
+liefert nur noch eine Register-Schicht dazu (`app/src/register.ts`).
+
 | Karabirrdt | RLS | Felder |
 |---|---|---|
 | Brett | **Group** (Space) | `data: { name, dream, horizon, scope: "group", modules: ["karabirrdt"] }` |
-| Ziel (Zeile) | **Item** `type: "project"`, `@context` + `project/v1` | `data: { title, dots, order }` |
+| Ziel (Zeile) | **Item** `type: "project"`, `@context` + `project/v1` | `data: { title, description, dots, order }` |
 | Karte (Zelle) | **Item** `type: "task"`, `@context` + `task/v1` | `data: { title, description, status, stage, hours, euros, order }` |
-| „kann ich" | **eingebettete Relation** `assignedTo` → `global:<userId>` | die normale Task-Zuweisung aus `TaskRelations.forward` |
-| „will lernen" | **eingebettete Relation** `wantsToLearn` → `global:<userId>` | zweites Zuweisungsprädikat, siehe Lücke 11 |
+| „kann" | **eingebettete Relation** `assignedTo` → `global:<userId>`, `meta.role: "can"` | ohne `role` gilt ebenfalls „kann" |
+| „lernt" | **eingebettete Relation** `assignedTo` → `global:<userId>`, `meta.role: "learns"` | früher eigenes Prädikat `wantsToLearn`, `npm run umzug` zieht um |
 | Mitglied | **User** des Spaces (`{id: "user:anton", displayName}`) | eigene Tabelle je Brett, `GET/PUT/DELETE /members` |
 | Kürzel eines Mitglieds | `Group.data.initialen: { AT: "user:anton", … }` | gewachsene Kürzel des Teams, als Daten am Space statt im Code |
-| Karte → Zeile | **eingebettete Relation** `partOf` → `item:<zielId>` | |
-| Faden | **RelationRecord** `blocks`, `from` = Voraussetzung, `to` = abhängige Karte | |
+| Karte → Zeile | **eingebettete Relation** `partOf` → `item:<zielId>` | im Detail „Teil von" |
+| Faden | **eingebettete Relation** `blocks` an der Voraussetzung → `item:<abhängige Karte>` | im Detail „Ermöglicht" (an der Voraussetzung) und „Braucht" (an der abhängigen Karte); früher RelationRecord, `npm run umzug` zieht um |
 
 Die ganze Abbildung steht in **einer** Datei, [`modell.mjs`](../modell.mjs) —
 einfaches JavaScript ohne DOM, damit Server (Migration, Import) und App
@@ -42,23 +47,64 @@ liegen daneben in `modell.d.mts`.
 ### Warum diese Entscheidungen
 
 - **Ziel = `project`, nicht ein eigener Typ.** Ein Ziel aus dem Traumkreis ist
-  ein Vorhaben mit Titel und Priorisierung; `project` ist der Core-Typ dafür.
-  `dots` (Klebepunkte) und `order` sind App-Felder in `data` — `task/v1` und
-  `project/v1` erlauben zusätzliche Felder.
-- **Karte = `task`.** `status` trägt „erledigt, ausgemalt" (`done`) im Werte-
-  raum von `task/v1`; `stage` (0–11) ist die Spalte des Karabirrdt. `stage`
-  ist bewusst **nicht** `status`: der Kanban-Status beantwortet „wie weit",
-  die Stufe „in welchem Schritt des Kreislaufs" — zwei Achsen.
+  ein Vorhaben mit Titel und Priorisierung; `project` ist der Toolkit-Typ
+  dafür. Die Klebepunkte bleiben eine Zahl (`dots`, B7 `number`, „Punkte");
+  eine Priorität Hoch · Mittel · Niedrig ist verworfen (Anton, 28.09.;
+  Katalog 35 nimmt 16 zurück). Die Zeilen sortieren weiter nach Punkten.
+- **Karte = `task`** mit den Status des Toolkits (To Do · In Arbeit ·
+  Erledigt). Eine Register-Schicht darf vorhandene Felder nicht umdefinieren
+  (Spec 06, Erweiterung und Merge), also auch nicht auf „Offen · Erledigt"
+  kürzen; Anton hat entschieden, die Kern-Status zu übernehmen. `stage`
+  (0–11) ist die Spalte des Karabirrdt und bewusst **nicht** `status`: der
+  Status beantwortet „wie weit", die Stufe „in welchem Schritt des
+  Kreislaufs" — zwei Achsen. Die Stufe steht nie im Formular (`pos: "module"`).
 - **Zeile als eingebettete Relation.** Spec 04, Regel 9 erlaubt eingebettete
   Relations für „wenige, feste Forward-Beziehungen, vom Autor des Items
-  gesetzt". Genau das ist die Zeile: höchstens eine je Karte, gesetzt beim
-  Anlegen oder Ziehen. Ein Fremdschlüssel `goalId` in `data` wäre ein
-  zweiter Zeiger-Dialekt neben `item.relations[]` gewesen.
-- **Faden als RelationRecord.** Fäden wachsen unbegrenzt mit der Nutzung und
-  sind selbst Inhalt — nach Spec 08, Regel 9 also Records, keine eingebettete
-  Liste. Das Prädikat `blocks` steht im Typ-Manifest der `TaskRelations`
-  („Task blockiert andere Tasks"); die Richtung Voraussetzung → abhängige
-  Karte ist genau die Faden-Richtung des Bretts.
+  gesetzt". Genau das ist die Zeile: höchstens eine je Karte. Seit S3 führt
+  das Toolkit-Register `partOf` an der Aufgabe selbst.
+- **Faden eingebettet an der Voraussetzung.** Bis toolkit 0.1.7 war ein Faden
+  ein RelationRecord (Begründung damals: Spec 08, Regel 9 — Fäden wachsen
+  mit der Nutzung). Der Stack hat mit S3 entschieden, `blocks` eingebettet am
+  blockierenden Item zu führen (`TOOLKIT_RELATION_PREDICATES`: „eingebettet am
+  blockierenden Item, 0..n"), und das Widget `item-relation` liest nur
+  eingebettete Kanten. Eine App-Schicht darf `storage` nicht ändern (Regel
+  20). Anton hat am 28.09. entschieden, mitzuziehen (Option A). Die Richtung
+  bleibt: Voraussetzung → abhängige Karte. Für Regeln, Raster und das alte
+  Format liefert `faeden(items)` weiter die Sicht `{ id, from, to }`.
+- **„lernt" als Qualifier, nicht als zweites Prädikat** (Katalog 3, 30, 34;
+  Spec 06, Regel 20): Der Kern erlaubt `role` an `assignedTo` ohne Werte, die
+  Karabirrdt-Schicht bringt `can` („kann") und `learns` („lernt") samt der
+  Pills „Kann ich" · „Will lernen" mit. Die Pills ersetzen „Übernehmen" — die
+  einzige Ersetzung, die eine Schicht vornehmen darf.
+
+### Die Register-Schicht (`app/src/register.ts`)
+
+| Typ | ergänzt | übernimmt vom Toolkit |
+|---|---|---|
+| Karte (`task`) | `hours` · `euros` B7 @meta („Aufwand", eine Zeile „12 h · 300 €"), `stage` @module, Qualifier-Werte `can`/`learns`, Pills „Kann ich" · „Will lernen" mit Folgeaktion „Erledigt" | Titel, Beschreibung, Status (To Do · In Arbeit · Erledigt), Fällig, Tags, `assignedTo` („Zugewiesen"), `blocks` („Braucht" · „Ermöglicht"), `partOf` („Teil von") |
+| Ziel (`project`) | Titel, Beschreibung („Traumsatz"), `dots` B7 („Punkte", min 0), `order` @module, Rückwärts-Liste „Karten" (←`partOf`), Badge ✦ violett | Typ-Wort „Projekt" |
+
+Dazu eine Manifest-Schicht: `project` bekommt `{ partOf, to, task }`, damit
+die Liste „Karten" eine Manifest-Kante hat (Regel 1). Beides wird in
+`main.tsx` vor dem ersten Render gebunden (`bindeRegister`).
+
+### Umzug bestehender Bretter
+
+`npm run umzug -- [--brett <kennung>] [--db <pfad>] [--probe]` zieht die
+Daten aus der Zeit vor toolkit 0.3.0 um, idempotent:
+
+1. Fäden-Datensätze `blocks` → eingebettet an der Voraussetzung; Datensätze
+   ohne Voraussetzung fallen weg, eingebettete Fäden ins Leere werden entfernt.
+2. `wantsToLearn` → `assignedTo` mit `meta.role: "learns"`. Ein `assignedTo`
+   ohne Rolle bleibt, wie es ist (gilt als „kann").
+3. Aufwand 0: Das alte Formular schrieb in jede Karte 0 Stunden und 0 Euro,
+   gemeint war „nicht geschätzt". Nach der Stack-Regel erzeugt ein leeres Feld
+   keine Zeile, eine 0 aber „0 h · 0 €" — die 0 fällt weg. `/alt` liest
+   Fehlendes weiter als 0.
+
+Der Server muss dabei gestoppt sein, oder das Skript läuft gegen eine Kopie
+(`--db`): Ein Browser mit der alten App schriebe sonst Karten ohne ihre Fäden
+zurück. Ein JSON-Import im alten Format wird beim Import genauso umgezogen.
 
 ## Welche Toolkit-Bausteine benutzt werden
 
@@ -66,26 +112,45 @@ liegen daneben in `modell.d.mts`.
 |---|---|
 | `ConnectorProvider`, `AppShell`, `AppShellMain`, `Navbar` | Rahmen |
 | `WorkspaceSwitcher` + `GroupDialog` | Bretter wechseln, anlegen, umbenennen, löschen, Mitglieder — ein Brett **ist** ein Space |
-| `CreateFab` | der Plus-Knopf unten rechts; die Typ-Auswahl macht der `ItemComposer` selbst |
-| `people`-Widget des Composers | „kann ich" (`assignedTo`) **und** „will lernen" (`wantsToLearn`) — dasselbe Feld, zwei Vorlagen |
-| `ItemAssignees` | die Gesichter auf der Karte, für beide Zuweisungen |
-| `UserMenu` | rechts in der Navbar, wie in der Reference-App |
-| `ModuleFrame` (`fill="bleed"`) | die Modulfläche: Kopf im Fluss darüber, darunter das scrollende Brett |
-| `ModuleToolbar` + `FilterScope` + `useModuleFilteredItems` | Kopf des Moduls: Suche, Tag-Filter, Modul-Aktionen, Verbindungsstand |
-| `ModuleControls` | schwebende Ecke unten links: kleiner / größer / einpassen |
-| `ItemPreview` + `ItemAssignees` + `ItemCommentCount` | **jede** Karte auf dem Brett — dieselben Aufrufe wie `KanbanBoard` |
-| `ItemComposer` + `ContentTypeConfig` + eigene `widgets` | Karte anlegen **und** bearbeiten — eine Form für beides |
-| `ItemDetailView` + `ItemDetailBody` + `ItemDetailActions` | die geöffnete Karte und das geöffnete Ziel: Lesen ↔ Bearbeiten, ⋮-Menü mit Bearbeiten und Löschen, Diskussion |
+| `setTypeManifest`, `registerTypePresentation` (+ `composeTypeManifest` aus data-interface) | die Register-Schicht der App |
+| `ItemDetailView` + `ItemDetailRead` | das geöffnete Item, Karte wie Ziel: Meta-Box, Selbstaktionen, Rückwärts-Liste, Reaktionen, Kommentare, ⋮-Menü mit Bearbeiten und Löschen — alles aus dem Register |
+| `ItemComposer` + `pickContentTypes` + `createComposerMapping` | Anlegen und Bearbeiten, Formular aus dem Register; die App ergänzt nur die Position einer neuen Karte (Zelle) |
+| `requestItemPick` des Composers | „Im Modul wählen" bei „Braucht", „Ermöglicht", „Teil von": Klick auf eine Karte oder einen Zeilenkopf im Brett |
+| `ItemFocusContext` | der Fokus-Vertrag, gehalten im Zustand der App: Chips in der Meta-Box und Zeilen der Liste öffnen ihr Ziel im selben Panel |
+| `CreateFab` | der Plus-Knopf unten rechts |
+| `UserMenu` | rechts in der Navbar; „Profil" öffnet die Wahl „Wer bist du?" |
+| `ModuleFrame` (`fill="bleed"`, `panelFit="inset"`) + `FilterScope` | die Modulfläche: Suche und Filter-Pille stellt die Fläche, darunter das scrollende Brett |
+| `ModuleToolbar` | Modul-Aktionen im Kopf: Traumhorizont, Prüfung |
+| `useSharedFilter`, `applyFilterBarValue`, `applyItemSearch` | die Karten, gefiltert wie der Kopf es zeigt |
+| `ItemPreview density="dense"` + `ItemAssignees size="xs"` | **jede** Karte auf dem Brett: die Matrix-Kachel aus rls#360, gefüllt „kann", umrandet „lernt" |
 | `AdaptivePanel` (`allowedModes: ["floating","sidebar","drawer"]`) | die schwebende Detail-Karte; auf schmalen Schirmen der Drawer |
-| `DeleteConfirmDialog` | Löschen in zwei Schritten |
-| `EmptyState` | das leere Brett |
-| `useItems`, `useRelationRecords`, `useCreateItem/useUpdateItem/useDeleteItem`, `useCurrentGroup`, `useUpdateGroup`, `useConnector` | alle Lese- und Schreibwege |
-| `cn`, Tokens aus `styles/globals.css`, `Button`/`Input`/`Textarea` | Gestaltung |
-| `hasRelationRecordWriter` (data-interface) | Fähigkeitsprüfung statt Annahme |
+| `EmptyState`, `Dialog` | das leere Brett, die Wahl „Wer bist du?" |
+| `useItems`, `useCreateItem`/`useUpdateItem`, `useCurrentGroup`, `useCurrentUser`, `useMembers`, `useConnector` | alle Lese- und Schreibwege |
+| `cn`, Tokens aus `styles/globals.css`, `Button` | Gestaltung |
 
 Nichts davon wurde geforkt oder umgestylt. Die vier Phasenfarben des Dragon
 Dreaming sind eigene App-Tokens (`--kb-dream` …) in `app/src/index.css`, in
 beiden Signalen (`prefers-color-scheme` **und** `.dark`/`[data-theme]`).
+
+**Entfallen** sind mit diesem Stand: die eigenen Panels `karten-detail.tsx`
+und `ziel-detail.tsx`, die Widgets `AufwandWidget` und `PunkteWidget`,
+`peopleRelations` mit zwei Personenfeldern, der Fäden-Block mit
+„Voraussetzung hinzufügen" und der eigene Hook `faeden.ts`. **Geblieben**,
+weil das Toolkit dafür nichts hat: Traum- und Daten-Dialog am Space
+(Lücke 13), das Prüfungs-Panel, das Raster mit Fäden und Zeilenköpfen (die
+Fachlichkeit des Moduls), und die Wahl „Wer bist du?" (Lücke 24).
+
+### Abweichungen vom Entwurf (Detail-Simulator, KB-Karte und KB-Ziel)
+
+- „Führt zu" heißt „Teil von", der Stand heißt „Status" mit To Do · In
+  Arbeit · Erledigt (Kern-Register, keine Umdefinition, Anton 28.09.).
+- Die Zeile „Offen · noch kein Aufwand geschätzt" gibt es nicht: Ein leeres
+  Feld erzeugt keine Zeile; der Status steht als eigener Chip.
+- Am Ziel steht „Punkte 6" statt „Priorität hoch"; die aggregierte
+  Personenzeile (alle Menschen der Karten) kennt das Register nicht (Lücke 23).
+- Die Liste „Karten" ist flach, ohne Stufe rechts (Lücke 20).
+- Die Typ-Wörter sind die des Toolkits: „Task" und „Projekt" statt
+  „Aufgabe" und „Ziel" (Lücke 25).
 
 ## Der Entwurf „Brett-Dichte" (Variante 1a)
 
@@ -94,10 +159,10 @@ lassen und Variante 1a gewählt: alle zwölf Stufen und sieben Ziele ohne
 Scrollen auf 1920 px. Was daraus im Code steht:
 
 - **Ein Maß trägt alles.** `KACHEL` in `modell.mjs` ist die Kachelbreite;
-  Spaltenraster, Kartenbreite und Stufenmitten leiten sich daraus ab. Heute
-  ist eine Kachel eine `ItemPreview` in der Dichte `compact`; sobald die
-  dichte Karte des Toolkits da ist (`density="dense"`, 112×62, PR 360), wird
-  hier 112 gesetzt — sonst nichts.
+  Spaltenraster, Kartenbreite und Stufenmitten leiten sich daraus ab. Eine
+  Kachel ist eine `ItemPreview` in der Dichte `dense` (toolkit 0.3.0, 112×61),
+  gesetzt auf **106 px** — gut 5 % schmaler, Antons Wahl aus der Vorschau zu
+  rls#360.
 - **Phasenband 20 hoch, Stufenzeile 18, 4 px Luft** (`MASSE.band`,
   `MASSE.stufe`, `MASSE.luft`). Die Stufenschrift nimmt die dunkle
   Phasenfarbe (`--kb-<phase>-dunkel`), die Fläche die helle.
@@ -135,7 +200,7 @@ läuft ohne sie.
 Was gefehlt hat, mit konkretem Vorschlag. Nichts davon wurde durch einen Fork
 umgangen.
 
-1. **Die Punkte eines Ziels haben keinen Platz auf der Karte.** Seit die
+1. **Teilweise behoben (toolkit 0.3.0).** Im Ziel-Detail stehen die Punkte jetzt als Zeile „Punkte“ (B7 `number` aus der Register-Schicht). Offen bleibt der Zeilenkopf des Bretts: Er ist bewusst keine Item-Karte und zeichnet die Punktereihe selbst. Ursprünglich: **Die Punkte eines Ziels haben keinen Platz auf der Karte.** Seit die
    Karten exakt wie im Kanban gezeichnet werden (`ItemPreview` mit
    `footerAdornment` aus `ItemAssignees`/`ItemCommentCount`), fehlen die
    Klebepunkte auf dem Zeilenkopf — sie sortieren die Zeilen, sind aber
@@ -144,14 +209,14 @@ umgangen.
    zweiter Eintrag für dieselbe Id ist nach Spec 06 ein Konflikt.
    *Offene Entscheidung:* Toolkit-PR (Punkte in `ItemProjectMeta`) oder Punkte
    nur im Ziel-Detail lassen.
-3. **Keine Karte unterhalb von `compact`.** Die kleinste `ItemPreview` braucht
+3. **✅ BEHOBEN (toolkit 0.3.0, rls#360): `density="dense"`, die Matrix-Kachel.** Ursprünglich: **Keine Karte unterhalb von `compact`.** Die kleinste `ItemPreview` braucht
    rund 200×90 px. Das ursprüngliche Brett hatte 102×60-Zellen; die RLS-
    Fassung ist darum doppelt so breit (12 × 224 px). Für dichte Raster —
    Karabirrdt, Wochenkalender, Matrizen — fehlt eine dritte Dichte.
    *Vorschlag:* `density="tight"` in `ItemPreviewDensity`: nur Titel (2
    Zeilen, geklemmt) plus `footerAdornment`, kein Autor-Block, `p-1.5`,
    `text-[11px]`. Keine neue Komponente, eine neue Stufe der bestehenden Achse.
-3. **Kein vorgesehener Weg „Task gehört zu Projekt".** `TaskRelations.forward`
+3b. **✅ BEHOBEN (toolkit 0.3.0, S3):** Das Manifest führt `{ partOf, from, project }` an der Aufgabe, im Detail „Teil von“. Die Gegenrichtung am Projekt fehlt im Toolkit weiter; die App ergänzt sie in ihrer Manifest-Schicht, damit die Liste „Karten“ entsteht. Ursprünglich: **Kein vorgesehener Weg „Task gehört zu Projekt".** `TaskRelations.forward`
    kennt `assignedTo` (Person), `childOf` (Eltern-**Task**), `blocks`,
    `relatedTo`. Ein Task in einem Projekt ist keins davon; `relatedTo` wäre
    bedeutungslos. Wir benutzen `partOf`, das Spec 08 in der Motivation und
@@ -169,13 +234,13 @@ umgangen.
    dass Beteiligung ohne Konto ein legitimer App-Fall ist — und langfristig
    ein `skillLevel`-Feld an `assignedTo`-Records („kann" / „lernt"), sobald
    Beteiligte echte Identitäten haben.
-5. **Kein Composer-Widget für Zahlenpaare.** Stunden und Euro brauchten ein
+5. **✅ BEHOBEN (toolkit 0.3.0, S4a):** B7 `number` mit Einheit und `min`; zwei Zahlenfelder mit gleichem Label teilen eine Zeile. `AufwandWidget` und `PunkteWidget` sind entfernt. Ursprünglich: **Kein Composer-Widget für Zahlenpaare.** Stunden und Euro brauchten ein
    eigenes Widget (`aufwand`). Der vorgesehene Weg (`widgets`,
    `CustomWidgetDefinition`) funktioniert einwandfrei — es fehlt nur ein
    generisches `number`-Widget im Toolkit, das jede zweite App sonst neu baut.
    *Vorschlag:* `WidgetType` um `"number"` erweitern, konfiguriert über
    `widgetLabels` und eine Feldliste im `ContentTypeConfig`.
-6. **`ContentComposer` kennt keine reine Ansicht.** `ItemDetailPanel` erwartet
+6. **✅ BEHOBEN:** `ItemDetailView` mit `ItemDetailRead` liest zuerst und bearbeitet auf Wunsch. Ursprünglich: **`ContentComposer` kennt keine reine Ansicht.** `ItemDetailPanel` erwartet
    einen Inhalt; die Kanban-Lösung ist ein Composer im Bearbeiten-Modus. Für
    ein Brett, an dem mehrere gleichzeitig arbeiten, wäre ein Lesemodus mit
    „bearbeiten"-Knopf ruhiger.
@@ -224,7 +289,8 @@ umgangen.
    Felder rendern dasselbe `people`-Widget im **selben** Composer, in Anlegen
    wie in Bearbeiten. Der Umweg über einen zweiten `ItemComposer` mit
    `liveUpdate` ist ersatzlos entfernt.
-   Offen bleibt nur das Typ-Manifest: `wantsToLearn` steht weiterhin nicht als
+   **Seit toolkit 0.3.0 ganz erledigt:** „lernt“ ist kein zweites Prädikat mehr, sondern der Qualifier `role: learns` an `assignedTo` (Spec 06, Regel 20); `peopleRelations` wird nicht mehr gebraucht.
+   Früher offen: das Typ-Manifest, `wantsToLearn` stand nicht als
    Affordance beim Typ `task`. *Vorschlag:*
    `{ predicate: "wantsToLearn", itemRole: "from", otherKind: "person" }`
    im `CORE_TYPE_MANIFEST`.
@@ -278,6 +344,73 @@ umgangen.
    *Vorschlag:* das hier gezeigte Muster (MockConnector + Proxy + Transport)
    als `@real-life-stack/remote-connector` mit austauschbarem Transport.
 
+### Neu mit toolkit 0.3.0 (Umzug auf das Register, 28.09.2026)
+
+18. **Das Toolkit bündelt data-interface, statt es zu importieren.** In
+   `toolkit/dist/module-register-*.js` steckt eine eigene Kopie von
+   `composeTypeManifest`, `setTypeManifest` und Co.; der MockConnector
+   importiert das npm-Paket. `setTypeManifest` des Toolkits bindet nur seine
+   Kopie; `getTypeManifest()` aus `@real-life-stack/data-interface` sah danach
+   das Manifest ohne App-Schicht. Wir binden darum beide (`register.ts`).
+   *Vorschlag:* data-interface im Toolkit-Build als `external` führen; es ist
+   ohnehin Abhängigkeit.
+19. **Eine Schicht kann den Standardwert eines Qualifiers nicht setzen.**
+   `EdgeEntry.qualifier.default` („ein fehlender Wert gilt als …“, Regel 7)
+   gibt es, `QualifierValuesEntry` nimmt aber nur `values`. Folge: Ein
+   `assignedTo` ohne Rolle (alle Zuweisungen aus der Zeit vor dem Umzug)
+   steht als „Jonas“ statt „Jonas kann“ da, im Formular als „Jonas · …“, und
+   die Pill-Zeile zeigt für mich „✓ Dabei“ neben „Kann ich“ · „Will lernen“.
+   *Vorschlag:* `default` am `QualifierValuesEntry` (höchstens eine Schicht je
+   Kante), oder der Umzug schreibt `role: "can"` ausdrücklich (Anton
+   entscheidet; heute bleibt die Kante ohne Rolle, wie verlangt).
+20. **Rückwärts-Listen kennen keine Gruppierung und keine Zusatzspalte.**
+   `EdgeEntry.list` hat nur `filter` und `sort`; die Zeilen-Dekoration
+   (`ListRowDecoration.trailing`) gibt es nur für benannte Abfragen. Die
+   Liste „Karten“ am Ziel ist darum flach, ohne die Stufe rechts.
+   *Vorschlag:* `list.trailing: <feld>` (ein Feld rechts in der Zeile) und
+   `list.group: <feld>`.
+21. **Keine Umdefinition von Status-Optionen und Beschriftungen.** Die
+   Karabirrdt-Karte hätte „Offen · Erledigt“ und „Führt zu“ gebraucht
+   (Entwurf; Spec 06 nennt sie selbst als Beispiel). Merge-Regel: Ein
+   vorhandener Feld- oder Kanten-Schlüssel ist ein Konflikt. Anton hat
+   entschieden, die Kern-Werte zu übernehmen; kein Toolkit-PR.
+22. **`useSurfaceItems` und `useModuleFilteredItems` sind nicht exportiert.**
+   Eine Fläche außerhalb des Modul-Hosts wendet den geteilten Filter selbst an
+   (`useSharedFilter` + `applyFilterBarValue` + `applyItemSearch`), genau das,
+   was der Hook verhindern soll.
+23. **Keine aggregierte Personenzeile am Ziel.** Der Entwurf zeigt am Ziel alle
+   Menschen seiner Karten; das Register kennt keine Zeile, die über eine
+   Rückwärts-Kante sammelt.
+24. **Keine Identität ohne Konto.** Die Selbstaktionen schreiben den aktuellen
+   Nutzer; diese App hat keine Anmeldung. Sie fragt darum selbst „Wer bist
+   du?“ (Profil im Benutzermenü), merkt die Wahl je Brett im Browser und
+   liefert sie als `getCurrentUser`. Ohne Wahl ist es der Tisch, dann trüge
+   „Kann ich“ den Tisch ein.
+   *Vorschlag:* ein Baustein „Ich bin …“ für geteilte Räume ohne Konten, oder
+   `UserMenu` mit einer Personenauswahl.
+25. **Typ-Wörter gehören dem Toolkit.** `label` ist ein Skalar, den die Basis
+   setzt: Die Karte heißt im Badge „Task“, das Ziel „Projekt“. Das Badge des
+   Ziels (✦, violett) setzt die Schicht, weil die Basis keines hat.
+26. **Der MockConnector zählt Item-Ids hoch** (`item-100`, `item-101` … je
+   Sitzung). Zwei Browser am selben Brett legten dieselbe Id an und
+   überschrieben einander. Der ServerConnector vergibt deshalb selbst eine
+   zufällige Id. *Vorschlag:* `crypto.randomUUID()` im Mock.
+27. **`ItemDetailRead` löst den Autor nur über Mitglieder und den eigenen
+   Nutzer auf.** Items, die der Tisch angelegt hat (alle aus der Zeit vor der
+   Wahl „Wer bist du?“), stehen als „Erstellt von did:karabirrdt:tisch“ da,
+   sobald jemand gewählt hat. *Vorschlag:* `connector.getUser` als Rückfall.
+28. **Brett-Regeln haben keinen Haken im Formular.** „Fäden laufen nur nach
+   rechts“ prüft der Connector bei jedem Schreiben und lehnt ab; das Formular
+   zeigt den Grund. Weil „Braucht“ erst NACH dem Speichern am anderen Item
+   geschrieben wird, kann die Karte gespeichert sein und nur der neue Faden
+   fehlen („Konnte nicht gespeichert werden … Erneut“). *Vorschlag:* eine
+   optionale Prüfung je Typ vor dem Speichern.
+29. **Keine Vorbelegung einer Item-Kante beim Anlegen.** Der Datenschlüssel
+   (`relation:partOf`) ist nicht exportiert; eine Karte aus einer Zelle zeigt
+   „Teil von“ im Formular leer und bekommt die Zeile erst beim Speichern
+   (`mitPosition` in `composer.ts`). *Vorschlag:* `itemRelationDataKey`
+   exportieren.
+
 ## Was ein Vibe-Coder beim nächsten Mal wissen muss
 
 - **Das Datenmodell zuerst.** Erst in RLS-Begriffen sagen, was die Dinge
@@ -291,7 +424,9 @@ umgangen.
   (`headerAdornment`, `metaAdornment`, `footerAdornment`).
 - **Eine Form für Anlegen und Bearbeiten.** `ItemComposer` mit und ohne
   `existingItem` — nicht zwei Formulare, die auseinanderlaufen.
-- **Eigene Felder über `widgets`**, nicht über einen geänderten Composer.
+- **Eigene Felder über die Register-Schicht**, nicht über eigene Widgets:
+  Ein Fragment für den Toolkit-Typ (`registerTypePresentation`) ergänzt
+  Felder, Qualifier-Werte und Pills; Detail und Formular folgen von selbst.
 - **Fähigkeiten prüfen, nicht annehmen** (`hasRelationRecordWriter` &co.).
   Dann läuft dieselbe Oberfläche auf einem Connector, der weniger kann.
 - **Tailwind braucht die Toolkit-Quellen.** Das npm-Paket liefert nur `dist`;
@@ -324,28 +459,26 @@ umgangen.
   Wechsel, das ⋮-Menü und den Lösch-Dialog. Eine App, die gleich den Composer
   aufmacht, verliert die Leseansicht und baut sich ihre eigenen Knöpfe
   („Erledigt", „Löschen") daneben — genau das hatten wir.
-- **Core-Typen präsentieren sich selbst.** `registerTypePresentation` haben
-  wir NICHT benutzt: `project` und `task` sind Core-Typen, ihre Darstellung
-  liefert das Toolkit mit, und ein zweiter Eintrag für dieselbe Id ist nach
-  Spec 06 ein Konflikt (kein Override in v0.1). Die Regel „der Typ
-  entscheidet" gilt also schon, ohne dass die App etwas registriert.
-- **Eine Autor-Kennung.** Die Id eines RelationRecords leitet sich aus
+- **Toolkit-Typen erweitern, nicht ersetzen.** Eine zweite Typdefinition für
+  `task` wäre ein Konflikt; ein Erweiterungsfragment ergänzt additiv. Was die
+  Basis schon setzt (Status-Optionen, Beschriftungen, Typ-Wort), bleibt.
+- **Eine Autor-Kennung.** (Galt für Fäden als Datensätze, bis zum Umzug.) Die Id eines RelationRecords leitet sich aus
   `(createdBy, predicate, from, to)` ab. Wer an zwei Stellen zwei Kennungen
   benutzt (Server-Migration und App), bekommt zwei Datensätze für dieselbe
   Kante. Darum steht `AUTOR` in `modell.mjs` und sonst nirgends.
-- **Genau pinnen.** `0.x` bewegt sich: toolkit `0.1.6`, data-interface `0.1.4`,
-  mock-connector `0.1.4`, exakt ohne `^`.
+- **Genau pinnen.** `0.x` bewegt sich: toolkit `0.3.0`, data-interface `0.4.0`,
+  mock-connector `0.2.2`, exakt ohne `^`.
 
 ## Offene Punkte
 
-- Die Oberfläche ist **nicht in einem echten Browser geprüft** worden (in
-  dieser Umgebung ist keiner verfügbar). Geprüft sind: Datenmodell, Kamera und
-  Server über `node --test`, Typen über `tsc --noEmit`, Bau über `vite build`,
-  die Auslieferung über `curl` — und eine Rauchprobe, die das gebaute Bündel
-  unter jsdom startet und Navbar, Brett, Fäden, die vier Panels, das
-  Space-Menü, das Kartendetail und den Rad-Zoom anfasst. Was sie nicht sieht,
-  ist, wie es aussieht: Abstände, Überlappungen, Lesbarkeit der Karten im
-  eingepassten Zoom.
+- **Geprüft** mit `npm test` (Modell, Server, Umzugsskript unter
+  `node --test`; Register, Formular-Abbildung und Connector unter Vitest mit
+  jsdom), `npm run typecheck`, `npm run build` und im Browser: Headless-Chrome
+  gegen Vite (5174) und Server (8124) mit einem Testbrett aus den
+  Beispieldaten, vorher in die alte Form zurückgesetzt und mit
+  `npm run umzug` umgezogen. Screenshots von Brett, Karten-Detail,
+  Selbstaktion, Formular, Modul-Pick mit abgelehntem Faden und Ziel-Detail
+  hängen am Pull Request.
 - Die Bündelgröße liegt bei rund 1,2 MB (409 kB gzip) — das Toolkit bringt
   Editor, Karten- und Graph-Bausteine mit, von denen diese App wenig braucht.
   Aufteilen lohnt erst, wenn die App öffentlich läuft.

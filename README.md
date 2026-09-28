@@ -53,13 +53,22 @@ public/alt.html die ursprüngliche Seite, unverändert in Funktion
 
 ## Bedienung
 
-- **Bewegen:** Mausrad zoomt zum Zeiger, Ziehen auf leerer Fläche schwenkt,
-  zwei Finger zoomen. Unten links: kleiner, größer, einpassen.
-- **Karte anlegen:** Klick auf eine leere Zelle.
+- **Bewegen:** Das Brett scrollt in beide Richtungen; Phasenleiste und
+  Zielspalte bleiben stehen.
+- **Karte anlegen:** Klick auf eine leere Zelle, oder der Plus-Knopf unten
+  rechts (dann auch ein Ziel).
+- **Karte öffnen:** Klick auf die Karte. Das Detail kommt aus dem Real Life
+  Stack: wer kann oder lernt, „Braucht“, „Ermöglicht“, „Teil von“, Status,
+  Aufwand, Kommentare. Bearbeiten und Löschen im ⋮-Menü.
 - **Karte verschieben:** ziehen. Fäden dürfen dabei nie nach links laufen.
-- **Faden ziehen:** Karte öffnen, „Voraussetzung hinzufügen“, dann die Karte
-  anklicken, die vorher fertig sein muss.
-- **Wer:** Zuweisungen an Mitglieder des Spaces — „kann ich“ und „will lernen“.
+- **Faden ziehen:** Karte bearbeiten, bei „Braucht“ (was vorher fertig sein
+  muss) oder „Ermöglicht“ (was danach kommt) eine Karte suchen oder „Im Modul
+  wählen“ und die Karte auf dem Brett anklicken. Ein Faden nach links wird
+  abgelehnt.
+- **Wer:** „Kann ich“ und „Will lernen“ im Karten-Detail tragen dich ein.
+  Wer du bist, wählst du rechts oben im Benutzermenü unter „Profil“ (je Brett,
+  im Browser gemerkt). Andere trägst du beim Bearbeiten unter „Zugewiesen“
+  ein; ein Tipp auf den Namen wechselt zwischen „kann“ und „lernt“.
   Mitglieder verwaltet das Space-Menü oben links.
 - **Traum und Daten:** im Space-Menü oben links (Zahnrad neben dem Namen).
 - **Prüfung:** Phasenabdeckung je Ziel, Karten ohne Namen, Karten ohne Fäden,
@@ -127,10 +136,28 @@ Notiztext bleibt stehen (ein Vermerk wie „vorgesehen für Holger" ist eine
 Absicht, keine Zuweisung). Zweimal laufen ändert nichts. Der Server muss dabei
 gestoppt sein oder das Skript bekommt mit `--db` eine eigene Datei.
 
+## Umzug auf toolkit 0.3.0
+
+Bretter aus der Zeit davor tragen Fäden als eigene Datensätze und „will
+lernen“ als eigenes Prädikat. Dieses Skript zieht beides in die Form um, die
+das Detail des Stacks liest (Fäden eingebettet an der Voraussetzung, „lernt“
+als Rolle an der Zuweisung) und entfernt Aufwand 0 („nicht geschätzt“):
+
+```bash
+npm run umzug -- --probe                 # alle Bretter, zeigt nur, was wäre
+npm run umzug                            # alle Bretter, schreibt
+npm run umzug -- --brett real-life --db kopie.sqlite
+```
+
+Zweimal laufen ändert nichts. Der Server muss dabei gestoppt sein, und die neue
+App muss danach laufen: Ein Browser mit der alten App schriebe Karten ohne ihre
+Fäden zurück. Einzelheiten in [`docs/rls-kompatibel.md`](docs/rls-kompatibel.md).
+
 ## Tests
 
 ```bash
-npm test           # Speicher, API, Datenmodell (node --test)
+npm test           # Speicher, API, Datenmodell, Umzug (node --test),
+                   # danach Register, Formular und Connector der App (Vitest)
 npm run typecheck  # TypeScript der App
 ```
 
