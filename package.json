@@ -10,7 +10,13 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test"
+    "test": "node --test 'test/*.test.mjs' && npm --prefix app test",
+    "setup": "npm --prefix app install",
+    "build": "npm --prefix app run build",
+    "typecheck": "npm --prefix app run typecheck",
+    "dev:app": "npm --prefix app run dev",
+    "nachmigration": "node scripts/nachmigration.mjs",
+    "umzug": "node scripts/umzug-register.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"

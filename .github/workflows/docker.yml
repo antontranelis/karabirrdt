@@ -17,8 +17,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            app/package-lock.json
       - run: npm ci
+      - run: npm --prefix app ci
       - run: npm test
+      - run: npm run typecheck
 
   abbild:
     needs: test
