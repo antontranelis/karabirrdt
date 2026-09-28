@@ -1,11 +1,11 @@
-import type { Item, RelationRecord } from "@real-life-stack/data-interface"
+import type { Item } from "@real-life-stack/data-interface"
 import { Label, Separator, cn } from "@real-life-stack/toolkit"
-import { KANN_PRAEDIKAT, LERNT_PRAEDIKAT, PHASEN, istErledigt, ohnePraefix, stufeVon, zieleSortiert, zielVonKarte, zugewiesen } from "../../../modell.mjs"
+import { ROLLE_KANN, ROLLE_LERNT, PHASEN, type Faden, istErledigt, ohnePraefix, stufeVon, zieleSortiert, zielVonKarte, zugewiesen } from "../../../modell.mjs"
 
 interface Props {
   ziele: Item[]
   karten: Item[]
-  faeden: RelationRecord[]
+  faeden: Faden[]
 }
 
 /** Die Prüfung: Phasenabdeckung, Lücken, Hebelpunkte, Summen. */
@@ -15,7 +15,7 @@ export function PruefungPanel({ ziele, karten, faeden }: Props) {
   const fertig = karten.filter(istErledigt).length
   const grad = (id: string) => faeden.filter((f) => ohnePraefix(f.from) === id || ohnePraefix(f.to) === id).length
   // „Ohne Namen" heißt: niemand kann sie und niemand will sie lernen.
-  const ohneNamen = karten.filter((k) => !zugewiesen(k, KANN_PRAEDIKAT).length && !zugewiesen(k, LERNT_PRAEDIKAT).length)
+  const ohneNamen = karten.filter((k) => !zugewiesen(k, ROLLE_KANN).length && !zugewiesen(k, ROLLE_LERNT).length)
   const ohneFaden = karten.filter((k) => grad(k.id) === 0)
   const hebel = karten
     .map((k) => ({ k, d: grad(k.id) }))

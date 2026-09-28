@@ -1,11 +1,11 @@
-import type { Item, RelationRecord } from "@real-life-stack/data-interface"
-import { MASSE, MODUL, fadenPfad, fadenStil, ohnePraefix } from "../../../modell.mjs"
+import type { Item } from "@real-life-stack/data-interface"
+import { MASSE, MODUL, fadenPfad, fadenStil, ohnePraefix, type Faden } from "../../../modell.mjs"
 import type { Raster } from "./raster"
 
 interface Props {
   raster: Raster
   karten: Item[]
-  faeden: RelationRecord[]
+  faeden: Faden[]
   hervorgehoben: string | null
 }
 

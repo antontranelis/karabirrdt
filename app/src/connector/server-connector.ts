@@ -16,6 +16,7 @@ import {
   freieKennung,
   kaskade,
   leeresRls,
+  neuerFadenVerstoss,
   recordVonRelationItem,
   relationItemVonRecord,
 } from "../../../modell.mjs"
@@ -39,11 +40,58 @@ import {
 /** Die App kennt keine Anmeldung: wer das Brett offen hat, ist „am Tisch". */
 export const TISCH = { id: AUTOR, displayName: "Am Tisch" }
 
+/**
+ * Was dieser Connector NICHT kann und darum nicht meldet (Spec 03: nichts
+ * vortäuschen). Der MockConnector darunter kann beides, der Server nicht:
+ *
+ * - `groupScope` (Anlegen/Lesen in einem anderen Space, ohne ihn zu öffnen):
+ *   geschrieben wird immer in das offene Brett.
+ * - `moveItemToGroup` (Item in einen anderen Space verschieben): der Server
+ *   kennt kein Umziehen zwischen Brettern.
+ *
+ * Ohne beides steht der Space im Formular fest, und Item-Kanten lösen sich
+ * im offenen Brett auf.
+ */
+const NICHT_GEMELDET = new Set<string | symbol>(["groupScope", "moveItemToGroup"])
+
+/**
+ * „Wer bin ich an diesem Brett?" Ohne Anmeldung sagt es der Mensch vor dem
+ * Bildschirm selbst; gemerkt wird es je Brett im Browser. Ohne Wahl ist es
+ * der Tisch. Die Selbstaktionen („Kann ich", „Will lernen") schreiben die
+ * gewählte Person.
+ */
+export interface IchWahl {
+  waehleIch(userId: string | null): void
+}
+export const hatIchWahl = (c: unknown): c is IchWahl => typeof (c as Partial<IchWahl>)?.waehleIch === "function"
+const ichSchluessel = (brett: string) => `karabirrdt:ich:${brett}`
+function liesIch(brett: string): string | null {
+  try {
+    return localStorage.getItem(ichSchluessel(brett))
+  } catch {
+    return null
+  }
+}
+function merkeIch(brett: string, id: string | null) {
+  try {
+    if (id) localStorage.setItem(ichSchluessel(brett), id)
+    else localStorage.removeItem(ichSchluessel(brett))
+  } catch {
+    // Ohne Speicher gilt die Wahl nur bis zum Neuladen.
+  }
+}
+
 export interface BrettDaten {
   group: Group
   items: Item[]
   relations: RelationRecord[]
   members?: User[]
+}
+
+/** Eine Item-Id, die kein anderer Browser zufällig auch vergibt (Form wie die alten: klein, Ziffern). */
+export function neueId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(10))
+  return Array.from(bytes, (b) => (b % 36).toString(36)).join("")
 }
 
 const basis = (brett: string) => `/api/b/${encodeURIComponent(brett)}`
@@ -109,6 +157,8 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
   // ergänzen (Upstream-Lücke, siehe README). Darum führt diese Schicht die
   // Liste selbst und beantwortet die Mitglieder-Fragen des Vertrags.
   const mitglieder = new Map<string, User[]>([[startBrett, daten.members ?? []]])
+  // Wird unten gesetzt, sobald es die Beobachtung des eigenen Nutzers gibt.
+  let aktualisiereIch: () => void = () => {}
   const mitgliederObs = new Map<string, ReactiveObservable<User[]>>()
   const beobachteMitglieder = (brett: string) => {
     let obs = mitgliederObs.get(brett)
@@ -121,8 +171,20 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
   const setzeMitglieder = (brett: string, liste: User[]) => {
     mitglieder.set(brett, liste)
     beobachteMitglieder(brett).set(liste)
+    if (brett === aktuell) aktualisiereIch()
   }
   setzeMitglieder(startBrett, daten.members ?? [])
+
+  const ichVon = (brett: string): User => {
+    const id = liesIch(brett)
+    return (id && (mitglieder.get(brett) ?? []).find((u) => u.id === id)) || TISCH
+  }
+  const ichObs = createObservable<User | null>(ichVon(startBrett))
+  aktualisiereIch = () => {
+    const neu = ichVon(aktuell)
+    const alt = ichObs.current
+    if (alt?.id !== neu.id || alt?.displayName !== neu.displayName) ichObs.set(neu)
+  }
 
   // Was wir gerade selbst geschrieben haben, kommt über die WebSocket zurück.
   // Signatur merken und die Rückmeldung überspringen, statt sie erneut
@@ -188,6 +250,7 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
     if (brett === aktuell) return
     aktuell = brett
     mock.setCurrentGroup(brett)
+    aktualisiereIch()
     setzeAdresse(brett)
     verbinde()
     void nachladen(brett)
@@ -200,29 +263,52 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
 
   // ---------------------------------------------------- Überschriebenes
 
+  /**
+   * Die Regeln des Bretts gelten für jeden Schreibweg — Formular („Braucht",
+   * „Ermöglicht"), Modul-Pick, Ziehen: Ein Faden läuft nie nach links, nie im
+   * Kreis, nie auf sich selbst. Was einen NEUEN Verstoß brächte, lehnt der
+   * Connector ab; das Formular zeigt den Grund und behält die Eingaben.
+   */
+  const pruefeFaeden = async (nachher: (vorher: Item[]) => Item[]) => {
+    const vorher = await mock.getItems()
+    const grund = neuerFadenVerstoss(vorher, nachher(vorher))
+    if (grund) throw new Error(grund)
+  }
+
   const ueberschrieben: Record<string, unknown> = {
     createItem: async (eingabe: Parameters<FullConnector["createItem"]>[0]) => {
-      const item = await mock.createItem(eingabe)
+      await pruefeFaeden((vorher) => [...vorher, { id: "\u0000neu", createdAt: "", ...eingabe } as Item])
+      // `options.group` fällt weg: Dieser Connector legt nur im offenen Brett an.
+      // Die Id vergibt diese Schicht: Der MockConnector zählt `item-100`,
+      // `item-101` … je Sitzung hoch — zwei Browser am selben Brett legten
+      // dieselbe Id an und überschrieben einander (Lücke, docs/rls-kompatibel.md).
+      const item = await mock.createItem({ ...eingabe, id: eingabe.id ?? neueId() })
       void sendeItem(item)
       return item
     },
     updateItem: async (id: string, aenderungen: Partial<Item>) => {
+      await pruefeFaeden((vorher) => vorher.map((i) => (i.id === id ? ({ ...i, ...aenderungen, id } as Item) : i)))
       const item = await mock.updateItem(id, aenderungen)
       void sendeItem(item)
       return item
     },
     /**
      * Löschen nimmt mit, was ohne das Gelöschte keinen Halt mehr hat: ein Ziel
-     * seine Zeile (Karten samt Fäden), eine Karte ihre Fäden. Sonst blieben
-     * Karten ohne Zeile und Fäden ins Leere in den Daten stehen — unsichtbar,
-     * aber da. Das gilt für JEDEN Weg zum Löschen, auch den des Toolkits
-     * (`ItemDetailActions` löscht selbst über den Connector).
+     * seine Zeile (Karten), und jede Voraussetzung verliert ihren Faden auf
+     * eine gelöschte Karte. Sonst blieben Karten ohne Zeile und Fäden ins
+     * Leere in den Daten stehen — unsichtbar, aber da. Das gilt für JEDEN Weg
+     * zum Löschen, auch den des Toolkits (`ItemDetailActions` löscht selbst
+     * über den Connector).
      */
     deleteItem: async (id: string) => {
       const alle = await mock.getItems()
-      const faeden = alle.map(recordVonRelationItem).filter((r): r is RelationRecord => !!r)
-      const weg = kaskade(alle, faeden, id)
+      const datensaetze = alle.map(recordVonRelationItem).filter((r): r is RelationRecord => !!r)
+      const weg = kaskade(alle, id, datensaetze)
 
+      for (const { id: kid, relations } of weg.aendern) {
+        const item = await mock.updateItem(kid, { relations })
+        await sendeItem(item)
+      }
       for (const rid of weg.relations) {
         await mock.deleteItem(rid)
         merke(`relation:${rid}`, null)
@@ -254,6 +340,14 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
       await mock.deleteRelationRecord(id)
       merke(`relation:${id}`, null)
       await schreibe(`/relations/${encodeURIComponent(id)}`, "DELETE")
+    },
+
+    // --- Wer bin ich ---
+    getCurrentUser: async () => ichObs.current,
+    observeCurrentUser: () => ichObs,
+    waehleIch: (userId: string | null) => {
+      merkeIch(aktuell, userId)
+      aktualisiereIch()
     },
 
     // --- Mitglieder ---
@@ -319,7 +413,12 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
   }
 
   const connector = new Proxy(mock, {
+    has(ziel, name) {
+      if (NICHT_GEMELDET.has(name)) return false
+      return Object.hasOwn(ueberschrieben, name as string) || Reflect.has(ziel, name)
+    },
     get(ziel, name) {
+      if (NICHT_GEMELDET.has(name)) return undefined
       if (Object.hasOwn(ueberschrieben, name as string)) return ueberschrieben[name as string]
       const wert = Reflect.get(ziel, name, ziel)
       return typeof wert === "function" ? wert.bind(ziel) : wert

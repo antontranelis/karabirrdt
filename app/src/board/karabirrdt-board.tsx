@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type PointerEvent } from "react"
-import type { Item, RelationRecord, User } from "@real-life-stack/data-interface"
-import { ItemAssignees, ItemCommentCount, ItemPreview, cn } from "@real-life-stack/toolkit"
+import type { Item, User } from "@real-life-stack/data-interface"
+import { ItemAssignees, ItemPreview, cn, type ItemAssigneeUser } from "@real-life-stack/toolkit"
 import {
-  KANN_PRAEDIKAT,
-  LERNT_PRAEDIKAT,
   MASSE,
+  ROLLE_KANN,
+  ROLLE_LERNT,
+  istErledigt,
   phaseVonStufe,
   stufeVon,
   zielKurz,
   zielRest,
   zieleSortiert,
   zugewiesen,
+  type Faden,
 } from "../../../modell.mjs"
 import { raster as bauRaster, zelleBei } from "./raster"
 import { ThreadsOverlay } from "./threads-overlay"
@@ -30,12 +32,11 @@ const PHASEN_HEX: Record<string, string> = {
 interface Props {
   ziele: Item[]
   karten: Item[]
-  faeden: RelationRecord[]
+  faeden: Faden[]
   aktiv: string | null
-  fadenVon: string | null
+  /** Läuft ein Modul-Pick aus dem Formular? Dann sind Karten und Ziele Ziele eines Klicks. */
+  pickt: boolean
   mitglieder: User[]
-  /** Der schwebende Kopf der Modulfläche — seine Höhe wird gemessen. */
-  kopfElement?: HTMLElement | null
   onKarte: (id: string) => void
   onZelle: (zielId: string, stufe: number) => void
   onZiel: (id: string) => void
@@ -47,9 +48,8 @@ export function KarabirrdtBoard({
   karten,
   faeden,
   aktiv,
-  fadenVon,
+  pickt,
   mitglieder,
-  kopfElement,
   onKarte,
   onZelle,
   onZiel,
@@ -101,20 +101,6 @@ export function KarabirrdtBoard({
     [holeBeobachter],
   )
 
-  // Der Kopf der Modulfläche schwebt über dem Brett (`panelFit="overlay"`,
-  // wie Karte und Graph). Was er verdeckt, muss die klebende Phasenleiste
-  // mit abdecken — sonst scrollen Karten durch den Streifen darunter. Die
-  // Höhe wird gemessen, nicht geraten.
-  const [kopfHoehe, setKopfHoehe] = useState(0)
-  useEffect(() => {
-    if (!kopfElement || typeof ResizeObserver === "undefined") return
-    const messen = () => setKopfHoehe(Math.round(kopfElement.getBoundingClientRect().height))
-    messen()
-    const o = new ResizeObserver(messen)
-    o.observe(kopfElement)
-    return () => o.disconnect()
-  }, [kopfElement])
-
   const r = bauRaster(sortiert, karten, hoehen)
 
   const ablegen = (id: string, zielId: string, stufe: number) => {
@@ -132,8 +118,8 @@ export function KarabirrdtBoard({
           Scrollbereichs, nicht unter einem Innenabstand. Alle drei haben
           keine eigene Höhe im Fluss, damit das Raster darunter bei y = 0
           beginnt wie bisher. */}
-      <KlebenderKopf raster={r} kopfHoehe={kopfHoehe} />
-      <div ref={welt} className="relative" style={{ width: r.breite, height: r.hoehe, marginTop: kopfHoehe }}>
+      <KlebenderKopf raster={r} />
+      <div ref={welt} className="relative" style={{ width: r.breite, height: r.hoehe }}>
           <ThreadsOverlay raster={r} karten={karten} faeden={faeden} hervorgehoben={aktiv} />
 
           {/* Die Ziele gehören zum Inhalt und scrollen waagerecht mit. */}
@@ -143,7 +129,7 @@ export function KarabirrdtBoard({
               className="absolute"
               style={{ left: MASSE.start, top: z.y + MASSE.rowPad, width: MASSE.label }}
             >
-              <ZeilenKopf ziel={z.ziel} aktiv={aktiv === z.ziel.id} messen={messen} onClick={() => onZiel(z.ziel.id)} />
+              <ZeilenKopf ziel={z.ziel} aktiv={aktiv === z.ziel.id} hervor={pickt} messen={messen} onClick={() => onZiel(z.ziel.id)} />
             </div>
           ))}
 
@@ -233,7 +219,7 @@ export function KarabirrdtBoard({
                     mitglieder={mitglieder}
                     aktiv={aktiv === k.id}
                     gezogen={zieht === k.id}
-                    hervor={!!fadenVon && fadenVon !== k.id}
+                    hervor={pickt && aktiv !== k.id}
                     ziehbar
                     messen={messen}
                     onDragStart={(e) => {
@@ -260,18 +246,15 @@ export function KarabirrdtBoard({
  * stehen bleiben. Sie liegen direkt im Scroll-Container und tragen keine
  * eigene Höhe, damit das Raster daneben unberührt bleibt.
  */
-function KlebenderKopf({ raster: r, kopfHoehe }: { raster: ReturnType<typeof bauRaster>; kopfHoehe: number }) {
+function KlebenderKopf({ raster: r }: { raster: ReturnType<typeof bauRaster> }) {
   return (
     // Die Kopfzeile bleibt senkrecht stehen und wandert waagerecht mit den
     // Spalten. Sie beginnt bei x = 0, also über den Zielen — eine eigene Ecke
     // braucht es dadurch nicht. Sie deckt vom oberen Rand des Scrollbereichs
-    // bis unter die Stufenzeile ALLES ab, einschließlich der Höhe des
-    // schwebenden Modul-Kopfs: dort darf keine Karte durchscrollen.
+    // bis unter die Stufenzeile alles ab: dort darf keine Karte durchscrollen.
+    // Der Modul-Kopf steht darüber im Fluss (panelFit inset), nicht darauf.
     <div data-kb-kopf className="sticky top-0 z-30 h-0">
-      <div
-        className="absolute left-0 top-0 bg-background"
-        style={{ width: r.breite, height: kopfHoehe + MASSE.head, paddingTop: kopfHoehe + LUFT }}
-      >
+      <div className="absolute left-0 top-0 bg-background" style={{ width: r.breite, height: MASSE.head, paddingTop: LUFT }}>
         <RasterKopf raster={r} />
       </div>
     </div>
@@ -288,11 +271,13 @@ function KlebenderKopf({ raster: r, kopfHoehe }: { raster: ReturnType<typeof bau
 function ZeilenKopf({
   ziel,
   aktiv,
+  hervor,
   messen,
   onClick,
 }: {
   ziel: Item
   aktiv: boolean
+  hervor?: boolean
   messen: (el: HTMLDivElement | null) => void
   onClick: () => void
 }) {
@@ -306,6 +291,7 @@ function ZeilenKopf({
         className={cn(
           "w-full rounded-md px-1.5 py-1 text-left transition-colors hover:bg-accent/60",
           aktiv && "bg-accent",
+          hervor && "ring-2 ring-primary/60",
         )}
       >
         <span className="mb-1 flex items-center gap-[3px]">
@@ -325,12 +311,11 @@ function ZeilenKopf({
 }
 
 /**
- * Eine Karte auf dem Brett — dieselben Aufrufe, mit denen `KanbanBoard` seine
- * Karten zeichnet (toolkit 0.1.6, `components/kanban/kanban-board`): Item mit
- * Ersatztitel, `author={null}`, `density="compact"`, `active`, und als
- * `footerAdornment` die Zugewiesenen über `ItemAssignees` plus, wenn es
- * welche gibt, der Kommentarzähler über `ItemCommentCount`. Tags, Titel und
- * Rahmen kommen aus `ItemPreview` selbst.
+ * Eine Karte auf dem Brett: `ItemPreview` in der Dichte `dense` (die
+ * Matrix-Kachel aus Toolkit 0.3.0, rls#360), gut 5 % schmaler gesetzt.
+ * Die Kachel zeigt nur Titel und eine Fußzeile mit `ItemAssignees size="xs"`:
+ * gefüllt „kann", umrandet „lernt" — dieselbe Komponente, zwei Formen; der
+ * Qualifier-Text steht im Tooltip. Erledigt dimmt die Kachel selbst.
  */
 function Karte({
   item,
@@ -356,15 +341,13 @@ function Karte({
   onClick: () => void
 }) {
   const nachId = new Map(mitglieder.map((m) => [m.id, m]))
-  const zugeteilt = [...zugewiesen(item, KANN_PRAEDIKAT), ...zugewiesen(item, LERNT_PRAEDIKAT)]
-    .map((id) => nachId.get(id))
-    .filter((u): u is User => !!u)
-  const kommentare = Number(item.data?.commentCount) || 0
-  const hatFuss = zugeteilt.length > 0 || kommentare > 0
-  const mitTitel =
-    typeof item.data?.title === "string" && item.data.title.length > 0
-      ? item
-      : { ...item, data: { ...item.data, title: "Ohne Titel" } }
+  const zugeteilt: ItemAssigneeUser[] = [
+    ...zugewiesen(item, ROLLE_KANN).map((id) => nachId.get(id)),
+    ...zugewiesen(item, ROLLE_LERNT).map((id) => {
+      const u = nachId.get(id)
+      return u ? { ...u, qualifier: "lernt", variant: "outline" as const } : undefined
+    }),
+  ].filter((u): u is ItemAssigneeUser => !!u)
   const phase = phaseVonStufe(stufeVon(item))
 
   return (
@@ -377,28 +360,19 @@ function Karte({
         // ganzen Fläche. Wie im Kanban bleibt die Fläche selbst scrollbar.
         ziehbar && "cursor-grab touch-none select-none active:cursor-grabbing",
         gezogen && "opacity-50",
-        hervor && "ring-2 ring-primary/60",
+        hervor && "rounded-md ring-2 ring-primary/60",
       )}
     >
       <ItemPreview
-        item={mitTitel}
+        item={item}
         author={null}
-        density="compact"
+        density="dense"
+        className="w-full"
+        completed={istErledigt(item)}
         active={aktiv}
-        activeColor={PHASEN_HEX[phase.key]}
+        activeGlowColor={PHASEN_HEX[phase.key]}
         onClick={onClick}
-        footerAdornment={
-          hatFuss ? (
-            <>
-              <ItemAssignees users={zugeteilt} />
-              {kommentare > 0 && (
-                <div className="ml-auto">
-                  <ItemCommentCount count={kommentare} />
-                </div>
-              )}
-            </>
-          ) : undefined
-        }
+        footerAdornment={zugeteilt.length ? <ItemAssignees users={zugeteilt} size="xs" /> : undefined}
       />
     </div>
   )

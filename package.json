@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test",
+    "test": "node --test 'test/*.test.mjs' && npm --prefix app test",
     "setup": "npm --prefix app install",
     "build": "npm --prefix app run build",
     "typecheck": "npm --prefix app run typecheck",

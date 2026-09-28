@@ -3,10 +3,13 @@ import { createRoot } from "react-dom/client"
 import { ConnectorProvider } from "@real-life-stack/toolkit"
 import { erstelleServerConnector } from "./connector/server-connector"
 import { brettAusPfad } from "./brett"
+import { bindeRegister } from "./register"
 import App from "./App"
 import "./index.css"
 
 async function start() {
+  // Das Register der App vor dem ersten Render binden (Spec 06, Regel 1).
+  bindeRegister()
   const brett = brettAusPfad()
   const wurzel = createRoot(document.getElementById("root")!)
   try {

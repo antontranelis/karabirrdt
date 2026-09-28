@@ -59,23 +59,24 @@ connector.setCurrentGroup(spaceId)
 Danach ist das Brett ein WoT-Space: verschlüsselt, mehrgerätefähig, ohne
 diesen Server. Was dabei zu prüfen ist:
 
-- **Fähigkeiten statt Annahmen.** `useFaeden()` fragt
-  `hasRelationRecordWriter()`; kann ein Connector keine RelationRecords,
-  bietet die Oberfläche das Fädenziehen gar nicht erst an. Genauso sollte
-  jede neue Fläche vorgehen (`isWritable`, `hasGroups`, …).
-- **Identität.** Dieser Connector kennt keine Anmeldung: alle sind
-  `did:karabirrdt:tisch`, wer die Adresse hat, schreibt. Das ist auch der
-  Grund für `allowFixtureAuthors: true` — Autor und Entstehungszeit kommen
-  vom Server statt aus der Sitzung. Ein Connector mit echten Identitäten
-  braucht das nicht; dort trägt jede Karte, wer sie geschrieben hat, und die
-  `author`-Zeile der `ItemPreview` kann sichtbar werden (hier steht sie auf
-  `null`, weil „am Tisch" keine Aussage ist).
-- **Kennungen der Fäden.** RelationRecord-Ids leiten sich aus
-  `(createdBy, predicate, from, to)` ab (Spec 08, Regel 4). Mit einer
-  gemeinsamen Kennung konvergieren zwei gleichzeitig gezogene Fäden auf
-  denselben Datensatz; mit echten Identitäten entstehen zwei Records über
-  dieselben Endpunkte — das ist Absicht (perspektivischer Graph), die
-  Faden-Anzeige muss dann entdoppeln.
+- **Fähigkeiten statt Annahmen.** Der ServerConnector meldet nur, was der
+  Server kann: kein `groupScope` (Anlegen in einem anderen Brett, ohne es zu
+  öffnen), kein `moveItemToGroup` (Verschieben zwischen Brettern), obwohl der
+  MockConnector darunter beides hätte. Das Formular zeigt den Space darum
+  fest. Genauso sollte jede neue Fläche vorgehen (`isWritable`, `hasGroups`, …).
+- **Regeln des Bretts.** Ein Faden läuft nie nach links, nie im Kreis, nie auf
+  sich selbst. `createItem` und `updateItem` lehnen jede Änderung ab, die einen
+  neuen Verstoß brächte (`neuerFadenVerstoss` in `modell.mjs`), gleich ob sie
+  aus dem Formular, einer Selbstaktion oder dem Brett kommt.
+- **Identität.** Dieser Connector kennt keine Anmeldung. Wer am Bildschirm
+  sitzt, wählt sich im Benutzermenü („Wer bist du?“, `waehleIch`); gemerkt
+  wird das je Brett im Browser und als `getCurrentUser` geliefert. Ohne Wahl
+  ist es `did:karabirrdt:tisch`. `allowFixtureAuthors: true` bleibt: Autor
+  und Entstehungszeit kommen vom Server statt aus der Sitzung.
+- **Ids.** Neue Items bekommen hier eine zufällige Id; der MockConnector zählte
+  `item-100`, `item-101` … je Sitzung, und zwei Browser überschrieben einander.
+- **Fäden sind eingebettet** (`blocks` an der Voraussetzung) und wandern mit
+  der Karte. Die Ablage für RelationRecords bleibt für andere Prädikate.
 - **Migration.** `GET /api/b/<brett>/rls` übersetzt ein altes Brett einmalig.
   Wer auf einen anderen Connector zieht, exportiert im Daten-Panel und
   importiert dort.

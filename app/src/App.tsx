@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { Group, Item, RelationRecord, User } from "@real-life-stack/data-interface"
+import type { Group, Item, User } from "@real-life-stack/data-interface"
 import { hasGroups } from "@real-life-stack/data-interface"
 import {
   AdaptivePanel,
@@ -11,6 +11,7 @@ import {
   FilterScope,
   GroupDialog,
   ItemComposer,
+  ItemFocusContext,
   ModuleFrame,
   ModuleToolbar,
   Navbar,
@@ -18,6 +19,8 @@ import {
   NavbarStart,
   UserMenu,
   WorkspaceSwitcher,
+  applyFilterBarValue,
+  applyItemSearch,
   useConnector,
   useCreateGroup,
   useCreateItem,
@@ -28,54 +31,60 @@ import {
   useInviteMember,
   useItems,
   useMembers,
-  useModuleFilteredItems,
-  useOptionalModuleHead,
   useRemoveMember,
+  useSharedFilter,
   useUpdateGroup,
   useUpdateItem,
+  type ContentComposerProps,
   type GroupDialogMode,
+  type ItemFocus,
   type Workspace,
 } from "@real-life-stack/toolkit"
 import { Moon, Settings2, Sparkles, Sun } from "lucide-react"
 import { KarabirrdtBoard } from "./board/karabirrdt-board"
-import { KartenDetail } from "./panels/karten-detail"
-import { ZielDetail } from "./panels/ziel-detail"
+import { ItemDetail } from "./panels/item-detail"
+import { IchDialog } from "./panels/ich-dialog"
 import { PruefungPanel } from "./panels/pruefung-panel"
 import { SpaceDialog } from "./panels/space-dialog"
-import { useFaeden } from "./faeden"
 import { STARTZIELE } from "./startziele"
-import { TISCH } from "./connector/server-connector"
-import { KARTEN_VORLAGE, ZIEL_VORLAGE, karteMapper, useComposerProps, zielMapper } from "./content-types"
+import { TISCH, hatIchWahl } from "./connector/server-connector"
+import { mitPosition, useAbbildung, useComposerProps, type Zelle } from "./composer"
 import {
   KARTEN_TYP,
   VOCAB,
   ZIEL_TYP,
-  fadenFehler,
+  faeden as faedenVon,
   mitZiel,
   verschiebenFehler,
   zielVonKarte,
+  type Faden,
 } from "../../modell.mjs"
 
 type Ansicht =
-  | { art: "karte"; id: string }
-  | { art: "ziel"; id: string }
-  | { art: "neu"; zielId: string; stufe: number }
+  | { art: "item"; id: string }
+  | { art: "neu"; zelle: Zelle }
   | { art: "anlegen" }
   | { art: "pruefung" }
   | null
+
+/** Ein laufender Modul-Pick (Edit-Regeln 7): das Formular wartet auf einen Klick ins Brett. */
+interface Pick {
+  predicate: string
+  onPick: (itemId: string) => { ok: true } | { ok: false; reason: string }
+}
 
 export default function App() {
   const connector = useConnector()
   const group = useCurrentGroup()
   const brett = group?.id ?? "haupt"
   const { data: gruppen } = useGroups()
-  const { data: nutzer } = useCurrentUser()
+  const { data: ich } = useCurrentUser()
   const { data: mitglieder } = useMembers(group?.id ?? null)
   const { data: ziele } = useItems({ type: ZIEL_TYP })
   const { data: karten } = useItems({ type: KARTEN_TYP })
-  const { faeden, schreibbar: fadenSchreibbar, ziehe, loese } = useFaeden()
-  const { mutate: anlegen } = useCreateItem()
-  const { mutate: aendere } = useUpdateItem()
+  const faeden = useMemo(() => faedenVon(karten), [karten])
+  const anlegen = useCreateItem()
+  const aendere = useUpdateItem()
   const gruppeAnlegen = useCreateGroup()
   const gruppeAendern = useUpdateGroup()
   const gruppeLoeschen = useDeleteGroup()
@@ -83,12 +92,20 @@ export default function App() {
   const entfernen = useRemoveMember()
 
   const [ansicht, setAnsicht] = useState<Ansicht>(null)
-  const [fadenVon, setFadenVon] = useState<string | null>(null)
+  const [bearbeiten, setBearbeiten] = useState(false)
+  const [pick, setPick] = useState<Pick | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [gruppenDialog, setGruppenDialog] = useState(false)
   const [spaceDialog, setSpaceDialog] = useState(false)
+  const [ichDialog, setIchDialog] = useState(false)
   const [dunkel, setDunkel] = useState(false)
   const [dialogModus, setDialogModus] = useState<GroupDialogMode>({ type: "create" })
+
+  const oeffne = useCallback((a: Ansicht) => {
+    setAnsicht(a)
+    setBearbeiten(false)
+    setPick(null)
+  }, [])
 
   useEffect(() => {
     if (!meldung) return
@@ -98,16 +115,54 @@ export default function App() {
   useEffect(() => {
     const taste = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return
-      if (fadenVon) setFadenVon(null)
-      else setAnsicht(null)
+      if (pick) setPick(null)
+      else if (!bearbeiten) setAnsicht(null)
     }
     document.addEventListener("keydown", taste)
     return () => document.removeEventListener("keydown", taste)
-  }, [fadenVon])
-  useEffect(() => {
-    setAnsicht(null)
-    setFadenVon(null)
-  }, [brett])
+  }, [pick, bearbeiten])
+  useEffect(() => oeffne(null), [brett, oeffne])
+
+  // ------------------------------------------------------------ Fokus
+  //
+  // Der Fokus-Vertrag des Toolkits (ItemFocus), gehalten im Zustand der App:
+  // Chips in der Meta-Box („Teil von", „Braucht") und Zeilen der Liste
+  // „Karten" öffnen ihr Ziel damit in derselben Panel-Instanz.
+  const offenId = ansicht?.art === "item" ? ansicht.id : undefined
+  const fokus = useMemo<ItemFocus>(
+    () => ({
+      scope: brett,
+      module: "karabirrdt",
+      itemId: offenId,
+      isEditing: bearbeiten,
+      isCommenting: false,
+      composeType: ansicht?.art === "neu" || ansicht?.art === "anlegen" ? KARTEN_TYP : null,
+      focusItem: (id) => oeffne({ art: "item", id }),
+      clearFocus: () => oeffne(null),
+      editItem: () => setBearbeiten(true),
+      stopEditing: () => setBearbeiten(false),
+      commentOnItem: (id) => oeffne({ art: "item", id }),
+      stopCommenting: () => {},
+      startCompose: () => oeffne({ art: "anlegen" }),
+      stopCompose: () => oeffne(null),
+      focusCreated: (id) => oeffne({ art: "item", id }),
+    }),
+    [brett, offenId, bearbeiten, ansicht, oeffne],
+  )
+
+  // Der Modul-Pick: „Im Modul wählen" im Formular, dann ein Klick aufs Brett.
+  const requestItemPick = useCallback<NonNullable<ContentComposerProps["requestItemPick"]>>((anfrage, onPick) => {
+    setPick({ predicate: anfrage.predicate, onPick })
+    setMeldung(anfrage.predicate === "partOf" ? "Klicke das Ziel an. Esc bricht ab." : "Klicke die Karte an. Esc bricht ab.")
+  }, [])
+  const composerProps = useComposerProps(requestItemPick)
+  const gepickt = (id: string) => {
+    if (!pick) return false
+    const antwort = pick.onPick(id)
+    setPick(null)
+    if (!antwort.ok) setMeldung(antwort.reason)
+    return true
+  }
 
   // --------------------------------------------------------------- Spaces
 
@@ -132,38 +187,28 @@ export default function App() {
 
   // --------------------------------------------------------------- Brett
 
-
-  const kartenKlick = async (id: string) => {
-    if (!fadenVon) return setAnsicht({ art: "karte", id })
-    const fehler = fadenFehler(karten, faeden, id, fadenVon)
-    setFadenVon(null)
-    if (fehler) return setMeldung(fehler)
-    await ziehe(id, fadenVon)
-    setMeldung("Faden gezogen.")
-    setAnsicht({ art: "karte", id: fadenVon })
-  }
-
   const verschieben = async (id: string, zielId: string, stufe: number) => {
     const karte = karten.find((k) => k.id === id)
     if (!karte) return
     if (zielVonKarte(karte) === zielId && Number(karte.data?.stage) === stufe) return
     const fehler = verschiebenFehler(karten, faeden, id, stufe)
     if (fehler) return setMeldung(fehler)
-    await aendere(id, {
-      data: { ...karte.data, stage: stufe, order: Date.now() },
-      relations: mitZiel(karte, zielId),
-    })
+    try {
+      await aendere(id, {
+        data: { ...karte.data, stage: stufe, order: Date.now() },
+        relations: mitZiel(karte, zielId),
+      })
+    } catch (e) {
+      setMeldung(e instanceof Error ? e.message : String(e))
+    }
   }
 
-  const aktiv = ansicht?.art === "karte" || ansicht?.art === "ziel" ? ansicht.id : null
-  const offeneKarte = ansicht?.art === "karte" ? karten.find((k) => k.id === ansicht.id) : undefined
-  const offenesZiel = ansicht?.art === "ziel" ? ziele.find((z) => z.id === ansicht.id) : undefined
   useEffect(() => {
-    if (ansicht?.art === "karte" && !offeneKarte) setAnsicht(null)
-    if (ansicht?.art === "ziel" && !offenesZiel) setAnsicht(null)
-  }, [ansicht, offeneKarte, offenesZiel])
+    if (ansicht?.art === "item" && ![...karten, ...ziele].some((i) => i.id === ansicht.id)) oeffne(null)
+  }, [ansicht, karten, ziele, oeffne])
 
   return (
+    <ItemFocusContext.Provider value={fokus}>
     <AppShell>
       <Navbar>
         <NavbarStart>
@@ -204,44 +249,48 @@ export default function App() {
           >
             {dunkel ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
-          <UserMenu user={{ id: nutzer?.id ?? TISCH.id, name: nutzer?.displayName ?? TISCH.displayName }} />
+          <UserMenu
+            user={ich ?? TISCH}
+            subtitle={!ich || ich.id === TISCH.id ? "Wer bist du? Unter Profil wählen" : undefined}
+            onProfile={hatIchWahl(connector) ? () => setIchDialog(true) : undefined}
+          />
         </NavbarEnd>
       </Navbar>
 
       <AppShellMain inset={false}>
-        {/* Wie Karte und Graph: das Brett IST die Fläche, das Panel legt sich
-            darüber, statt sie schmaler zu machen (Spec 01 → Content-Bereich).
-            Der Kopf schwebt dann über dem Brett; was er verdeckt, deckt die
-            klebende Phasenleiste mit ab — ihre Höhe kommt aus der Messung,
-            nicht aus einer Schätzung. */}
-        <ModuleFrame fill="bleed" panelFit="overlay" maxWidth="max-w-none">
-          <FilterScope>
+        {/* Das Brett IST die Fläche und scrollt selbst (fill bleed); der Kopf
+            mit Suche und Modul-Aktionen steht darüber im Fluss (panelFit
+            inset) — ein Raster mit Spaltenköpfen verträgt keinen schwebenden
+            Kopf. Der FilterScope umschließt Kopf UND Inhalt: Die Suche gehört
+            der Fläche, die Karten lesen denselben Filter. */}
+        <FilterScope>
+          <ModuleFrame fill="bleed" panelFit="inset" maxWidth="max-w-none" searchLabel="Karten durchsuchen">
             <BrettModul
               ziele={ziele}
               karten={karten}
               faeden={faeden}
               mitglieder={mitglieder}
-              aktiv={aktiv}
-              fadenVon={fadenVon}
+              aktiv={offenId ?? null}
+              pickt={!!pick}
               ansicht={ansicht}
               horizont={String(group?.data?.horizon ?? "")}
-              onAnsicht={setAnsicht}
-              onKarte={(id) => void kartenKlick(id)}
-              onZelle={(zielId, stufe) => (fadenVon ? setFadenVon(null) : setAnsicht({ art: "neu", zielId, stufe }))}
-              onZiel={(id) => setAnsicht({ art: "ziel", id })}
+              onAnsicht={oeffne}
+              onKarte={(id) => gepickt(id) || oeffne({ art: "item", id })}
+              onZiel={(id) => gepickt(id) || oeffne({ art: "item", id })}
+              onZelle={(zielId, stufe) => (pick ? setPick(null) : oeffne({ art: "neu", zelle: { zielId, stufe } }))}
               onVerschieben={(id, zielId, stufe) => void verschieben(id, zielId, stufe)}
               onStartziele={async () => {
                 for (const [i, titel] of STARTZIELE.entries())
                   await anlegen({
                     type: ZIEL_TYP,
-                    createdBy: TISCH.id,
+                    createdBy: ich?.id ?? TISCH.id,
                     "@context": [VOCAB.BASE, VOCAB.PROJECT],
                     data: { title: titel, dots: 0, order: i },
                   })
               }}
             />
-          </FilterScope>
-        </ModuleFrame>
+          </ModuleFrame>
+        </FilterScope>
       </AppShellMain>
 
       {/* Die schwebende Detail-Karte. `floating` ist der Modus des Toolkits
@@ -250,38 +299,31 @@ export default function App() {
           Reference-App (ModulePanelHost). */}
       <AdaptivePanel
         open={!!ansicht}
-        onClose={() => setAnsicht(null)}
+        onClose={() => oeffne(null)}
         allowedModes={["floating", "sidebar", "drawer"]}
         sidebarWidth="420px"
         sidebarMinWidth="300px"
         sidebarMaxWidth="70vw"
       >
-        {offeneKarte && (
-          <KartenDetail
-            karte={offeneKarte}
-            ziele={ziele}
-            karten={karten}
-            faeden={faeden}
-            fadenSchreibbar={fadenSchreibbar}
-            onFadenSuchen={() => {
-              setFadenVon(offeneKarte.id)
-              setMeldung("Klicke die Karte, die VORHER fertig sein muss. Esc bricht ab.")
+        {offenId && (
+          <ItemDetail
+            itemId={offenId}
+            bearbeiten={bearbeiten}
+            onBearbeiten={(an) => {
+              setBearbeiten(an)
+              if (!an) setPick(null)
             }}
-            onFadenLoesen={loese}
-            onNachbarKarte={(id) => setAnsicht({ art: "karte", id })}
-            onGeschlossen={() => setAnsicht(null)}
+            composerProps={composerProps}
+            onGeschlossen={() => oeffne(null)}
           />
-        )}
-        {offenesZiel && (
-          <ZielDetail ziel={offenesZiel} onGeschlossen={() => setAnsicht(null)} />
         )}
         {(ansicht?.art === "neu" || ansicht?.art === "anlegen") && (
           <Anlegen
-            zielId={ansicht.art === "neu" ? ansicht.zielId : (ziele[0]?.id ?? "")}
-            stufe={ansicht.art === "neu" ? ansicht.stufe : 0}
+            zelle={ansicht.art === "neu" ? ansicht.zelle : ziele[0] ? { zielId: ziele[0].id, stufe: 0 } : null}
             nurKarte={ansicht.art === "neu"}
-            onFertig={(item) => setAnsicht({ art: item.type === ZIEL_TYP ? "ziel" : "karte", id: item.id })}
-            onAbbruch={() => setAnsicht(null)}
+            composerProps={composerProps}
+            onFertig={(item) => oeffne({ art: "item", id: item.id })}
+            onAbbruch={() => oeffne(null)}
           />
         )}
         {ansicht?.art === "pruefung" && <PruefungPanel ziele={ziele} karten={karten} faeden={faeden} />}
@@ -291,7 +333,7 @@ export default function App() {
         open={gruppenDialog}
         onOpenChange={setGruppenDialog}
         mode={dialogModus}
-        currentUserId={nutzer?.id ?? TISCH.id}
+        currentUserId={ich?.id ?? TISCH.id}
         onCreateGroup={async (name) => {
           await gruppeAnlegen(name)
         }}
@@ -311,7 +353,17 @@ export default function App() {
         brett={brett}
         group={group}
         items={[...ziele, ...karten]}
-        relations={faeden}
+        relations={[]}
+      />
+
+      <IchDialog
+        open={ichDialog}
+        onOpenChange={setIchDialog}
+        mitglieder={mitglieder}
+        ich={ich}
+        onWahl={(id) => {
+          if (hatIchWahl(connector)) connector.waehleIch(id)
+        }}
       />
 
       {meldung && (
@@ -320,36 +372,36 @@ export default function App() {
         </div>
       )}
     </AppShell>
+    </ItemFocusContext.Provider>
   )
 }
 
 /**
- * Anlegen — eine Form für beide Arten. Welche es wird, entscheidet die
- * Typ-Auswahl des `ItemComposer`; aus einer Zelle heraus steht sie fest.
+ * Anlegen — eine Form für beide Arten, aus dem Register. Welche es wird,
+ * entscheidet die Typ-Auswahl des Formulars; aus einer Zelle heraus steht
+ * sie fest (Karte), und die Karte landet in dieser Zelle.
  */
 function Anlegen({
-  zielId,
-  stufe,
+  zelle,
   nurKarte,
+  composerProps,
   onFertig,
   onAbbruch,
 }: {
-  zielId: string
-  stufe: number
+  zelle: Zelle | null
   nurKarte: boolean
+  composerProps: Partial<ContentComposerProps>
   onFertig: (item: Item) => void
   onAbbruch: () => void
 }) {
-  const composerProps = useComposerProps()
-  const karte = karteMapper({ zielId, stufe, order: Date.now() })
-  const ziel = zielMapper(Date.now())
+  const { typen, mapSubmission } = useAbbildung()
+  const mapper = useMemo(() => mitPosition(mapSubmission, zelle), [mapSubmission, zelle])
   return (
     <div className="p-4">
       <ItemComposer
-        contentTypes={nurKarte ? [KARTEN_VORLAGE] : [KARTEN_VORLAGE, ZIEL_VORLAGE]}
-        initialContentType={KARTEN_VORLAGE.id}
-        initialData={{ status: "open" }}
-        mapper={(eingabe, ctx) => (eingabe.contentType === ZIEL_TYP ? ziel(eingabe, ctx) : karte(eingabe, ctx))}
+        contentTypes={nurKarte ? typen.filter((t) => t.id === KARTEN_TYP) : typen}
+        initialContentType={KARTEN_TYP}
+        mapper={mapper}
         composerProps={composerProps}
         onDone={onFertig}
         onCancel={onAbbruch}
@@ -363,10 +415,10 @@ function Anlegen({
 interface ModulProps {
   ziele: Item[]
   karten: Item[]
-  faeden: RelationRecord[]
+  faeden: Faden[]
   mitglieder: User[]
   aktiv: string | null
-  fadenVon: string | null
+  pickt: boolean
   ansicht: Ansicht
   /** Nur Anzeige — geändert wird er im Space-Dialog. */
   horizont: string
@@ -379,9 +431,9 @@ interface ModulProps {
 }
 
 /**
- * Alles, was zum Modul gehört, liegt im Modul: die Steuerleiste (Suche links,
- * Modul-Aktionen und Kamera rechts), die Fläche und der Plus-Knopf unten
- * rechts. Die Navbar bleibt davon frei.
+ * Alles, was zum Modul gehört, liegt im Modul: die Modul-Aktionen im Kopf
+ * (die Suche stellt die Fläche), die Fläche und der Plus-Knopf unten rechts.
+ * Die Navbar bleibt davon frei.
  */
 function BrettModul({
   ziele,
@@ -389,7 +441,7 @@ function BrettModul({
   faeden,
   mitglieder,
   aktiv,
-  fadenVon,
+  pickt,
   ansicht,
   horizont,
   onAnsicht,
@@ -399,19 +451,14 @@ function BrettModul({
   onVerschieben,
   onStartziele,
 }: ModulProps) {
-  const kopf = useOptionalModuleHead()
-  const sichtbar = useModuleFilteredItems(karten)
-  const tags = useMemo(() => {
-    const alle = new Set<string>()
-    for (const k of [...karten, ...ziele]) for (const t of k.tags ?? []) alle.add(t)
-    return [...alle].sort()
-  }, [karten, ziele])
+  // Genau das, was der Kopf anzeigt: Tags und Typen, dann der Suchtext
+  // (Lücke: `useSurfaceItems` ist nicht exportiert, docs/rls-kompatibel.md).
+  const { value, searchText } = useSharedFilter()
+  const sichtbar = useMemo(() => applyItemSearch(applyFilterBarValue(karten, value), searchText), [karten, value, searchText])
 
   return (
     <>
       <ModuleToolbar
-        availableTags={tags}
-        searchLabel="Karten durchsuchen"
         trailingActions={
           <>
             {!!horizont && (
@@ -452,9 +499,8 @@ function BrettModul({
           karten={sichtbar}
           faeden={faeden}
           mitglieder={mitglieder}
-          kopfElement={kopf?.element ?? null}
           aktiv={aktiv}
-          fadenVon={fadenVon}
+          pickt={pickt}
           onKarte={onKarte}
           onZelle={onZelle}
           onZiel={onZiel}
