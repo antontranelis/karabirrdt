@@ -1,14 +1,4 @@
-# Zwei Stufen: bauen mit den Entwicklungs-Abhängigkeiten, ausliefern nur mit
-# dem Server. Node 22 bringt SQLite mit, es gibt keine nativen Abhängigkeiten.
-FROM node:22-slim AS bau
-WORKDIR /bau
-COPY app/package.json app/package-lock.json ./app/
-RUN npm --prefix app ci
-COPY modell.mjs modell.d.mts ./
-COPY public ./public
-COPY app ./app
-RUN npm --prefix app run build
-
+# Kleines Abbild: Node 22 bringt SQLite mit, es gibt keine nativen Abhängigkeiten.
 FROM node:22-slim
 
 ENV NODE_ENV=production \
@@ -23,7 +13,6 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY *.mjs ./
 COPY public ./public
-COPY --from=bau /bau/public ./public
 
 RUN mkdir -p /data && chown -R node:node /data /app
 
