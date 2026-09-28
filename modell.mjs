@@ -82,6 +82,18 @@ const text = (v) => (typeof v === "string" ? v : "");
 const ziel = (id) => `item:${id}`;
 export const ohnePraefix = (target) => String(target ?? "").replace(/^(space:[^/]+\/)?item:/, "");
 
+/**
+ * Die Id eines LOKALEN Item-Ziels (`item:<id>`), sonst null. Ein
+ * space-qualifiziertes Ziel (`space:{id}/item:<id>`) zeigt auf ein Item in
+ * einem anderen Space (Spec 04): Es ist kein Faden dieses Bretts, wird nicht
+ * gezeichnet, nicht geprüft, nicht umgezogen und nicht aufgeräumt — nur
+ * bewahrt.
+ */
+export function lokaleId(target) {
+  const m = /^item:(.+)$/.exec(String(target ?? ""));
+  return m ? m[1] : null;
+}
+
 /** Zu welchem Ziel (welcher Zeile) gehört eine Karte. */
 export function zielVonKarte(karte) {
   const r = (karte?.relations ?? []).find((x) => x?.predicate === ZUGEHOERIG_PRAEDIKAT);
@@ -142,7 +154,7 @@ export function faeden(items) {
     if (!istKarte(item)) continue;
     for (const r of item.relations ?? []) {
       if (r?.predicate !== FADEN_PRAEDIKAT) continue;
-      const nach = ohnePraefix(r.target);
+      const nach = lokaleId(r.target);
       if (!nach) continue;
       const id = fadenSchluessel(item.id, nach);
       if (gesehen.has(id)) continue;
@@ -156,13 +168,13 @@ export function faeden(items) {
 /** Die Relations der Voraussetzung mit einem Faden zu `nachId` (doppelt wird er nicht). */
 export function mitFaden(item, nachId) {
   const rel = item?.relations ?? [];
-  if (rel.some((r) => r?.predicate === FADEN_PRAEDIKAT && ohnePraefix(r.target) === nachId)) return rel;
+  if (rel.some((r) => r?.predicate === FADEN_PRAEDIKAT && lokaleId(r.target) === nachId)) return rel;
   return [...rel, { predicate: FADEN_PRAEDIKAT, target: ziel(nachId) }];
 }
 
 /** Die Relations der Voraussetzung ohne den Faden zu `nachId`. */
 export function ohneFaden(item, nachId) {
-  return (item?.relations ?? []).filter((r) => !(r?.predicate === FADEN_PRAEDIKAT && ohnePraefix(r.target) === nachId));
+  return (item?.relations ?? []).filter((r) => !(r?.predicate === FADEN_PRAEDIKAT && lokaleId(r.target) === nachId));
 }
 
 /** Fäden, die in diese Karte laufen (ihre Voraussetzungen). */
@@ -237,10 +249,36 @@ export function fadenVerstoesse(items) {
   return verstoesse;
 }
 
-/** Der Grund des ersten Verstoßes, den `nachher` neu bringt, oder null. */
+/** Der Grund des ersten Faden-Verstoßes, den `nachher` neu bringt, oder null. */
 export function neuerFadenVerstoss(vorher, nachher) {
   const alt = fadenVerstoesse(vorher);
   for (const [id, grund] of fadenVerstoesse(nachher)) if (!alt.has(id)) return grund;
+  return null;
+}
+
+/**
+ * Alle Regelverstöße des Bretts: die Fäden (oben) und die Zeile — eine Karte
+ * gehört zu genau einem Ziel. Ohne `partOf` wäre sie unsichtbar, mit zwei
+ * stünde sie nur in der ersten Zeile.
+ */
+export function regelVerstoesse(items) {
+  const verstoesse = fadenVerstoesse(items);
+  for (const k of items ?? []) {
+    if (!istKarte(k)) continue;
+    const zeilen = (k.relations ?? []).filter((r) => r?.predicate === ZUGEHOERIG_PRAEDIKAT);
+    if (zeilen.length !== 1) verstoesse.set(`zeile:${k.id}`, "Eine Karte gehört zu genau einem Ziel.");
+  }
+  return verstoesse;
+}
+
+/**
+ * Der Grund des ersten Verstoßes, den `nachher` NEU bringt, oder null. Ein
+ * Verstoß, der vorher schon bestand (eine verwaiste Karte aus alter Zeit),
+ * blockiert keine andere Änderung.
+ */
+export function neuerRegelVerstoss(vorher, nachher) {
+  const alt = regelVerstoesse(vorher);
+  for (const [id, grund] of regelVerstoesse(nachher)) if (!alt.has(id)) return grund;
   return null;
 }
 
@@ -548,8 +586,10 @@ export function faedenEinbetten(items, relations) {
   const verwaist = [];
   for (const r of relations ?? []) {
     if (r?.predicate !== FADEN_PRAEDIKAT) continue;
-    const vonId = ohnePraefix(r.from);
-    const nachKarte = ohnePraefix(r.to);
+    const vonId = lokaleId(r.from);
+    const nachKarte = lokaleId(r.to);
+    // Ein Endpunkt in einem anderen Space: bleibt Datensatz, wird nicht angefasst.
+    if (vonId === null || nachKarte === null) continue;
     const von = geaendert.get(vonId) ?? nachId.get(vonId);
     if (!von || !istKarte(von) || !nachId.has(nachKarte)) {
       verwaist.push(r.id);
@@ -843,7 +883,7 @@ export function kaskade(items, id, relations = []) {
   return {
     items: [...weg],
     aendern: fadenReste(items, weg),
-    relations: [...new Set((relations ?? []).filter((r) => weg.has(ohnePraefix(r.from)) || weg.has(ohnePraefix(r.to))).map((r) => r.id))],
+    relations: [...new Set((relations ?? []).filter((r) => weg.has(lokaleId(r.from)) || weg.has(lokaleId(r.to))).map((r) => r.id))],
   };
 }
 
@@ -853,7 +893,7 @@ function fadenReste(items, weg) {
   for (const k of items ?? []) {
     if (weg.has(k.id) || !istKarte(k)) continue;
     const rel = k.relations ?? [];
-    const rest = rel.filter((r) => !(r?.predicate === FADEN_PRAEDIKAT && weg.has(ohnePraefix(r.target))));
+    const rest = rel.filter((r) => !(r?.predicate === FADEN_PRAEDIKAT && weg.has(lokaleId(r.target))));
     if (rest.length !== rel.length) aendern.push({ id: k.id, relations: rest });
   }
   return aendern;

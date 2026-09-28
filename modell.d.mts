@@ -74,6 +74,7 @@ export declare function phaseVonStufe(stufe: number): Phase
 export declare function istKarte(item: Item | null | undefined): boolean
 export declare function istZiel(item: Item | null | undefined): boolean
 export declare function ohnePraefix(target: string): string
+export declare function lokaleId(target: string | null | undefined): string | null
 export declare function zielVonKarte(karte: { relations?: EingebetteteRelation[] } | null | undefined): string | null
 export declare function mitZiel(karte: { relations?: EingebetteteRelation[] } | null | undefined, zielId: string): EingebetteteRelation[]
 export declare function stufeVon(karte: { data?: Record<string, unknown> } | null | undefined): number
@@ -88,6 +89,8 @@ export declare function mitFaden(item: { relations?: EingebetteteRelation[] } | 
 export declare function ohneFaden(item: { relations?: EingebetteteRelation[] } | null | undefined, nachId: string): EingebetteteRelation[]
 export declare function fadenVerstoesse(items: readonly Item[]): Map<string, string>
 export declare function neuerFadenVerstoss(vorher: readonly Item[], nachher: readonly Item[]): string | null
+export declare function regelVerstoesse(items: readonly Item[]): Map<string, string>
+export declare function neuerRegelVerstoss(vorher: readonly Item[], nachher: readonly Item[]): string | null
 
 export declare function fadenFehler(
   karten: readonly Item[],

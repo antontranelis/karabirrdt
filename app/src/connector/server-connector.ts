@@ -16,7 +16,7 @@ import {
   freieKennung,
   kaskade,
   leeresRls,
-  neuerFadenVerstoss,
+  neuerRegelVerstoss,
   recordVonRelationItem,
   relationItemVonRecord,
 } from "../../../modell.mjs"
@@ -180,11 +180,20 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
     return (id && (mitglieder.get(brett) ?? []).find((u) => u.id === id)) || TISCH
   }
   const ichObs = createObservable<User | null>(ichVon(startBrett))
+  // Der MockConnector schreibt Autor und Änderungsstempel und prüft
+  // Autorenrechte (Kommentare) mit SEINEM aktuellen Nutzer. Einen Weg, ihn zu
+  // setzen, bietet er nicht (`authenticate` nimmt immer den ersten Seed-
+  // Nutzer) — darum setzt diese Schicht die beiden Felder selbst, damit
+  // Oberfläche und Speicher dieselbe Person meinen (Lücke, docs/rls-kompatibel.md).
+  const mockIntern = mock as unknown as { currentUser: User | null; currentUserObs: ReactiveObservable<User | null> }
   aktualisiereIch = () => {
     const neu = ichVon(aktuell)
     const alt = ichObs.current
+    mockIntern.currentUser = neu
+    if (mockIntern.currentUserObs.current?.id !== neu.id) mockIntern.currentUserObs.set(neu)
     if (alt?.id !== neu.id || alt?.displayName !== neu.displayName) ichObs.set(neu)
   }
+  aktualisiereIch()
 
   // Was wir gerade selbst geschrieben haben, kommt über die WebSocket zurück.
   // Signatur merken und die Rückmeldung überspringen, statt sie erneut
@@ -212,17 +221,38 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
       return false
     }
   }
-  const schreibe = (pfad: string, methode: string, koerper?: unknown) => schreibeAn(aktuell, pfad, methode, koerper)
-
   /** Ein Item liegt je nach Art in der Items- oder in der Relations-Ablage. */
-  const sendeItem = (item: Item) => {
+  const sendeItem = (brett: string, item: Item) => {
     const record = recordVonRelationItem(item)
     if (record) {
       merke(`relation:${record.id}`, record)
-      return schreibe(`/relations/${encodeURIComponent(record.id)}`, "PUT", record)
+      return schreibeAn(brett, `/relations/${encodeURIComponent(record.id)}`, "PUT", record)
     }
     merke(`item:${item.id}`, item)
-    return schreibe(`/items/${encodeURIComponent(item.id)}`, "PUT", item)
+    return schreibeAn(brett, `/items/${encodeURIComponent(item.id)}`, "PUT", item)
+  }
+
+  /**
+   * Jede Schreibbewegung gehört dem Brett, in dem sie begann. Der Mock kennt
+   * nur ein offenes Brett; wechselte es mitten in einer Folge von Schritten
+   * (Löschen mit Anhang), landeten die späteren Schritte im neuen Brett — und
+   * löschten dort ein gleichnamiges Item. Darum wartet ein Wechsel, bis alle
+   * laufenden Schreibbewegungen fertig sind.
+   */
+  let laufend = 0
+  let wechselNach: string | null = null
+  const exklusiv = async <T>(schritt: (brett: string) => Promise<T>): Promise<T> => {
+    laufend++
+    try {
+      return await schritt(aktuell)
+    } finally {
+      laufend--
+      if (laufend === 0 && wechselNach) {
+        const ziel = wechselNach
+        wechselNach = null
+        wechsle(ziel)
+      }
+    }
   }
 
   // ---------------------------------------------------- Brett wechseln
@@ -256,42 +286,52 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
     void nachladen(brett)
   }
 
+  /** Wechseln — sofort, oder nach der laufenden Schreibbewegung. */
+  const wechsleSobaldFrei = (brett: string) => {
+    if (laufend > 0) wechselNach = brett
+    else wechsle(brett)
+  }
+
   window.addEventListener("popstate", () => {
     const brett = location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase() || "haupt"
-    if (KENNUNG.test(brett) && brett !== aktuell) wechsle(brett)
+    if (KENNUNG.test(brett) && brett !== aktuell) wechsleSobaldFrei(brett)
   })
 
   // ---------------------------------------------------- Überschriebenes
 
   /**
    * Die Regeln des Bretts gelten für jeden Schreibweg — Formular („Braucht",
-   * „Ermöglicht"), Modul-Pick, Ziehen: Ein Faden läuft nie nach links, nie im
-   * Kreis, nie auf sich selbst. Was einen NEUEN Verstoß brächte, lehnt der
+   * „Ermöglicht", „Teil von"), Selbstaktion, Modul-Pick, Ziehen: Ein Faden
+   * läuft nie nach links, nie im Kreis, nie auf sich selbst, und eine Karte
+   * gehört zu genau einem Ziel. Was einen NEUEN Verstoß brächte, lehnt der
    * Connector ab; das Formular zeigt den Grund und behält die Eingaben.
    */
-  const pruefeFaeden = async (nachher: (vorher: Item[]) => Item[]) => {
+  const pruefeRegeln = async (nachher: (vorher: Item[]) => Item[]) => {
     const vorher = await mock.getItems()
-    const grund = neuerFadenVerstoss(vorher, nachher(vorher))
+    const grund = neuerRegelVerstoss(vorher, nachher(vorher))
     if (grund) throw new Error(grund)
   }
 
   const ueberschrieben: Record<string, unknown> = {
-    createItem: async (eingabe: Parameters<FullConnector["createItem"]>[0]) => {
-      await pruefeFaeden((vorher) => [...vorher, { id: "\u0000neu", createdAt: "", ...eingabe } as Item])
-      // `options.group` fällt weg: Dieser Connector legt nur im offenen Brett an.
-      // Die Id vergibt diese Schicht: Der MockConnector zählt `item-100`,
-      // `item-101` … je Sitzung hoch — zwei Browser am selben Brett legten
-      // dieselbe Id an und überschrieben einander (Lücke, docs/rls-kompatibel.md).
-      const item = await mock.createItem({ ...eingabe, id: eingabe.id ?? neueId() })
-      void sendeItem(item)
-      return item
-    },
-    updateItem: async (id: string, aenderungen: Partial<Item>) => {
-      await pruefeFaeden((vorher) => vorher.map((i) => (i.id === id ? ({ ...i, ...aenderungen, id } as Item) : i)))
-      const item = await mock.updateItem(id, aenderungen)
-      void sendeItem(item)
-      return item
-    },
+    createItem: (eingabe: Parameters<FullConnector["createItem"]>[0]) =>
+      exklusiv(async (brett) => {
+        // Die Id vergibt diese Schicht: Der MockConnector zählt `item-100`,
+        // `item-101` … je Sitzung hoch — zwei Browser am selben Brett legten
+        // dieselbe Id an und überschrieben einander (Lücke, docs/rls-kompatibel.md).
+        const mitId = { ...eingabe, id: eingabe.id ?? neueId() }
+        await pruefeRegeln((vorher) => [...vorher, { createdAt: "", ...mitId } as Item])
+        // `options.group` fällt weg: Dieser Connector legt nur im offenen Brett an.
+        const item = await mock.createItem(mitId)
+        void sendeItem(brett, item)
+        return item
+      }),
+    updateItem: (id: string, aenderungen: Partial<Item>) =>
+      exklusiv(async (brett) => {
+        await pruefeRegeln((vorher) => vorher.map((i) => (i.id === id ? ({ ...i, ...aenderungen, id } as Item) : i)))
+        const item = await mock.updateItem(id, aenderungen)
+        void sendeItem(brett, item)
+        return item
+      }),
     /**
      * Löschen nimmt mit, was ohne das Gelöschte keinen Halt mehr hat: ein Ziel
      * seine Zeile (Karten), und jede Voraussetzung verliert ihren Faden auf
@@ -300,47 +340,51 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
      * zum Löschen, auch den des Toolkits (`ItemDetailActions` löscht selbst
      * über den Connector).
      */
-    deleteItem: async (id: string) => {
-      const alle = await mock.getItems()
-      const datensaetze = alle.map(recordVonRelationItem).filter((r): r is RelationRecord => !!r)
-      const weg = kaskade(alle, id, datensaetze)
+    deleteItem: (id: string) =>
+      exklusiv(async (brett) => {
+        const alle = await mock.getItems()
+        const datensaetze = alle.map(recordVonRelationItem).filter((r): r is RelationRecord => !!r)
+        const weg = kaskade(alle, id, datensaetze)
 
-      for (const { id: kid, relations } of weg.aendern) {
-        const item = await mock.updateItem(kid, { relations })
-        await sendeItem(item)
-      }
-      for (const rid of weg.relations) {
-        await mock.deleteItem(rid)
-        merke(`relation:${rid}`, null)
-        await schreibe(`/relations/${encodeURIComponent(rid)}`, "DELETE")
-      }
-      for (const iid of weg.items) {
-        const vorher = await mock.getItem(iid)
-        if (!vorher) continue
-        await mock.deleteItem(iid)
-        const record = recordVonRelationItem(vorher)
-        const art = record ? "relations" : "items"
-        merke(`${record ? "relation" : "item"}:${iid}`, null)
-        await schreibe(`/${art}/${encodeURIComponent(iid)}`, "DELETE")
-      }
-    },
-    createRelationRecord: async (eingabe: RelationRecordInput) => {
-      const record = await mock.createRelationRecord(eingabe)
-      merke(`relation:${record.id}`, record)
-      void schreibe(`/relations/${encodeURIComponent(record.id)}`, "PUT", record)
-      return record
-    },
-    updateRelationRecord: async (id: string, aenderungen: RelationRecordUpdate) => {
-      const record = await mock.updateRelationRecord(id, aenderungen)
-      merke(`relation:${record.id}`, record)
-      void schreibe(`/relations/${encodeURIComponent(id)}`, "PUT", record)
-      return record
-    },
-    deleteRelationRecord: async (id: string) => {
-      await mock.deleteRelationRecord(id)
-      merke(`relation:${id}`, null)
-      await schreibe(`/relations/${encodeURIComponent(id)}`, "DELETE")
-    },
+        for (const { id: kid, relations } of weg.aendern) {
+          const item = await mock.updateItem(kid, { relations })
+          await sendeItem(brett, item)
+        }
+        for (const rid of weg.relations) {
+          await mock.deleteItem(rid)
+          merke(`relation:${rid}`, null)
+          await schreibeAn(brett, `/relations/${encodeURIComponent(rid)}`, "DELETE")
+        }
+        for (const iid of weg.items) {
+          const vorher = await mock.getItem(iid)
+          if (!vorher) continue
+          await mock.deleteItem(iid)
+          const record = recordVonRelationItem(vorher)
+          const art = record ? "relations" : "items"
+          merke(`${record ? "relation" : "item"}:${iid}`, null)
+          await schreibeAn(brett, `/${art}/${encodeURIComponent(iid)}`, "DELETE")
+        }
+      }),
+    createRelationRecord: (eingabe: RelationRecordInput) =>
+      exklusiv(async (brett) => {
+        const record = await mock.createRelationRecord(eingabe)
+        merke(`relation:${record.id}`, record)
+        void schreibeAn(brett, `/relations/${encodeURIComponent(record.id)}`, "PUT", record)
+        return record
+      }),
+    updateRelationRecord: (id: string, aenderungen: RelationRecordUpdate) =>
+      exklusiv(async (brett) => {
+        const record = await mock.updateRelationRecord(id, aenderungen)
+        merke(`relation:${record.id}`, record)
+        void schreibeAn(brett, `/relations/${encodeURIComponent(id)}`, "PUT", record)
+        return record
+      }),
+    deleteRelationRecord: (id: string) =>
+      exklusiv(async (brett) => {
+        await mock.deleteRelationRecord(id)
+        merke(`relation:${id}`, null)
+        await schreibeAn(brett, `/relations/${encodeURIComponent(id)}`, "DELETE")
+      }),
 
     // --- Wer bin ich ---
     getCurrentUser: async () => ichObs.current,
@@ -375,7 +419,7 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
     // --- Bretter als Spaces -------------------------------------------------
     setCurrentGroup: (id: string | null) => {
       if (!id) return
-      wechsle(id)
+      wechsleSobaldFrei(id)
     },
     updateGroup: async (id: string, aenderungen: Partial<Group>) => {
       const group = await mock.updateGroup(id, aenderungen)

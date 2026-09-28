@@ -70,7 +70,9 @@ liegen daneben in `modell.d.mts`.
   eingebettete Kanten. Eine App-Schicht darf `storage` nicht ändern (Regel
   20). Anton hat am 28.09. entschieden, mitzuziehen (Option A). Die Richtung
   bleibt: Voraussetzung → abhängige Karte. Für Regeln, Raster und das alte
-  Format liefert `faeden(items)` weiter die Sicht `{ id, from, to }`.
+  Format liefert `faeden(items)` weiter die Sicht `{ id, from, to }`. Nur
+  lokale Ziele (`item:<id>`) sind Fäden dieses Bretts; ein space-qualifiziertes
+  Ziel (`space:{id}/item:<id>`) bleibt, wie es ist, und wird nicht umgezogen.
 - **„lernt" als Qualifier, nicht als zweites Prädikat** (Katalog 3, 30, 34;
   Spec 06, Regel 20): Der Kern erlaubt `role` an `assignedTo` ohne Werte, die
   Karabirrdt-Schicht bringt `can` („kann") und `learns` („lernt") samt der
@@ -94,6 +96,7 @@ die Liste „Karten" eine Manifest-Kante hat (Regel 1). Beides wird in
 Daten aus der Zeit vor toolkit 0.3.0 um, idempotent:
 
 1. Fäden-Datensätze `blocks` → eingebettet an der Voraussetzung; Datensätze
+   mit einem Endpunkt in einem anderen Space bleiben Datensätze; Datensätze
    ohne Voraussetzung fallen weg, eingebettete Fäden ins Leere werden entfernt.
 2. `wantsToLearn` → `assignedTo` mit `meta.role: "learns"`. Ein `assignedTo`
    ohne Rolle bleibt, wie es ist (gilt als „kann").
@@ -400,11 +403,19 @@ umgangen.
    Wahl „Wer bist du?“), stehen als „Erstellt von did:karabirrdt:tisch“ da,
    sobald jemand gewählt hat. *Vorschlag:* `connector.getUser` als Rückfall.
 28. **Brett-Regeln haben keinen Haken im Formular.** „Fäden laufen nur nach
-   rechts“ prüft der Connector bei jedem Schreiben und lehnt ab; das Formular
+   rechts“ und „eine Karte gehört zu genau einem Ziel“ (das Formular erlaubt
+   bei „Teil von“ keinen und mehrere Chips) prüft der Connector bei jedem
+   Schreiben und lehnt ab; das Formular
    zeigt den Grund. Weil „Braucht“ erst NACH dem Speichern am anderen Item
    geschrieben wird, kann die Karte gespeichert sein und nur der neue Faden
    fehlen („Konnte nicht gespeichert werden … Erneut“). *Vorschlag:* eine
    optionale Prüfung je Typ vor dem Speichern.
+30. **Der MockConnector lässt seinen Nutzer nicht setzen.** `authenticate`
+   nimmt immer den ersten Seed-Nutzer; für „Wer bist du?" setzt der
+   ServerConnector `currentUser` und `currentUserObs` des Mocks selbst, sonst
+   schriebe der Speicher „Tisch" als Bearbeiter und verweigerte das Bearbeiten
+   eigener Kommentare. *Vorschlag:* `setCurrentUser(user)` im Mock.
+
 29. **Keine Vorbelegung einer Item-Kante beim Anlegen.** Der Datenschlüssel
    (`relation:partOf`) ist nicht exportiert; eine Karte aus einer Zelle zeigt
    „Teil von“ im Formular leer und bekommt die Zeile erst beim Speichern

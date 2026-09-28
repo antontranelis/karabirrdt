@@ -24,6 +24,8 @@ const brett = () => ({
 })
 
 let aufrufe: { methode: string; pfad: string; koerper?: unknown }[] = []
+/** Solange gesetzt, warten schreibende Anfragen darauf — so lässt sich „mitten im Löschen" nachstellen. */
+let bremse: Promise<void> | null = null
 
 class StillerSocket {
   onopen: (() => void) | null = null
@@ -35,6 +37,7 @@ class StillerSocket {
 
 beforeEach(() => {
   aufrufe = []
+  bremse = null
   localStorage.clear()
   vi.stubGlobal("WebSocket", StillerSocket)
   vi.stubGlobal(
@@ -42,7 +45,13 @@ beforeEach(() => {
     vi.fn(async (pfad: string, init?: RequestInit) => {
       const methode = init?.method ?? "GET"
       aufrufe.push({ methode, pfad, koerper: init?.body ? JSON.parse(String(init.body)) : undefined })
-      const antwort = pfad === "/api/gruppen" ? [{ id: "haupt", name: "Haupt", data: {} }] : pfad.endsWith("/rls") ? brett() : { ok: true }
+      const antwort =
+        pfad === "/api/gruppen"
+          ? [{ id: "haupt", name: "Haupt", data: {} }, { id: "zwei", name: "Zwei", data: {} }]
+          : pfad.endsWith("/rls")
+            ? { ...brett(), group: { id: pfad.split("/")[3], name: "", data: {} } }
+            : { ok: true }
+      if (bremse && methode !== "GET") await bremse
       return new Response(JSON.stringify(antwort), { status: 200 })
     }),
   )
@@ -83,10 +92,35 @@ describe("ServerConnector", () => {
     ])
   })
 
+  it("ein Brettwechsel mitten im Löschen wartet, bis das Löschen im alten Brett fertig ist", async () => {
+    const { connector } = await erstelleServerConnector("haupt")
+    let los!: () => void
+    bremse = new Promise<void>((r) => (los = r))
+    const loeschen = connector.deleteItem("b")
+    await new Promise((r) => setTimeout(r, 0))
+    connector.setCurrentGroup("zwei")
+    los()
+    await loeschen
+    await new Promise((r) => setTimeout(r, 0))
+    const geschrieben = aufrufe.filter((x) => x.methode !== "GET").map((x) => `${x.methode} ${x.pfad}`)
+    expect(geschrieben).toEqual(["PUT /api/b/haupt/items/a", "DELETE /api/b/haupt/items/b"])
+    // und danach steht das Brett wirklich auf „zwei"
+    expect((await connector.getCurrentGroup())?.id).toBe("zwei")
+  })
+
+  it("eine Karte ohne Ziel oder mit zwei Zielen wird abgelehnt", async () => {
+    const { connector } = await erstelleServerConnector("haupt")
+    await expect(connector.updateItem("b", { relations: [] })).rejects.toThrow(/genau einem Ziel/)
+    await expect(
+      connector.updateItem("b", { relations: [{ predicate: "partOf", target: "item:z" }, { predicate: "partOf", target: "item:y" }] }),
+    ).rejects.toThrow(/genau einem Ziel/)
+  })
+
   it("neue Items bekommen eine zufällige Id, keine hochgezählte", async () => {
     const { connector } = await erstelleServerConnector("haupt")
-    const a = await connector.createItem({ type: "task", createdBy: TISCH.id, data: { title: "x" } })
-    const b = await connector.createItem({ type: "task", createdBy: TISCH.id, data: { title: "y" } })
+    const zeile = [{ predicate: "partOf", target: "item:z" }]
+    const a = await connector.createItem({ type: "task", createdBy: TISCH.id, data: { title: "x" }, relations: zeile })
+    const b = await connector.createItem({ type: "task", createdBy: TISCH.id, data: { title: "y" }, relations: zeile })
     expect(a.id).toMatch(/^[a-z0-9]{10}$/)
     expect(a.id).not.toBe(b.id)
     expect(aufrufe.filter((x) => x.methode === "PUT").map((x) => x.pfad)).toEqual([`/api/b/haupt/items/${a.id}`, `/api/b/haupt/items/${b.id}`])
@@ -100,6 +134,9 @@ describe("ServerConnector", () => {
     connector.waehleIch("user:anton")
     expect((await connector.getCurrentUser())?.displayName).toBe("Anton")
     expect(localStorage.getItem("karabirrdt:ich:haupt")).toBe("user:anton")
+    // Auch der Speicher darunter schreibt als Anton, nicht als Tisch
+    const geaendert = await connector.updateItem("b", { data: { title: "b2", stage: 3, status: "open" } })
+    expect(geaendert.updatedBy).toBe("user:anton")
     // Wer kein Mitglied ist, wird nicht zur Identität
     connector.waehleIch("user:fremd")
     expect((await connector.getCurrentUser())?.id).toBe(TISCH.id)

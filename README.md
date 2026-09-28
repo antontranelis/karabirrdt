@@ -53,8 +53,8 @@ public/alt.html die ursprüngliche Seite, unverändert in Funktion
 
 ## Bedienung
 
-- **Bewegen:** Das Brett scrollt in beide Richtungen; Phasenleiste und
-  Zielspalte bleiben stehen.
+- **Bewegen:** Das Brett scrollt in beide Richtungen; die Phasenleiste bleibt
+  oben stehen, die Ziele scrollen waagerecht mit.
 - **Karte anlegen:** Klick auf eine leere Zelle, oder der Plus-Knopf unten
   rechts (dann auch ein Ziel).
 - **Karte öffnen:** Klick auf die Karte. Das Detail kommt aus dem Real Life

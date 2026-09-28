@@ -65,13 +65,17 @@ diesen Server. Was dabei zu prüfen ist:
   MockConnector darunter beides hätte. Das Formular zeigt den Space darum
   fest. Genauso sollte jede neue Fläche vorgehen (`isWritable`, `hasGroups`, …).
 - **Regeln des Bretts.** Ein Faden läuft nie nach links, nie im Kreis, nie auf
-  sich selbst. `createItem` und `updateItem` lehnen jede Änderung ab, die einen
-  neuen Verstoß brächte (`neuerFadenVerstoss` in `modell.mjs`), gleich ob sie
-  aus dem Formular, einer Selbstaktion oder dem Brett kommt.
+  sich selbst, und eine Karte gehört zu genau einem Ziel. `createItem` und
+  `updateItem` lehnen jede Änderung ab, die einen neuen Verstoß brächte
+  (`neuerRegelVerstoss` in `modell.mjs`), gleich ob sie aus dem Formular,
+  einer Selbstaktion oder dem Brett kommt. Ein alter Verstoß blockiert nichts.
+- **Ein Brett je Schreibbewegung.** Jede Schreibbewegung schreibt in das Brett,
+  in dem sie begann; ein Brettwechsel wartet, bis sie fertig ist.
 - **Identität.** Dieser Connector kennt keine Anmeldung. Wer am Bildschirm
   sitzt, wählt sich im Benutzermenü („Wer bist du?“, `waehleIch`); gemerkt
-  wird das je Brett im Browser und als `getCurrentUser` geliefert. Ohne Wahl
-  ist es `did:karabirrdt:tisch`. `allowFixtureAuthors: true` bleibt: Autor
+  wird das je Brett im Browser und als `getCurrentUser` geliefert, und der
+  MockConnector darunter schreibt und prüft Autorenrechte mit derselben
+  Person. Ohne Wahl ist es `did:karabirrdt:tisch`. `allowFixtureAuthors: true` bleibt: Autor
   und Entstehungszeit kommen vom Server statt aus der Sitzung.
 - **Ids.** Neue Items bekommen hier eine zufällige Id; der MockConnector zählte
   `item-100`, `item-101` … je Sitzung, und zwei Browser überschrieben einander.

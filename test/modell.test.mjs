@@ -541,8 +541,8 @@ test("Fäden liegen an der Voraussetzung und lassen sich als Sicht lesen", () =>
   // Voraussetzungen und Nachfolger lesen dieselbe Sicht
   assert.deepEqual(voraussetzungen(faeden(items), "b"), ["a"]);
   assert.deepEqual(nachfolger(faeden(items), "a"), ["b"]);
-  // space-qualifizierte Ziele zählen wie lokale
-  assert.deepEqual(faeden([{ ...kk("a", 0), relations: [{ predicate: FADEN_PRAEDIKAT, target: "space:x/item:b" }] }])[0].to, "item:b");
+  // space-qualifizierte Ziele zeigen in einen anderen Space: kein Faden dieses Bretts
+  assert.deepEqual(faeden([{ ...kk("a", 0), relations: [{ predicate: FADEN_PRAEDIKAT, target: "space:x/item:b" }] }]), []);
 });
 
 test("Faden ziehen und lösen ändert nur die Relations der Voraussetzung", () => {
@@ -722,4 +722,49 @@ test("die Höhe des Zeilenkopfs wächst mit dem Text und deckelt bei drei Zeilen
   // und die Zeile folgt dem gemessenen Block, nicht der Schätzung
   const ziele = [{ id: "z1", type: ZIEL_TYP, data: { title: "Z", dots: 0, order: 0 } }];
   assert.equal(layout(ziele, [], { z1: 140 }).zeilen[0].h, 140 + MASSE.rowPad * 2);
+});
+
+// ------------------------------------------ Codex-Review Runde 1 (28.09.)
+
+import { lokaleId, regelVerstoesse, neuerRegelVerstoss } from "../modell.mjs";
+
+test("nur lokale Ziele sind Fäden: space-qualifizierte Kanten bleiben unberührt", () => {
+  assert.equal(lokaleId("item:b"), "b");
+  assert.equal(lokaleId("space:fremd/item:b"), null);
+  assert.equal(lokaleId("global:user:x"), null);
+  const fremd = { predicate: FADEN_PRAEDIKAT, target: "space:fremd/item:b" };
+  const a = { ...kk("a", 0), relations: [...kk("a", 0).relations, fremd] };
+  const b = kk("b", 3);
+  // keine Sicht, keine Regel, keine Reparatur, kein Löschen des fremden Fadens
+  assert.deepEqual(faeden([a, b]), []);
+  assert.deepEqual(verwaisteFaeden([a]), []);
+  assert.deepEqual(kaskade([a, b], "b").aendern, []);
+  // ohneFaden zum lokalen b lässt den fremden stehen
+  assert.deepEqual(ohneFaden({ relations: [...a.relations, { predicate: FADEN_PRAEDIKAT, target: "item:b" }] }, "b").at(-1), fremd);
+});
+
+test("Umzug: Datensätze mit fremdem Endpunkt bleiben Datensätze", () => {
+  const items = [kk("a", 0), kk("b", 3)];
+  const relations = [
+    { id: "r1", predicate: FADEN_PRAEDIKAT, from: "item:a", to: "space:fremd/item:b" },
+    { id: "r2", predicate: FADEN_PRAEDIKAT, from: "space:fremd/item:a", to: "item:b" },
+  ];
+  const f = faedenEinbetten(items, relations);
+  assert.deepEqual(f.items, []);
+  assert.deepEqual(f.entfernt, []);
+  assert.deepEqual(f.verwaist, []);
+  assert.deepEqual(umziehen(items, relations).relations.map((r) => r.id), ["r1", "r2"]);
+});
+
+test("Regel: eine Karte gehört zu genau einem Ziel — neue Verstöße zählen, alte blockieren nicht", () => {
+  const ohne = { ...kk("a", 0), relations: [] };
+  const zwei = { ...kk("a", 0), relations: [{ predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:z" }, { predicate: ZUGEHOERIG_PRAEDIKAT, target: "item:y" }] };
+  assert.equal(regelVerstoesse([kk("a", 0)]).size, 0);
+  assert.match(neuerRegelVerstoss([kk("a", 0)], [ohne]), /genau einem Ziel/);
+  assert.match(neuerRegelVerstoss([kk("a", 0)], [zwei]), /genau einem Ziel/);
+  // eine schon verwaiste Karte darf anders bearbeitet werden — und ein Ziel bekommen
+  assert.equal(neuerRegelVerstoss([ohne], [{ ...ohne, data: { title: "neu" } }]), null);
+  assert.equal(neuerRegelVerstoss([ohne], [kk("a", 0)]), null);
+  // Fäden zählen weiter mit
+  assert.match(neuerRegelVerstoss([kk("a", 5), kk("b", 3)], [kk("a", 5, ["b"]), kk("b", 3)]), /nur nach rechts/);
 });
