@@ -30,7 +30,11 @@ let aufrufe: { methode: string; pfad: string; koerper?: unknown }[] = []
 /** Solange gesetzt, warten schreibende Anfragen darauf — so lässt sich „mitten im Löschen" nachstellen. */
 let bremse: Promise<void> | null = null
 
+let sockets: StillerSocket[] = []
 class StillerSocket {
+  constructor() {
+    sockets.push(this)
+  }
   onopen: (() => void) | null = null
   onmessage: ((e: { data: string }) => void) | null = null
   onclose: (() => void) | null = null
@@ -41,6 +45,7 @@ class StillerSocket {
 beforeEach(() => {
   aufrufe = []
   bremse = null
+  sockets = []
   localStorage.clear()
   vi.stubGlobal("WebSocket", StillerSocket)
   vi.stubGlobal(
@@ -138,6 +143,34 @@ describe("ServerConnector", () => {
       connector.updateItem("d", { relations: [...(d.relations ?? []), { predicate: "blocks", target: "item:c" }] }),
     ])
     expect(ergebnisse.map((e) => e.status).sort()).toEqual(["fulfilled", "rejected"])
+  })
+
+  it("ein verspätetes Echo einer älteren eigenen Änderung setzt die neuere nicht zurück", async () => {
+    const { connector } = await erstelleServerConnector("haupt")
+    const c = (await connector.getItem("c"))!
+    await connector.updateItem("c", { data: { ...c.data, title: "c umbenannt" } })
+    const erstePut = aufrufe.filter((x) => x.methode === "PUT").at(-1)!.koerper
+    const c2 = (await connector.getItem("c"))!
+    await connector.updateItem("c", { relations: [...(c2.relations ?? []), { predicate: "blocks", target: "item:b" }].slice(0, 1).concat([{ predicate: "blocks", target: "item:c-neu" }]) })
+    // jetzt kommt das Echo der ERSTEN Änderung an
+    sockets.at(-1)!.onmessage?.({ data: JSON.stringify({ type: "item", id: "c", data: erstePut }) })
+    await new Promise((r) => setTimeout(r, 0))
+    const jetzt = (await connector.getItem("c"))!
+    expect(jetzt.relations?.some((r) => r.target === "item:c-neu")).toBe(true)
+  })
+
+  it("die Wahl „Wer bist du?“ gilt auch, wenn der Browser nichts speichern darf", async () => {
+    const { connector } = await erstelleServerConnector("haupt")
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("voll")
+    })
+    try {
+      if (!hatIchWahl(connector)) throw new Error("keine Wahl")
+      connector.waehleIch("user:anton")
+      expect((await connector.getCurrentUser())?.id).toBe("user:anton")
+    } finally {
+      setItem.mockRestore()
+    }
   })
 
   it("neue Items bekommen eine zufällige Id, keine hochgezählte", async () => {

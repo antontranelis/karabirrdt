@@ -175,8 +175,12 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
   }
   setzeMitglieder(startBrett, daten.members ?? [])
 
+  // Die Wahl gilt aus dem Arbeitsspeicher; der Browserspeicher ist nur die
+  // Erinnerung über ein Neuladen hinaus. Darf der Browser nichts speichern,
+  // gilt die Wahl bis zum Neuladen.
+  const gewaehlt = new Map<string, string | null>()
   const ichVon = (brett: string): User => {
-    const id = liesIch(brett)
+    const id = gewaehlt.has(brett) ? gewaehlt.get(brett) : liesIch(brett)
     return (id && (mitglieder.get(brett) ?? []).find((u) => u.id === id)) || TISCH
   }
   const ichObs = createObservable<User | null>(ichVon(startBrett))
@@ -196,16 +200,26 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
   aktualisiereIch()
 
   // Was wir gerade selbst geschrieben haben, kommt über die WebSocket zurück.
-  // Signatur merken und die Rückmeldung überspringen, statt sie erneut
-  // anzuwenden.
-  const eigene = new Map<string, string>()
-  const merke = (schluessel: string, wert: unknown) => eigene.set(schluessel, JSON.stringify(wert ?? null))
+  // ALLE ausstehenden Signaturen je Schlüssel merken, in Reihenfolge: Kommt
+  // das Echo einer älteren eigenen Änderung erst nach einer neueren an, ist es
+  // trotzdem unseres und wird übersprungen — sonst setzte es den neueren
+  // lokalen Stand zurück (Codex, Runde 3). Mit dem Echo fallen auch alle
+  // älteren Signaturen weg; der Server hat sie hinter sich.
+  const eigene = new Map<string, string[]>()
+  const merke = (schluessel: string, wert: unknown) => {
+    const liste = eigene.get(schluessel) ?? []
+    liste.push(JSON.stringify(wert ?? null))
+    eigene.set(schluessel, liste)
+  }
   const warSelbst = (schluessel: string, wert: unknown) => {
-    const erwartet = eigene.get(schluessel)
-    if (erwartet === undefined || erwartet !== JSON.stringify(wert ?? null)) return false
-    eigene.delete(schluessel)
+    const liste = eigene.get(schluessel)
+    const i = liste ? liste.indexOf(JSON.stringify(wert ?? null)) : -1
+    if (!liste || i < 0) return false
+    liste.splice(0, i + 1)
+    if (!liste.length) eigene.delete(schluessel)
     return true
   }
+
 
   const schreibeAn = async (brett: string, pfad: string, methode: string, koerper?: unknown) => {
     try {
@@ -327,14 +341,16 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
         await pruefeRegeln((vorher) => [...vorher, { createdAt: "", ...mitId } as Item])
         // `options.group` fällt weg: Dieser Connector legt nur im offenen Brett an.
         const item = await mock.createItem(mitId)
-        void sendeItem(brett, item)
+        // Der Server-Schreibzugriff gehört in die Schlange: Der nächste Schritt
+        // beginnt erst, wenn dieser beim Server ist, die Reihenfolge bleibt.
+        await sendeItem(brett, item)
         return item
       }),
     updateItem: (id: string, aenderungen: Partial<Item>) =>
       exklusiv(async (brett) => {
         await pruefeRegeln((vorher) => vorher.map((i) => (i.id === id ? ({ ...i, ...aenderungen, id } as Item) : i)))
         const item = await mock.updateItem(id, aenderungen)
-        void sendeItem(brett, item)
+        await sendeItem(brett, item)
         return item
       }),
     /**
@@ -374,14 +390,14 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
       exklusiv(async (brett) => {
         const record = await mock.createRelationRecord(eingabe)
         merke(`relation:${record.id}`, record)
-        void schreibeAn(brett, `/relations/${encodeURIComponent(record.id)}`, "PUT", record)
+        await schreibeAn(brett, `/relations/${encodeURIComponent(record.id)}`, "PUT", record)
         return record
       }),
     updateRelationRecord: (id: string, aenderungen: RelationRecordUpdate) =>
       exklusiv(async (brett) => {
         const record = await mock.updateRelationRecord(id, aenderungen)
         merke(`relation:${record.id}`, record)
-        void schreibeAn(brett, `/relations/${encodeURIComponent(id)}`, "PUT", record)
+        await schreibeAn(brett, `/relations/${encodeURIComponent(id)}`, "PUT", record)
         return record
       }),
     deleteRelationRecord: (id: string) =>
@@ -395,6 +411,7 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
     getCurrentUser: async () => ichObs.current,
     observeCurrentUser: () => ichObs,
     waehleIch: (userId: string | null) => {
+      gewaehlt.set(aktuell, userId)
       merkeIch(aktuell, userId)
       aktualisiereIch()
     },
