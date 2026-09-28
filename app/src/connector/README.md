@@ -69,12 +69,13 @@ diesen Server. Was dabei zu prüfen ist:
   `updateItem` lehnen jede Änderung ab, die einen neuen Verstoß brächte
   (`neuerRegelVerstoss` in `modell.mjs`), gleich ob sie aus dem Formular,
   einer Selbstaktion oder dem Brett kommt. Ein alter Verstoß blockiert nichts.
-- **Nacheinander, ein Brett je Schreibbewegung.** Schreibbewegungen laufen in
-  einer Schlange: jede prüft die Regeln gegen den Stand nach der vorigen und
-  schreibt in das Brett, in dem sie begann; ein Brettwechsel wartet, bis die
-  Schlange leer ist. Ein offenes Formular hält das Brett zusätzlich fest
-  (`halteBrett`), weil der Composer nach dem Speichern noch an andere Karten
-  schreibt („Braucht“); ein Wechsel in der Zeit geschieht danach.
+- **Bekannte Grenzen dieses Syncs.** Der Server schreibt ganze Dokumente,
+  der letzte Schreiber gewinnt, und das Echo erkennt nur die letzte eigene
+  Signatur je Item. Daraus folgen die Einschränkungen in
+  [`docs/rls-kompatibel.md`](../../../docs/rls-kompatibel.md#bekannte-einschränkungen)
+  (kein Brettwechsel bei offenem Formular; gleichzeitiges Bearbeiten derselben
+  Karte kann sich überschreiben). Sie werden nicht hier geflickt, sondern mit
+  dem Wechsel auf einen Stack-Connector gelöst.
 - **Identität.** Dieser Connector kennt keine Anmeldung. Wer am Bildschirm
   sitzt, wählt sich im Benutzermenü („Wer bist du?“, `waehleIch`); gemerkt
   wird das je Brett im Browser und als `getCurrentUser` geliefert, und der

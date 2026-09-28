@@ -109,6 +109,34 @@ Der Server muss dabei gestoppt sein, oder das Skript läuft gegen eine Kopie
 (`--db`): Ein Browser mit der alten App schriebe sonst Karten ohne ihre Fäden
 zurück. Ein JSON-Import im alten Format wird beim Import genauso umgezogen.
 
+## Bekannte Einschränkungen
+
+Der Abgleich zwischen Browser und Server ist ein Eigenbau (`ServerConnector`,
+Lücke 17): Der Browser hält einen MockConnector, der nur das offene Brett
+kennt, und schickt nach jeder Änderung das **ganze** Item per PUT an den
+Server; der letzte Schreiber gewinnt, ohne Versionsvergleich. Das Formular des
+Toolkits speichert seit S3 in mehreren Schritten (Item, dann „Braucht“ an
+anderen Karten, dann Selbstaktion und Status). Daraus folgt, bis die App auf
+einen Stack-Connector umzieht (Anton, 28.09.: eigene Aufgabe, Supabase):
+
+- **Kein Brettwechsel bei offenem Formular.** Wer während des Speicherns das
+  Brett wechselt, kann die späteren Schritte („Braucht“) in das neue Brett
+  schreiben, wenn es dort eine Karte mit derselben Id gibt. Erst speichern
+  oder abbrechen, dann wechseln.
+- **Gleichzeitiges Bearbeiten derselben Karte kann sich überschreiben.** Seit
+  die Fäden eingebettet an der Voraussetzung liegen, ändern ein neuer Faden
+  und eine Titeländerung dasselbe Dokument; kommen beide gleichzeitig (zwei
+  Browser, oder ein verspätetes Echo), gewinnt das zuletzt geschriebene.
+- **Die Regeln des Bretts prüft jeder Browser gegen seinen Stand.** Zwei
+  gleichzeitige Änderungen, einzeln erlaubt, können zusammen einen Kreis
+  ergeben.
+
+Die Codex-Runden 2 bis 5 fanden genau hier je einen neuen Fehler; die
+Härtungen dafür (Schreibschlange, Echo-Liste, Brett-Halt) sind wieder
+herausgenommen, weil sie nur den Eigenbau stützten. Die Lösung ist der Umzug
+auf einen Connector mit Space-Scope und Realtime
+(`.agents/plans/karabirrdt-supabase-brief.md`).
+
 ## Welche Toolkit-Bausteine benutzt werden
 
 | Baustein | wofür |

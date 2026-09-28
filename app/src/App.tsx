@@ -48,7 +48,7 @@ import { IchDialog } from "./panels/ich-dialog"
 import { PruefungPanel } from "./panels/pruefung-panel"
 import { SpaceDialog } from "./panels/space-dialog"
 import { STARTZIELE } from "./startziele"
-import { TISCH, hatBrettHalt, hatIchWahl } from "./connector/server-connector"
+import { TISCH, hatIchWahl } from "./connector/server-connector"
 import { mitPosition, useAbbildung, useComposerProps, type Zelle } from "./composer"
 import {
   KARTEN_TYP,
@@ -127,14 +127,6 @@ export default function App() {
   }, [pick, bearbeiten])
   useEffect(() => oeffne(null), [brett, oeffne])
 
-  // Ein offenes Formular hält das Brett fest: Nach dem Speichern schreibt es
-  // noch an andere Karten („Braucht“), und die müssen im selben Brett liegen.
-  // Ein Wechsel in der Zeit geschieht danach.
-  const formularOffen = bearbeiten || ansicht?.art === "neu" || ansicht?.art === "anlegen"
-  useEffect(() => {
-    if (!hatBrettHalt(connector)) return
-    connector.halteBrett(formularOffen)
-  }, [connector, formularOffen])
 
   // ------------------------------------------------------------ Fokus
   //
@@ -193,10 +185,9 @@ export default function App() {
 
   const wechsleRaum = useCallback(
     (w: Workspace) => {
-      if (formularOffen && w.id !== brett) setMeldung("Das Brett wechselt, sobald das Formular gespeichert oder abgebrochen ist.")
       if (hasGroups(connector)) connector.setCurrentGroup(w.id)
     },
-    [connector, formularOffen, brett],
+    [connector],
   )
 
   // --------------------------------------------------------------- Brett
