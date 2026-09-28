@@ -69,8 +69,10 @@ diesen Server. Was dabei zu prüfen ist:
   `updateItem` lehnen jede Änderung ab, die einen neuen Verstoß brächte
   (`neuerRegelVerstoss` in `modell.mjs`), gleich ob sie aus dem Formular,
   einer Selbstaktion oder dem Brett kommt. Ein alter Verstoß blockiert nichts.
-- **Ein Brett je Schreibbewegung.** Jede Schreibbewegung schreibt in das Brett,
-  in dem sie begann; ein Brettwechsel wartet, bis sie fertig ist.
+- **Nacheinander, ein Brett je Schreibbewegung.** Schreibbewegungen laufen in
+  einer Schlange: jede prüft die Regeln gegen den Stand nach der vorigen und
+  schreibt in das Brett, in dem sie begann; ein Brettwechsel wartet, bis die
+  Schlange leer ist.
 - **Identität.** Dieser Connector kennt keine Anmeldung. Wer am Bildschirm
   sitzt, wählt sich im Benutzermenü („Wer bist du?“, `waehleIch`); gemerkt
   wird das je Brett im Browser und als `getCurrentUser` geliefert, und der

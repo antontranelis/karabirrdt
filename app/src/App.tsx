@@ -31,6 +31,7 @@ import {
   useInviteMember,
   useItems,
   useMembers,
+  useRelationRecords,
   useRemoveMember,
   useSharedFilter,
   useUpdateGroup,
@@ -83,6 +84,9 @@ export default function App() {
   const { data: ziele } = useItems({ type: ZIEL_TYP })
   const { data: karten } = useItems({ type: KARTEN_TYP })
   const faeden = useMemo(() => faedenVon(karten), [karten])
+  // Übrige RelationRecords (etwa Fäden in einen anderen Space, die der Umzug
+  // bewahrt): Sie gehören in den Export, sonst löschte ein Rück-Import sie.
+  const { data: datensaetze } = useRelationRecords()
   const anlegen = useCreateItem()
   const aendere = useUpdateItem()
   const gruppeAnlegen = useCreateGroup()
@@ -353,7 +357,7 @@ export default function App() {
         brett={brett}
         group={group}
         items={[...ziele, ...karten]}
-        relations={[]}
+        relations={datensaetze}
       />
 
       <IchDialog

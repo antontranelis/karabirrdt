@@ -233,26 +233,31 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
   }
 
   /**
-   * Jede Schreibbewegung gehört dem Brett, in dem sie begann. Der Mock kennt
-   * nur ein offenes Brett; wechselte es mitten in einer Folge von Schritten
-   * (Löschen mit Anhang), landeten die späteren Schritte im neuen Brett — und
-   * löschten dort ein gleichnamiges Item. Darum wartet ein Wechsel, bis alle
-   * laufenden Schreibbewegungen fertig sind.
+   * Schreibbewegungen laufen nacheinander, jede in dem Brett, in dem sie
+   * begann. Nacheinander, weil jede die Regeln gegen den Stand VOR ihr prüft:
+   * Zwei gleichzeitige Änderungen, einzeln erlaubt, ergäben sonst zusammen
+   * einen Kreis. Im begonnenen Brett, weil der Mock nur ein offenes Brett
+   * kennt: Wechselte es mitten in einer Folge von Schritten (Löschen mit
+   * Anhang), landeten die späteren Schritte im neuen Brett und löschten dort
+   * ein gleichnamiges Item. Ein Brettwechsel wartet darum, bis die Schlange
+   * leer ist.
    */
   let laufend = 0
   let wechselNach: string | null = null
-  const exklusiv = async <T>(schritt: (brett: string) => Promise<T>): Promise<T> => {
+  let schlange: Promise<unknown> = Promise.resolve()
+  const exklusiv = <T>(schritt: (brett: string) => Promise<T>): Promise<T> => {
     laufend++
-    try {
-      return await schritt(aktuell)
-    } finally {
+    const lauf = schlange.then(() => schritt(aktuell))
+    const fertig = lauf.finally(() => {
       laufend--
       if (laufend === 0 && wechselNach) {
         const ziel = wechselNach
         wechselNach = null
         wechsle(ziel)
       }
-    }
+    })
+    schlange = fertig.catch(() => {})
+    return fertig
   }
 
   // ---------------------------------------------------- Brett wechseln

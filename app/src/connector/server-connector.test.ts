@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { hasGroupScope, hasItemGroups, hasRelationRecordWriter, type Item } from "@real-life-stack/data-interface"
+import { hasGroupScope, hasItemGroups, hasRelationRecords, hasRelationRecordWriter, type Item } from "@real-life-stack/data-interface"
 import { erstelleServerConnector, hatIchWahl, TISCH } from "./server-connector"
 
 // Ein Server im Speicher: GET liefert das Brett, PUT/DELETE werden mitgeschrieben.
@@ -19,7 +19,10 @@ const brett = () => ({
     karte("b", 3),
     karte("c", 5),
   ],
-  relations: [],
+  relations: [
+    // ein Faden in einen anderen Space: bleibt Datensatz (Umzug), muss im Export mitkommen
+    { id: "r-fremd", predicate: "blocks", from: "item:a", to: "space:anders/item:b", createdBy: TISCH.id, createdAt: "2026-09-28T00:00:00Z" },
+  ],
   members: [{ id: "user:anton", displayName: "Anton" }],
 })
 
@@ -114,6 +117,27 @@ describe("ServerConnector", () => {
     await expect(
       connector.updateItem("b", { relations: [{ predicate: "partOf", target: "item:z" }, { predicate: "partOf", target: "item:y" }] }),
     ).rejects.toThrow(/genau einem Ziel/)
+  })
+
+  it("bewahrte Datensätze bleiben über den Connector lesbar (für den Export)", async () => {
+    const { connector } = await erstelleServerConnector("haupt")
+    if (!hasRelationRecords(connector)) throw new Error("keine Datensätze")
+    const alle = await connector.getRelationRecords({})
+    expect(alle.map((r) => r.id)).toContain("r-fremd")
+  })
+
+  it("zwei gleichzeitige Änderungen, einzeln erlaubt und zusammen ein Kreis, werden nicht beide angenommen", async () => {
+    const { connector } = await erstelleServerConnector("haupt")
+    // b (3) und c (5) auf dieselbe Stufe bringen wäre Umzug; einfacher: a→b besteht, b→a ergäbe Kreis.
+    // Hier zwei neue Fäden zwischen c und d auf gleicher Stufe, parallel:
+    await connector.createItem({ id: "d", type: "task", createdBy: TISCH.id, data: { title: "d", stage: 5 }, relations: [{ predicate: "partOf", target: "item:z" }] })
+    const c = (await connector.getItem("c"))!
+    const d = (await connector.getItem("d"))!
+    const ergebnisse = await Promise.allSettled([
+      connector.updateItem("c", { relations: [...(c.relations ?? []), { predicate: "blocks", target: "item:d" }] }),
+      connector.updateItem("d", { relations: [...(d.relations ?? []), { predicate: "blocks", target: "item:c" }] }),
+    ])
+    expect(ergebnisse.map((e) => e.status).sort()).toEqual(["fulfilled", "rejected"])
   })
 
   it("neue Items bekommen eine zufällige Id, keine hochgezählte", async () => {
