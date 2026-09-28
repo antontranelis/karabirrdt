@@ -72,7 +72,9 @@ diesen Server. Was dabei zu prüfen ist:
 - **Nacheinander, ein Brett je Schreibbewegung.** Schreibbewegungen laufen in
   einer Schlange: jede prüft die Regeln gegen den Stand nach der vorigen und
   schreibt in das Brett, in dem sie begann; ein Brettwechsel wartet, bis die
-  Schlange leer ist.
+  Schlange leer ist. Ein offenes Formular hält das Brett zusätzlich fest
+  (`halteBrett`), weil der Composer nach dem Speichern noch an andere Karten
+  schreibt („Braucht“); ein Wechsel in der Zeit geschieht danach.
 - **Identität.** Dieser Connector kennt keine Anmeldung. Wer am Bildschirm
   sitzt, wählt sich im Benutzermenü („Wer bist du?“, `waehleIch`); gemerkt
   wird das je Brett im Browser und als `getCurrentUser` geliefert, und der

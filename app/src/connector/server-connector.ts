@@ -63,6 +63,17 @@ const NICHT_GEMELDET = new Set<string | symbol>(["groupScope", "moveItemToGroup"
 export interface IchWahl {
   waehleIch(userId: string | null): void
 }
+/**
+ * Ein offenes Formular hält das Brett fest. Der Composer schreibt nach dem
+ * Speichern noch an ANDERE Items („Braucht“); wechselte das Brett dazwischen,
+ * landete das im neuen Brett bei einem gleichnamigen Item (Codex, Runde 4).
+ * Solange gehalten wird, wartet jeder Wechsel — auch Zurück im Browser — und
+ * geschieht beim Loslassen.
+ */
+export interface BrettHalt {
+  halteBrett(an: boolean): void
+}
+export const hatBrettHalt = (c: unknown): c is BrettHalt => typeof (c as Partial<BrettHalt>)?.halteBrett === "function"
 export const hatIchWahl = (c: unknown): c is IchWahl => typeof (c as Partial<IchWahl>)?.waehleIch === "function"
 const ichSchluessel = (brett: string) => `karabirrdt:ich:${brett}`
 function liesIch(brett: string): string | null {
@@ -257,18 +268,22 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
    * leer ist.
    */
   let laufend = 0
+  let gehalten = false
   let wechselNach: string | null = null
+  const wechsleWennFrei = () => {
+    if (laufend === 0 && !gehalten && wechselNach) {
+      const ziel = wechselNach
+      wechselNach = null
+      wechsle(ziel)
+    }
+  }
   let schlange: Promise<unknown> = Promise.resolve()
   const exklusiv = <T>(schritt: (brett: string) => Promise<T>): Promise<T> => {
     laufend++
     const lauf = schlange.then(() => schritt(aktuell))
     const fertig = lauf.finally(() => {
       laufend--
-      if (laufend === 0 && wechselNach) {
-        const ziel = wechselNach
-        wechselNach = null
-        wechsle(ziel)
-      }
+      wechsleWennFrei()
     })
     schlange = fertig.catch(() => {})
     return fertig
@@ -307,7 +322,7 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
 
   /** Wechseln — sofort, oder nach der laufenden Schreibbewegung. */
   const wechsleSobaldFrei = (brett: string) => {
-    if (laufend > 0) wechselNach = brett
+    if (laufend > 0 || gehalten) wechselNach = brett
     else wechsle(brett)
   }
 
@@ -406,6 +421,11 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
         merke(`relation:${id}`, null)
         await schreibeAn(brett, `/relations/${encodeURIComponent(id)}`, "DELETE")
       }),
+
+    halteBrett: (an: boolean) => {
+      gehalten = an
+      wechsleWennFrei()
+    },
 
     // --- Wer bin ich ---
     getCurrentUser: async () => ichObs.current,

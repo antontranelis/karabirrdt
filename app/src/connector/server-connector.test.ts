@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { hasGroupScope, hasItemGroups, hasRelationRecords, hasRelationRecordWriter, type Item } from "@real-life-stack/data-interface"
-import { erstelleServerConnector, hatIchWahl, TISCH } from "./server-connector"
+import { erstelleServerConnector, hatBrettHalt, hatIchWahl, TISCH } from "./server-connector"
 
 // Ein Server im Speicher: GET liefert das Brett, PUT/DELETE werden mitgeschrieben.
 const karte = (id: string, stage: number, nach: string[] = []): Item => ({
@@ -113,6 +113,20 @@ describe("ServerConnector", () => {
     const geschrieben = aufrufe.filter((x) => x.methode !== "GET").map((x) => `${x.methode} ${x.pfad}`)
     expect(geschrieben).toEqual(["PUT /api/b/haupt/items/a", "DELETE /api/b/haupt/items/b"])
     // und danach steht das Brett wirklich auf „zwei"
+    expect((await connector.getCurrentGroup())?.id).toBe("zwei")
+  })
+
+  it("solange ein Formular das Brett festhält, wartet jeder Wechsel bis zum Loslassen", async () => {
+    const { connector } = await erstelleServerConnector("haupt")
+    if (!hatBrettHalt(connector)) throw new Error("kein Festhalten")
+    connector.halteBrett(true)
+    connector.setCurrentGroup("zwei")
+    expect((await connector.getCurrentGroup())?.id).toBe("haupt")
+    // Schreiben nach dem Wunsch zu wechseln (wie „Braucht“ nach dem Speichern) bleibt im alten Brett
+    const a = (await connector.getItem("a"))!
+    await connector.updateItem("a", { data: { ...a.data, title: "a2" } })
+    expect(aufrufe.filter((x) => x.methode === "PUT").at(-1)?.pfad).toBe("/api/b/haupt/items/a")
+    connector.halteBrett(false)
     expect((await connector.getCurrentGroup())?.id).toBe("zwei")
   })
 
