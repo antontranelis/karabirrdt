@@ -99,7 +99,9 @@ Daten aus der Zeit vor toolkit 0.3.0 um, idempotent:
    mit einem Endpunkt in einem anderen Space bleiben Datensätze; Datensätze
    ohne Voraussetzung fallen weg, eingebettete Fäden ins Leere werden entfernt.
 2. `wantsToLearn` → `assignedTo` mit `meta.role: "learns"`. Ein `assignedTo`
-   ohne Rolle bleibt, wie es ist (gilt als „kann").
+   ohne Rolle bekommt `meta.role: "can"` ausgeschrieben (Lücke 19). Neue
+   Zuweisungen aus dem Formular tragen die Rolle schon: Das Toolkit setzt
+   ohne Standard den ersten Wert („kann").
 3. Aufwand 0: Das alte Formular schrieb in jede Karte 0 Stunden und 0 Euro,
    gemeint war „nicht geschätzt". Nach der Stack-Regel erzeugt ein leeres Feld
    keine Zeile, eine 0 aber „0 h · 0 €" — die 0 fällt weg. `/alt` liest
@@ -391,9 +393,10 @@ umgangen.
    `assignedTo` ohne Rolle (alle Zuweisungen aus der Zeit vor dem Umzug)
    steht als „Jonas“ statt „Jonas kann“ da, im Formular als „Jonas · …“, und
    die Pill-Zeile zeigt für mich „✓ Dabei“ neben „Kann ich“ · „Will lernen“.
-   *Vorschlag:* `default` am `QualifierValuesEntry` (höchstens eine Schicht je
-   Kante), oder der Umzug schreibt `role: "can"` ausdrücklich (Anton
-   entscheidet; heute bleibt die Kante ohne Rolle, wie verlangt).
+   *Im Karabirrdt gelöst (Anton 29.09.):* Der Umzug schreibt `role: "can"`
+   ausdrücklich; die Daten lassen sich jederzeit als JSON exportieren und
+   anders umformen. *Für andere Apps bleibt der Vorschlag:* `default` am
+   `QualifierValuesEntry` (höchstens eine Schicht je Kante).
 20. **Rückwärts-Listen kennen keine Gruppierung und keine Zusatzspalte.**
    `EdgeEntry.list` hat nur `filter` und `sort`; die Zeilen-Dekoration
    (`ListRowDecoration.trailing`) gibt es nur für benannte Abfragen. Die
@@ -430,6 +433,10 @@ umgangen.
    Nutzer auf.** Items, die der Tisch angelegt hat (alle aus der Zeit vor der
    Wahl „Wer bist du?“), stehen als „Erstellt von did:karabirrdt:tisch“ da,
    sobald jemand gewählt hat. *Vorschlag:* `connector.getUser` als Rückfall.
+   *Entscheidung Anton 29.09.:* Wer die Karten angelegt hat, muss niemand
+   wissen; bis dahin bleibt die Anzeige so. Wenn das Karabirrdt ein fertiges
+   Modul im Real Life Stack ist, gilt wie bei den Aussagen: Wer das JSON
+   importiert, gilt als Autor der Karten.
 28. **Brett-Regeln haben keinen Haken im Formular.** „Fäden laufen nur nach
    rechts“ und „eine Karte gehört zu genau einem Ziel“ (das Formular erlaubt
    bei „Teil von“ keinen und mehrere Chips) prüft der Connector bei jedem

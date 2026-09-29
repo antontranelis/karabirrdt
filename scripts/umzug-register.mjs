@@ -6,7 +6,7 @@
 //      Richtung bleibt. Datensätze, deren Voraussetzung es nicht mehr gibt,
 //      fallen weg; eingebettete Fäden ins Leere werden entfernt.
 //   2. „Will lernen": `wantsToLearn` → `assignedTo` mit `meta.role: "learns"`.
-//      Ein `assignedTo` ohne Rolle bleibt, wie es ist (gilt als „kann").
+//      Ein `assignedTo` ohne Rolle bekommt `meta.role: "can"` ausgeschrieben.
 //
 // Zweimal laufen ändert nichts. Der Server muss gestoppt sein (oder das
 // Skript läuft gegen eine Kopie mit `--db`): Ein Browser mit der alten App
