@@ -603,6 +603,33 @@ test("Umzug: wantsToLearn wird assignedTo mit Rolle learns, assignedTo ohne Roll
   assert.equal(zweiter.item, item);
 });
 
+test("Umzug: assignedTo ohne Rolle bekommt role can ausgeschrieben, andere Rollen bleiben", () => {
+  const karte = {
+    ...kk("a", 0),
+    relations: [
+      { predicate: ZUWEISUNG, target: "global:user:anton" },
+      { predicate: ZUWEISUNG, target: "global:user:emil", meta: { note: "x" } },
+      { predicate: ZUWEISUNG, target: "global:user:timo", meta: { role: "learns" } },
+      { predicate: ZUWEISUNG, target: "global:user:agnes", meta: { role: "hilft" } },
+      { predicate: "attends", target: "global:user:jonas" },
+    ],
+  };
+  const { items, geaendert } = umziehen([karte, kk("b", 0)], []);
+  assert.deepEqual(geaendert, ["a"]);
+  assert.deepEqual(items[0].relations, [
+    { predicate: ZUWEISUNG, target: "global:user:anton", meta: { role: "can" } },
+    { predicate: ZUWEISUNG, target: "global:user:emil", meta: { note: "x", role: "can" } },
+    { predicate: ZUWEISUNG, target: "global:user:timo", meta: { role: "learns" } },
+    { predicate: ZUWEISUNG, target: "global:user:agnes", meta: { role: "hilft" } },
+    { predicate: "attends", target: "global:user:jonas" },
+  ]);
+  assert.deepEqual(zugewiesen(items[0], "can"), ["user:anton", "user:emil"]);
+  // „will lernen" aus dem alten Prädikat landet als learns, nicht als can
+  const lernend = umziehen([{ ...kk("c", 0), relations: [{ predicate: LERNT_ALT, target: "global:user:janosch" }] }], []);
+  assert.deepEqual(lernend.items[0].relations, [{ predicate: ZUWEISUNG, target: "global:user:janosch", meta: { role: "learns" } }]);
+  assert.deepEqual(umziehen(items, []).geaendert, []);
+});
+
 test("Umzug im Ganzen ist idempotent und lässt fremde Datensätze stehen", () => {
   const items = [kk("a", 0), { ...kk("b", 3), relations: [...kk("b", 3).relations, { predicate: LERNT_ALT, target: "global:u" }] }];
   const relations = [{ id: "r1", predicate: FADEN_PRAEDIKAT, from: "item:a", to: "item:b" }, { id: "r9", predicate: "x", from: "item:a", to: "item:b" }];

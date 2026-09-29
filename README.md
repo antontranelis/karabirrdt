@@ -151,7 +151,8 @@ gestoppt sein oder das Skript bekommt mit `--db` eine eigene Datei.
 Bretter aus der Zeit davor tragen Fäden als eigene Datensätze und „will
 lernen“ als eigenes Prädikat. Dieses Skript zieht beides in die Form um, die
 das Detail des Stacks liest (Fäden eingebettet an der Voraussetzung, „lernt“
-als Rolle an der Zuweisung) und entfernt Aufwand 0 („nicht geschätzt“):
+als Rolle an der Zuweisung, „kann“ ausgeschrieben an jeder Zuweisung ohne
+Rolle) und entfernt Aufwand 0 („nicht geschätzt“):
 
 ```bash
 npm run umzug -- --probe                 # alle Bretter, zeigt nur, was wäre

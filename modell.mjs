@@ -570,8 +570,8 @@ export async function normalisiereRls(json, optionen = {}) {
 //   1. Fäden als RelationRecord `blocks` (from = Voraussetzung, to = abhängige
 //      Karte) → eingebettet an der Voraussetzung, gleiche Richtung.
 //   2. „will lernen" als eigenes Prädikat `wantsToLearn` → `assignedTo` mit
-//      `meta.role: "learns"`. Ein `assignedTo` ohne Rolle bleibt, wie es ist
-//      (gilt als `can`).
+//      `meta.role: "learns"`. Ein `assignedTo` ohne Rolle bekommt
+//      `meta.role: "can"` ausgeschrieben (Anton 29.09.).
 // Beides ist idempotent: ein zweiter Lauf findet nichts mehr.
 
 /**
@@ -620,6 +620,19 @@ export function migriereLernen(item) {
   return { item: { ...item, relations: neu }, geaendert: true };
 }
 
+/**
+ * `assignedTo` ohne Rolle → `meta.role: "can"`. Das Register kann für den
+ * Qualifier keinen Standard setzen (Lücke 19); ohne ausgeschriebene Rolle
+ * stünde „Jonas" statt „Jonas kann" da. Andere Rollen bleiben, wie sie sind.
+ */
+export function rolleAusschreiben(item) {
+  const rel = item?.relations ?? [];
+  const ohne = (r) => r?.predicate === ZUWEISUNG && r?.meta?.role === undefined;
+  if (!istKarte(item) || !rel.some(ohne)) return { item, geaendert: false };
+  const relations = rel.map((r) => (ohne(r) ? { ...r, meta: { ...(r.meta ?? {}), role: ROLLE_KANN } } : r));
+  return { item: { ...item, relations }, geaendert: true };
+}
+
 /** Aufwand 0 (Stunden, Euro) als „nicht geschätzt": das Feld fällt weg. */
 export function ohneNullAufwand(item) {
   if (!istKarte(item)) return { item, geaendert: false };
@@ -639,8 +652,9 @@ export function umziehen(items, relations) {
   const neu = (items ?? []).map((i) => {
     const basis = ersetzt.get(i.id) ?? i;
     const l = migriereLernen(basis);
-    const n = ohneNullAufwand(l.item);
-    if (l.geaendert || n.geaendert) geaendert.add(i.id);
+    const r = rolleAusschreiben(l.item);
+    const n = ohneNullAufwand(r.item);
+    if (l.geaendert || r.geaendert || n.geaendert) geaendert.add(i.id);
     return n.item;
   });
   return {
