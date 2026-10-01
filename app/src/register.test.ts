@@ -1,16 +1,33 @@
 import { describe, expect, it } from "vitest"
 import { contentTypeFromRegister, resolveTypePresentation } from "@real-life-stack/toolkit"
-import { getTypeManifest } from "@real-life-stack/data-interface"
-import { bindeRegister } from "./register"
+import { TOOLKIT_TYPE_LAYER, composeTypeManifest, getTypeManifest } from "@real-life-stack/data-interface"
+import { setTypeManifest as setzeImToolkit } from "@real-life-stack/toolkit"
+import { KARABIRRDT_MANIFEST_LAYER, TYPE_MANIFEST, bindeRegister } from "./register"
 
 bindeRegister()
 
 describe("Register-Schicht der Karabirrdt-App", () => {
-  it("bindet das Manifest: Das Ziel nimmt Karten auf (←partOf) — in beiden Kopien", () => {
-    // Die Kopie, die der MockConnector importiert …
+  it("Toolkit und data-interface teilen EINEN Manifest-Zustand (Lücke 18, toolkit 0.4.0)", () => {
+    // Bis toolkit 0.3.0 bündelte das Toolkit eine eigene Kopie: Was über
+    // das Toolkit gebunden wurde, sah data-interface nicht.
+    const probe = composeTypeManifest([
+      TOOLKIT_TYPE_LAYER,
+      KARABIRRDT_MANIFEST_LAYER,
+      { name: "probe", extensions: [{ id: "project", relations: [{ predicate: "probe", itemRole: "to", otherKind: "task" }] }] },
+    ])
+    try {
+      setzeImToolkit(probe)
+      expect(getTypeManifest()).toBe(probe)
+    } finally {
+      setzeImToolkit(TYPE_MANIFEST)
+    }
+  })
+
+  it("bindet das Manifest einmal: Das Ziel nimmt Karten auf (←partOf), für MockConnector und Register", () => {
+    // Das Manifest, das der MockConnector aus data-interface liest …
     const ziel = getTypeManifest().get("project")
     expect(ziel?.relations).toContainEqual({ predicate: "partOf", itemRole: "to", otherKind: "task" })
-    // … und die im Toolkit gebündelte: Sie hätte die Liste ohne Manifest-Kante abgelehnt.
+    // … ist dasselbe, gegen das das Register die Liste „Karten" prüft.
     expect(resolveTypePresentation("project").edges?.some((e) => e.predicate === "partOf" && e.itemRole === "to")).toBe(true)
   })
 
@@ -22,6 +39,7 @@ describe("Register-Schicht der Karabirrdt-App", () => {
       ["euros", "€"],
     ])
     expect(felder.find((f) => f.key === "stage")?.pos).toBe("module")
+    expect(felder.find((f) => f.key === "stage")?.edit).toBe(false)
     // Kern-Status und Kern-Beschriftungen bleiben (Anton 28.09.)
     expect(felder.find((f) => f.key === "status")?.options?.map((o) => o.label)).toEqual(["To Do", "In Arbeit", "Erledigt"])
     const kanten = karte.edges ?? []
@@ -57,6 +75,19 @@ describe("Register-Schicht der Karabirrdt-App", () => {
     // Badge vom Fragment, Wort von der Basis
     expect(ziel.badge?.className).toMatch(/violet/)
     expect(ziel.label).toBe("Projekt")
+  })
+
+  it("die Liste „Karten“ ist nach Stufe gegliedert und zeigt rechts den Status (Lücke 20)", () => {
+    const liste = resolveTypePresentation("project").edges?.find((e) => e.pos === "list")
+    expect(liste?.list).toMatchObject({ group: "stage", trailing: "status" })
+    // Die Stufe ist eine Auswahl der zwölf Stufen (Spec 06 Regel 22: nur
+    // status/select/number) — so heißt die Gruppe „3 · Information“ statt „2“.
+    const stufe = resolveTypePresentation("task").fields?.find((f) => f.key === "stage")
+    expect(stufe?.widget).toBe("select")
+    expect(stufe?.pos).toBe("module")
+    expect(stufe?.options?.map((o) => o.id)).toEqual(Array.from({ length: 12 }, (_, i) => String(i)))
+    expect(stufe?.options?.[0]?.label).toBe("1 · Bewusstsein")
+    expect(stufe?.options?.[11]?.label).toBe("12 · Weisheit")
   })
 
   it("der Composer leitet sich daraus ab — ohne eigene Widgets", () => {

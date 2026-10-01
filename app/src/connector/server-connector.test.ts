@@ -120,14 +120,27 @@ describe("ServerConnector", () => {
     }
   })
 
-  it("neue Items bekommen eine zufällige Id, keine hochgezählte", async () => {
+  it("neue Items bekommen die zufällige Id des MockConnectors (mock-connector 0.2.3, Lücke 26)", async () => {
     const { connector } = await erstelleServerConnector("haupt")
     const zeile = [{ predicate: "partOf", target: "item:z" }]
     const a = await connector.createItem({ type: "task", createdBy: TISCH.id, data: { title: "x" }, relations: zeile })
     const b = await connector.createItem({ type: "task", createdBy: TISCH.id, data: { title: "y" }, relations: zeile })
-    expect(a.id).toMatch(/^[a-z0-9]{10}$/)
+    expect(a.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
     expect(a.id).not.toBe(b.id)
     expect(aufrufe.filter((x) => x.methode === "PUT").map((x) => x.pfad)).toEqual([`/api/b/haupt/items/${a.id}`, `/api/b/haupt/items/${b.id}`])
+  })
+
+  it("die Brett-Regeln gelten auch für ein neues Item, bevor es eine Id hat", async () => {
+    const { connector } = await erstelleServerConnector("haupt")
+    await expect(
+      connector.createItem({
+        type: "task",
+        createdBy: TISCH.id,
+        data: { title: "spät", stage: 5 },
+        relations: [{ predicate: "partOf", target: "item:z" }, { predicate: "blocks", target: "item:a" }],
+      }),
+    ).rejects.toThrow()
+    expect(aufrufe.filter((x) => x.methode === "PUT")).toEqual([])
   })
 
   it("„Wer bin ich“: ohne Wahl der Tisch, danach das gewählte Mitglied, gemerkt je Brett", async () => {

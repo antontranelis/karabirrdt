@@ -6,11 +6,11 @@ import {
   AppShell,
   AppShellMain,
   Button,
+  ColorSchemeToggle,
   CreateFab,
   EmptyState,
   FilterScope,
   GroupDialog,
-  ItemComposer,
   ItemFocusContext,
   ModuleFrame,
   ModuleToolbar,
@@ -19,8 +19,6 @@ import {
   NavbarStart,
   UserMenu,
   WorkspaceSwitcher,
-  applyFilterBarValue,
-  applyItemSearch,
   useConnector,
   useCreateGroup,
   useCreateItem,
@@ -31,9 +29,9 @@ import {
   useInviteMember,
   useItems,
   useMembers,
+  useModuleFilteredItems,
   useRelationRecords,
   useRemoveMember,
-  useSharedFilter,
   useUpdateGroup,
   useUpdateItem,
   type ContentComposerProps,
@@ -41,15 +39,16 @@ import {
   type ItemFocus,
   type Workspace,
 } from "@real-life-stack/toolkit"
-import { Moon, Settings2, Sparkles, Sun } from "lucide-react"
+import { Sparkles } from "lucide-react"
 import { KarabirrdtBoard } from "./board/karabirrdt-board"
 import { ItemDetail } from "./panels/item-detail"
 import { IchDialog } from "./panels/ich-dialog"
 import { PruefungPanel } from "./panels/pruefung-panel"
-import { SpaceDialog } from "./panels/space-dialog"
+import { liveModus, spaceAbschnitte } from "./panels/space-abschnitte"
 import { STARTZIELE } from "./startziele"
 import { TISCH, hatIchWahl } from "./connector/server-connector"
-import { mitPosition, useAbbildung, useComposerProps, type Zelle } from "./composer"
+import { useComposerProps, type Zelle } from "./composer"
+import { Anlegen } from "./panels/anlegen"
 import {
   KARTEN_TYP,
   VOCAB,
@@ -100,9 +99,7 @@ export default function App() {
   const [pick, setPick] = useState<Pick | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [gruppenDialog, setGruppenDialog] = useState(false)
-  const [spaceDialog, setSpaceDialog] = useState(false)
   const [ichDialog, setIchDialog] = useState(false)
-  const [dunkel, setDunkel] = useState(false)
   const [dialogModus, setDialogModus] = useState<GroupDialogMode>({ type: "create" })
 
   const oeffne = useCallback((a: Ansicht) => {
@@ -182,6 +179,10 @@ export default function App() {
     [gruppen],
   )
   const aktiverRaum = arbeitsraeume.find((w) => w.id === brett) ?? null
+  const raumAbschnitte = useMemo(
+    () => spaceAbschnitte({ brett, items: [...ziele, ...karten], relations: datensaetze }),
+    [brett, ziele, karten, datensaetze],
+  )
 
   const wechsleRaum = useCallback(
     (w: Workspace) => {
@@ -232,28 +233,12 @@ export default function App() {
               setGruppenDialog(true)
             }}
           />
-          <Button variant="ghost" size="icon-sm" title="Traum und Daten dieses Spaces" onClick={() => setSpaceDialog(true)}>
-            <Settings2 className="h-4 w-4" />
-          </Button>
         </NavbarStart>
         <NavbarEnd>
-          {/* Genau die Zusammensetzung der Reference-App: das Toolkit hat
-              keinen Umschalter, nur die Leser `resolveColorScheme` und
-              `observeColorScheme` (siehe docs/rls-kompatibel.md). Die
-              `dark`-Klasse an <html> ist das einzige Signal. */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9"
-            title={dunkel ? "Heller Modus" : "Dunkler Modus"}
-            aria-label={dunkel ? "Heller Modus" : "Dunkler Modus"}
-            onClick={() => {
-              setDunkel(!dunkel)
-              document.documentElement.classList.toggle("dark")
-            }}
-          >
-            {dunkel ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
+          {/* Hell und dunkel aus dem Toolkit (toolkit 0.4.0, Lücke 16): führt
+              `dark`-Klasse und `data-theme`, merkt die Wahl, folgt sonst dem
+              System. Den Startwert setzt main.tsx vor dem ersten Render. */}
+          <ColorSchemeToggle />
           <UserMenu
             user={ich ?? TISCH}
             subtitle={!ich || ich.id === TISCH.id ? "Wer bist du? Unter Profil wählen" : undefined}
@@ -334,10 +319,15 @@ export default function App() {
         {ansicht?.art === "pruefung" && <PruefungPanel ziele={ziele} karten={karten} faeden={faeden} />}
       </AdaptivePanel>
 
+      {/* Traum und Daten sind App-Abschnitte im GroupDialog (toolkit 0.4.0,
+          Lücke 13). Der Dialog bekommt die Group live aus useGroups, nicht den
+          Schnappschuss vom Öffnen (shared-components, Regel 3). */}
       <GroupDialog
         open={gruppenDialog}
         onOpenChange={setGruppenDialog}
-        mode={dialogModus}
+        mode={liveModus(dialogModus, gruppen)}
+        appSections={raumAbschnitte}
+        appSectionsTitle="Karabirrdt"
         currentUserId={ich?.id ?? TISCH.id}
         onCreateGroup={async (name) => {
           await gruppeAnlegen(name)
@@ -350,15 +340,6 @@ export default function App() {
         }}
         onInviteMember={einladen}
         onRemoveMember={entfernen}
-      />
-
-      <SpaceDialog
-        open={spaceDialog}
-        onOpenChange={setSpaceDialog}
-        brett={brett}
-        group={group}
-        items={[...ziele, ...karten]}
-        relations={datensaetze}
       />
 
       <IchDialog
@@ -381,40 +362,6 @@ export default function App() {
   )
 }
 
-/**
- * Anlegen — eine Form für beide Arten, aus dem Register. Welche es wird,
- * entscheidet die Typ-Auswahl des Formulars; aus einer Zelle heraus steht
- * sie fest (Karte), und die Karte landet in dieser Zelle.
- */
-function Anlegen({
-  zelle,
-  nurKarte,
-  composerProps,
-  onFertig,
-  onAbbruch,
-}: {
-  zelle: Zelle | null
-  nurKarte: boolean
-  composerProps: Partial<ContentComposerProps>
-  onFertig: (item: Item) => void
-  onAbbruch: () => void
-}) {
-  const { typen, mapSubmission } = useAbbildung()
-  const mapper = useMemo(() => mitPosition(mapSubmission, zelle), [mapSubmission, zelle])
-  return (
-    <div className="p-4">
-      <ItemComposer
-        contentTypes={nurKarte ? typen.filter((t) => t.id === KARTEN_TYP) : typen}
-        initialContentType={KARTEN_TYP}
-        mapper={mapper}
-        composerProps={composerProps}
-        onDone={onFertig}
-        onCancel={onAbbruch}
-      />
-    </div>
-  )
-}
-
 // ------------------------------------------------------------- Modulfläche
 
 interface ModulProps {
@@ -425,7 +372,7 @@ interface ModulProps {
   aktiv: string | null
   pickt: boolean
   ansicht: Ansicht
-  /** Nur Anzeige — geändert wird er im Space-Dialog. */
+  /** Nur Anzeige — geändert wird er im Abschnitt „Traum“ des GroupDialog. */
   horizont: string
   onAnsicht: (a: Ansicht) => void
   onKarte: (id: string) => void
@@ -456,10 +403,9 @@ function BrettModul({
   onVerschieben,
   onStartziele,
 }: ModulProps) {
-  // Genau das, was der Kopf anzeigt: Tags und Typen, dann der Suchtext
-  // (Lücke: `useSurfaceItems` ist nicht exportiert, docs/rls-kompatibel.md).
-  const { value, searchText } = useSharedFilter()
-  const sichtbar = useMemo(() => applyItemSearch(applyFilterBarValue(karten, value), searchText), [karten, value, searchText])
+  // Genau das, was der Kopf anzeigt: Tags, Typen und Suchtext — der Hook des
+  // Toolkits für eine Fläche außerhalb des Modul-Hosts (toolkit 0.4.0, Lücke 22).
+  const sichtbar = useModuleFilteredItems(karten)
 
   return (
     <>

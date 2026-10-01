@@ -88,11 +88,8 @@ export interface BrettDaten {
   members?: User[]
 }
 
-/** Eine Item-Id, die kein anderer Browser zufällig auch vergibt (Form wie die alten: klein, Ziffern). */
-export function neueId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(10))
-  return Array.from(bytes, (b) => (b % 36).toString(36)).join("")
-}
+/** Platzhalter-Id eines neuen Items in der Regelprüfung, vor dem Anlegen. */
+const NOCH_OHNE_ID = "\u0000neu"
 
 const basis = (brett: string) => `/api/b/${encodeURIComponent(brett)}`
 
@@ -298,13 +295,12 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
 
   const ueberschrieben: Record<string, unknown> = {
     createItem: async (eingabe: Parameters<FullConnector["createItem"]>[0]) => {
-      // Die Id vergibt diese Schicht: Der MockConnector zählt `item-100`,
-      // `item-101` … je Sitzung hoch — zwei Browser am selben Brett legten
-      // dieselbe Id an und überschrieben einander (Lücke, docs/rls-kompatibel.md).
-      const mitId = { ...eingabe, id: eingabe.id ?? neueId() }
-      await pruefeRegeln((vorher) => [...vorher, { createdAt: "", ...mitId } as Item])
+      // Die Id vergibt der MockConnector, zufällig (mock-connector 0.2.3,
+      // Lücke 26). Für die Regelprüfung davor steht ein Platzhalter: Auf ein
+      // Item, das es noch nicht gibt, zeigt kein anderes.
+      await pruefeRegeln((vorher) => [...vorher, { createdAt: "", ...eingabe, id: eingabe.id ?? NOCH_OHNE_ID } as Item])
       // `options.group` fällt weg: Dieser Connector legt nur im offenen Brett an.
-      const item = await mock.createItem(mitId)
+      const item = await mock.createItem(eingabe)
       void sendeItem(item)
       return item
     },
@@ -411,7 +407,7 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
      * legt es mit `PUT /group` an — und danach lädt die Seite dort neu.
      *
      * Warum neu laden statt weich wechseln: `MockConnector.createGroup` vergibt
-     * die Id selbst (`group-<zeit>`) und nimmt keine mit. Ein Connector, der
+     * die Id selbst (zufällig) und nimmt keine mit. Ein Connector, der
      * ihn benutzt, kann die Kennung des Servers also nicht durchreichen —
      * Upstream-Lücke, siehe docs/rls-kompatibel.md. Ein Seitenwechsel auf das
      * frische, leere Brett ist die ehrliche Antwort darauf.
