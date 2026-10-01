@@ -407,7 +407,7 @@ export async function erstelleServerConnector(startBrett: string): Promise<Verbi
      * legt es mit `PUT /group` an — und danach lädt die Seite dort neu.
      *
      * Warum neu laden statt weich wechseln: `MockConnector.createGroup` vergibt
-     * die Id selbst (`group-<zeit>`) und nimmt keine mit. Ein Connector, der
+     * die Id selbst (zufällig) und nimmt keine mit. Ein Connector, der
      * ihn benutzt, kann die Kennung des Servers also nicht durchreichen —
      * Upstream-Lücke, siehe docs/rls-kompatibel.md. Ein Seitenwechsel auf das
      * frische, leere Brett ist die ehrliche Antwort darauf.

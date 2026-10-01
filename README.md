@@ -70,10 +70,14 @@ public/alt.html die ursprüngliche Seite, unverändert in Funktion
   im Browser gemerkt). Andere trägst du beim Bearbeiten unter „Zugewiesen“
   ein; ein Tipp auf den Namen wechselt zwischen „kann“ und „lernt“.
   Mitglieder verwaltet das Space-Menü oben links.
-- **Traum und Daten:** im Space-Menü oben links (Zahnrad neben dem Namen).
+- **Traum und Daten:** im Space-Menü oben links, „bearbeiten“, dann unter
+  „Karabirrdt“ die Abschnitte „Traum“ und „Daten“.
+- **Hell oder dunkel:** der Knopf rechts oben; ohne Wahl folgt die App dem
+  System.
 - **Prüfung:** Phasenabdeckung je Ziel, Karten ohne Namen, Karten ohne Fäden,
   Hebelpunkte, Summe der Stunden und Euro.
-- **Daten:** JSON kopieren, als Datei speichern oder einfügen (ersetzt das Brett).
+- **Daten:** JSON kopieren, als Datei speichern oder einfügen (ersetzt das
+  Brett). Gilt dem offenen Brett.
 
 Der Browser hält zusätzlich eine lokale Kopie, damit die Seite auch ohne
 Server lesbar bleibt. Was ohne Verbindung geändert wird, bleibt lokal.

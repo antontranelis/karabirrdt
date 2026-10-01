@@ -15,13 +15,13 @@ Die Doku gilt in der Version, die installiert ist. Exporte gegen `app/node_modul
 
 | Zone | Hier |
 |---|---|
-| Navbar | `Navbar` mit `WorkspaceSwitcher` und `UserMenu` („Profil“ = Wahl „Wer bist du?“). Sonst nichts. |
-| Space-Konfiguration | `GroupDialog` des Toolkits für Name und Mitglieder; Traumsatz, Horizont, JSON-Export und -Import in einem Dialog am Space-Menü (Lücke: kein Slot im `GroupDialog`). |
-| Modul-Kopf | `ModuleFrame fill="bleed" panelFit="inset"` unter einem `FilterScope`: Suche und Filter-Pille stellt die Fläche, `ModuleToolbar` trägt Traumhorizont und Prüfung. |
+| Navbar | `Navbar` mit `WorkspaceSwitcher`, `ColorSchemeToggle` und `UserMenu` („Profil“ = Wahl „Wer bist du?“). Sonst nichts. |
+| Space-Konfiguration | `GroupDialog` des Toolkits für Name und Mitglieder; Traumsatz und Horizont („Traum“) sowie JSON-Export und -Import („Daten“) als `appSections` (`app/src/panels/space-abschnitte.tsx`). Schreiben nur über `patchData`; die Group geht live an den Dialog (`liveModus`). |
+| Modul-Kopf | `ModuleFrame fill="bleed" panelFit="inset"` unter einem `FilterScope`: Suche und Filter-Pille stellt die Fläche, `ModuleToolbar` trägt Traumhorizont und Prüfung (`trailingActions`); das Brett liest die Karten über `useModuleFilteredItems`. |
 | Inhalt | eigenes Raster Ziele × zwölf Stufen (`app/src/board/`), Karten als `ItemPreview density="dense"` (106 px), Fäden als SVG-Overlay. Das ist die Fachlichkeit des Moduls. |
-| Ecken | `FilterPill` unten links (von der Fläche), `CreateFab` unten rechts. |
+| Ecken | `FilterPill` unten links (von der Fläche), `CreateFab` unten rechts. Sonst nichts; Knöpfe der Fläche gehören in den Kopf. Das Brett lässt unten `--module-controls-block` frei. |
 | Panel | `ItemDetailView` mit `ItemDetailRead`: alles aus dem Register (`app/src/register.ts`), ⋮-Menü mit Bearbeiten und Löschen. Kein eigenes Panel für Karte oder Ziel. |
-| Formular | `ItemComposer` aus dem Register (`pickContentTypes`, `createComposerMapping`); die App gibt nur die Zelle einer neuen Karte dazu und den Modul-Pick („Im Modul wählen“ → Klick aufs Brett). |
+| Formular | `ItemComposer` aus dem Register (`pickContentTypes`, `createComposerMapping`); die App belegt „Teil von“ aus der Zelle vor (`itemRelationDataKey`), ergänzt Stufe und Reihenfolge und gibt den Modul-Pick („Im Modul wählen“ → Klick aufs Brett). |
 
 Datenmodell: Brett = Group, Ziel = Item `project` (`dots` als Zahl), Karte = Item `task` mit `stage`, Zeile über eingebettete Relation `partOf`, Faden = eingebettete Relation `blocks` an der Voraussetzung, Zuweisung `assignedTo` auf `global:<userId>` mit `meta.role` `can` oder `learns`. Alles in `modell.mjs`, ohne DOM, getestet. Die Register-Schicht in `app/src/register.ts` ergänzt die Toolkit-Typen additiv; umdefinieren darf sie nichts.
 
@@ -33,7 +33,7 @@ Connector: `app/src/connector/server-connector.ts` komponiert den `MockConnector
 - Fehlt ein Baustein wirklich: nicht bauen. Fundstelle im Paket, fehlende Prop, Vorschlag, und die Lücke in `docs/rls-kompatibel.md` eintragen. Anton entscheidet, ob es ein Toolkit-PR oder ein weggelassenes Feld wird.
 - Keine Erklärtexte, Legenden oder eigenen Kopfzeilen in Panels. Ein Karten-Detail sieht aus wie ein Task-Detail in der Reference-App.
 - Server und Modell mit `node --test`, die App-Schicht (Register, Formular, Connector) mit Vitest unter jsdom; erst Test, dann Code. `npm test`, `npm run typecheck`, `npm run build` vor jedem Handoff.
-- Sichtbare Änderungen im Browser prüfen (Server 8124, Vite 5174) und gegen den Entwurf im Detail-Simulator vergleichen; nie gegen die Live-Datenbank.
+- Sichtbare Änderungen im Browser prüfen (Server 8124, Vite 5174; eine Kopie der Datenbank per `KARABIRRDT_DB`) und gegen den Entwurf im Detail-Simulator vergleichen; nie gegen die Live-Datenbank.
 - Kein Push auf `main` ohne Freigabe. Arbeit auf Branches, Pull Request, Beschreibung auf Deutsch.
 
 ## Was hier gelernt wurde

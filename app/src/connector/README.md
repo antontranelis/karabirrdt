@@ -33,7 +33,7 @@ eine Schicht um `MockConnector`:
    (`DELETE /api/b/<kennung>/rls`).
 
 Beim **Anlegen** lädt die Seite auf dem neuen Brett neu, statt weich zu
-wechseln: `MockConnector.createGroup` vergibt die Id selbst (`group-<zeit>`)
+wechseln: `MockConnector.createGroup` vergibt die Id selbst (zufällig, seit 0.2.3)
 und nimmt keine mit, also lässt sich die Kennung des Servers nicht
 durchreichen — Upstream-Lücke, siehe `docs/rls-kompatibel.md`.
 
@@ -82,8 +82,9 @@ diesen Server. Was dabei zu prüfen ist:
   MockConnector darunter schreibt und prüft Autorenrechte mit derselben
   Person. Ohne Wahl ist es `did:karabirrdt:tisch`. `allowFixtureAuthors: true` bleibt: Autor
   und Entstehungszeit kommen vom Server statt aus der Sitzung.
-- **Ids.** Neue Items bekommen hier eine zufällige Id; der MockConnector zählte
-  `item-100`, `item-101` … je Sitzung, und zwei Browser überschrieben einander.
+- **Ids.** Neue Items bekommen ihre Id vom MockConnector, seit 0.2.3 zufällig
+  (`crypto.randomUUID()`); bis 0.2.2 zählte er `item-100`, `item-101` … je
+  Sitzung, und diese Schicht vergab die Id darum selbst.
 - **Fäden sind eingebettet** (`blocks` an der Voraussetzung) und wandern mit
   der Karte. Die Ablage für RelationRecords bleibt für andere Prädikate.
 - **Migration.** `GET /api/b/<brett>/rls` übersetzt ein altes Brett einmalig.

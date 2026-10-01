@@ -22,8 +22,9 @@ im Stack entstanden; die Lesereihenfolge steht in [`AGENTS.md`](../AGENTS.md).
 
 ## Die Abbildung
 
-Stand: toolkit 0.3.0, data-interface 0.4.0, mock-connector 0.2.2 (exakt
-gepinnt). Seit diesem Stand kommen Karten- und Ziel-Detail samt Formular aus
+Stand: toolkit 0.4.0, data-interface 0.4.0, mock-connector 0.2.3 (exakt
+gepinnt; data-interface ist seit toolkit 0.4.0 nicht mehr im Toolkit
+gebündelt, sondern dessen Abhängigkeit). Seit toolkit 0.3.0 kommen Karten- und Ziel-Detail samt Formular aus
 dem **Register des Stacks** (Spec 06, Feld- und Kantenregister); die App
 liefert nur noch eine Register-Schicht dazu (`app/src/register.ts`).
 
@@ -83,12 +84,26 @@ liegen daneben in `modell.d.mts`.
 
 | Typ | ergänzt | übernimmt vom Toolkit |
 |---|---|---|
-| Karte (`task`) | `hours` · `euros` B7 @meta („Aufwand", eine Zeile „12 h · 300 €"), `stage` @module, Qualifier-Werte `can`/`learns`, Pills „Kann ich" · „Will lernen" mit Folgeaktion „Erledigt" | Titel, Beschreibung, Status (To Do · In Arbeit · Erledigt), Fällig, Tags, `assignedTo` („Zugewiesen"), `blocks` („Braucht" · „Ermöglicht"), `partOf` („Teil von") |
-| Ziel (`project`) | Titel, Beschreibung („Traumsatz"), `dots` B7 („Punkte", min 0), `order` @module, Rückwärts-Liste „Karten" (←`partOf`), Badge ✦ violett | Typ-Wort „Projekt" |
+| Karte (`task`) | `hours` · `euros` B7 @meta („Aufwand", eine Zeile „12 h · 300 €"), `stage` @module als Auswahl der zwölf Stufen („1 · Bewusstsein“ …), Qualifier-Werte `can`/`learns`, Pills „Kann ich" · „Will lernen" mit Folgeaktion „Erledigt" | Titel, Beschreibung, Status (To Do · In Arbeit · Erledigt), Fällig, Tags, `assignedTo` („Zugewiesen"), `blocks` („Braucht" · „Ermöglicht"), `partOf` („Teil von") |
+| Ziel (`project`) | Titel, Beschreibung („Traumsatz"), `dots` B7 („Punkte", min 0), `order` @module, Rückwärts-Liste „Karten" (←`partOf`, gegliedert nach Stufe, rechts der Status), Badge ✦ violett | Typ-Wort „Projekt" |
 
 Dazu eine Manifest-Schicht: `project` bekommt `{ partOf, to, task }`, damit
 die Liste „Karten" eine Manifest-Kante hat (Regel 1). Beides wird in
-`main.tsx` vor dem ersten Render gebunden (`bindeRegister`).
+`main.tsx` vor dem ersten Render gebunden (`bindeRegister`), einmal über
+`setTypeManifest` des Toolkits; data-interface sieht dasselbe Manifest.
+
+**Warum die Stufe eine Auswahl ist und die Liste nach ihr gliedert**
+(toolkit 0.4.0, `list.group`/`list.trailing`, Spec 06 Regel 22). Erlaubt
+sind nur Felder mit `status`, `select` oder `number`. Als Zahl hieße die
+Gruppe „0“ für die erste Stufe (gespeichert ist 0–11, das Brett zählt 1–12);
+als Auswahl mit den Optionen `"0"` … `"11"` heißt sie „1 · Bewusstsein“, und
+die Gruppen stehen in der Reihenfolge des Kreislaufs. Gespeichert bleibt die
+Zahl, das Feld steht nie im Formular (`pos: "module"`, `edit: false`).
+**Gruppen nach Stufe, rechts der Status**, nicht umgekehrt: Die Liste am Ziel
+beantwortet „was liegt in welchem Schritt“ — das ist die Zeile des Bretts,
+nur senkrecht. Die Stufe noch einmal rechts zu zeigen, wiederholte die
+Überschrift; der Status ist die zweite Achse der Karte („wie weit“) und
+fehlt sonst in der Liste.
 
 ### Umzug bestehender Bretter
 
@@ -145,16 +160,20 @@ auf einen Connector mit Space-Scope und Realtime
 |---|---|
 | `ConnectorProvider`, `AppShell`, `AppShellMain`, `Navbar` | Rahmen |
 | `WorkspaceSwitcher` + `GroupDialog` | Bretter wechseln, anlegen, umbenennen, löschen, Mitglieder — ein Brett **ist** ein Space |
+| `GroupDialog.appSections` | die Abschnitte „Traum“ (Traumsatz, Traumhorizont) und „Daten“ (JSON-Export und -Import) im Space-Dialog; geschrieben nur über `patchData`, flach nach `Group.data`; die Group kommt live aus `useGroups` |
+| `ColorSchemeToggle` + `applyInitialColorScheme` | hell und dunkel: führt `dark`-Klasse und `data-theme`, merkt die Wahl, folgt sonst dem System |
 | `setTypeManifest`, `registerTypePresentation` (+ `composeTypeManifest` aus data-interface) | die Register-Schicht der App |
 | `ItemDetailView` + `ItemDetailRead` | das geöffnete Item, Karte wie Ziel: Meta-Box, Selbstaktionen, Rückwärts-Liste, Reaktionen, Kommentare, ⋮-Menü mit Bearbeiten und Löschen — alles aus dem Register |
-| `ItemComposer` + `pickContentTypes` + `createComposerMapping` | Anlegen und Bearbeiten, Formular aus dem Register; die App ergänzt nur die Position einer neuen Karte (Zelle) |
+| `ItemComposer` + `pickContentTypes` + `createComposerMapping` | Anlegen und Bearbeiten, Formular aus dem Register; die App ergänzt nur Stufe und Reihenfolge einer neuen Karte (Modul-Felder) |
+| `itemRelationDataKey` | eine Karte aus einer Zelle zeigt „Teil von“ schon im Formular (`initialData`) |
 | `requestItemPick` des Composers | „Im Modul wählen" bei „Braucht", „Ermöglicht", „Teil von": Klick auf eine Karte oder einen Zeilenkopf im Brett |
 | `ItemFocusContext` | der Fokus-Vertrag, gehalten im Zustand der App: Chips in der Meta-Box und Zeilen der Liste öffnen ihr Ziel im selben Panel |
 | `CreateFab` | der Plus-Knopf unten rechts |
 | `UserMenu` | rechts in der Navbar; „Profil" öffnet die Wahl „Wer bist du?" |
 | `ModuleFrame` (`fill="bleed"`, `panelFit="inset"`) + `FilterScope` | die Modulfläche: Suche und Filter-Pille stellt die Fläche, darunter das scrollende Brett |
-| `ModuleToolbar` | Modul-Aktionen im Kopf: Traumhorizont, Prüfung |
-| `useSharedFilter`, `applyFilterBarValue`, `applyItemSearch` | die Karten, gefiltert wie der Kopf es zeigt |
+| `ModuleToolbar` (`trailingActions`) | Modul-Aktionen im Kopf: Traumhorizont, Prüfung |
+| `useModuleFilteredItems` | die Karten, gefiltert wie der Kopf es zeigt |
+| `--module-controls-block` | Platz unter der letzten Zeile des Bretts für Filter-Pille und Plus-Knopf |
 | `ItemPreview density="dense"` + `ItemAssignees size="xs"` | **jede** Karte auf dem Brett: die Matrix-Kachel aus rls#360, gefüllt „kann", umrandet „lernt" |
 | `AdaptivePanel` (`allowedModes: ["floating","sidebar","drawer"]`) | die schwebende Detail-Karte; auf schmalen Schirmen der Drawer |
 | `EmptyState`, `Dialog` | das leere Brett, die Wahl „Wer bist du?" |
@@ -169,8 +188,7 @@ beiden Signalen (`prefers-color-scheme` **und** `.dark`/`[data-theme]`).
 und `ziel-detail.tsx`, die Widgets `AufwandWidget` und `PunkteWidget`,
 `peopleRelations` mit zwei Personenfeldern, der Fäden-Block mit
 „Voraussetzung hinzufügen" und der eigene Hook `faeden.ts`. **Geblieben**,
-weil das Toolkit dafür nichts hat: Traum- und Daten-Dialog am Space
-(Lücke 13), das Prüfungs-Panel, das Raster mit Fäden und Zeilenköpfen (die
+weil das Toolkit dafür nichts hat: das Prüfungs-Panel, das Raster mit Fäden und Zeilenköpfen (die
 Fachlichkeit des Moduls), und die Wahl „Wer bist du?" (Lücke 24).
 
 ### Abweichungen vom Entwurf (Detail-Simulator, KB-Karte und KB-Ziel)
@@ -181,7 +199,8 @@ Fachlichkeit des Moduls), und die Wahl „Wer bist du?" (Lücke 24).
   Feld erzeugt keine Zeile; der Status steht als eigener Chip.
 - Am Ziel steht „Punkte 6" statt „Priorität hoch"; die aggregierte
   Personenzeile (alle Menschen der Karten) kennt das Register nicht (Lücke 23).
-- Die Liste „Karten" ist flach, ohne Stufe rechts (Lücke 20).
+- Die Liste „Karten" ist nach Stufe gegliedert, rechts steht der Status
+  statt der Stufe (Begründung oben, Register-Schicht).
 - Die Typ-Wörter sind die des Toolkits: „Task" und „Projekt" statt
   „Aufgabe" und „Ziel" (Lücke 25).
 
@@ -214,7 +233,7 @@ Scrollen auf 1920 px. Was daraus im Code steht:
 - **Erledigt** zeigt die dichte Karte selbst (Häkchen, Opazität 0.55) — das
   Brett färbt nichts zusätzlich ein.
 - **Der Traumhorizont** steht als Text rechts im Modul-Kopf, neben „Prüfung";
-  geändert wird er im Space-Dialog.
+  geändert wird er im Abschnitt „Traum“ des Space-Dialogs.
 - **Noch nicht gebaut:** die Pille „Brett · Phase · Ziel" unten links neben
   dem Filter. Sie schaltet im Entwurf zwischen drei Linsen desselben Bretts;
   die Varianten 1b und 1c gibt es noch nicht.
@@ -290,7 +309,7 @@ umgangen.
    gilt der alte Einwand gegen `fitCamera` weiter (feste Polsterung 0.82,
    Zoomklemme 0.08…1.6, Punktwolke statt Rechteck).
 8. **`GroupManager.createGroup` vergibt die Id selbst.** `MockConnector`
-   schreibt `group-<zeit>` und nimmt keine Id entgegen. Ein Connector, der
+   schreibt eine eigene Id (bis 0.2.2 `group-<zeit>`, seit 0.2.3 eine UUID) und nimmt keine entgegen. Ein Connector, der
    den MockConnector benutzt (siehe Lücke 9) kann eine vom Server oder von
    der Spec bestimmte Id also nicht durchreichen; wir laden beim Anlegen
    eines Bretts deshalb die Seite neu. `ItemWriter.createItem` akzeptiert
@@ -298,13 +317,13 @@ umgangen.
    sogar —, Groups können das nicht.
    *Vorschlag:* `createGroup(name, data?, options?: { id?: string })`, und im
    Mock-Connector die übergebene Id übernehmen statt zu erfinden.
-9. **`ModuleToolbar` wirft ohne Filter-Kontext.** `useSharedFilter` verlangt
+9. **✅ BEHOBEN (toolkit 0.4.0, rls#570).** Der `ModuleFrame` zeichnet die Modul-Aktionen auch ohne Filter-Besitzer und warnt (`[rls]`), wenn der `FilterScope` innerhalb des Frames steht. Hier steht er außerhalb; Kopf-Aktionen erscheinen, die Konsole bleibt still (geprüft im Browser). Ursprünglich: **`ModuleToolbar` wirft ohne Filter-Kontext.** `useSharedFilter` verlangt
    einen `<FilterProvider>`; die Leiste selbst bringt keinen mit. Der Ausweg
    heißt `FilterScope` (setzt einen, wenn keiner da ist) und steht in keiner
    Typ-Signatur — man findet ihn nur im Quelltext.
    *Vorschlag:* `ModuleToolbar` intern in `FilterScope` wickeln; ein Kopf, der
    ohne unsichtbare Umgebung abstürzt, ist kein Baustein, sondern eine Falle.
-10. **Die schwebende Ecke unten links hat nur einen Platz.** `ModuleFrame`
+10. **✅ BEHOBEN (toolkit 0.4.0, rls#567).** `ModuleControls` gibt es nicht mehr; Modul-Knöpfe gehen über `ModuleToolbar.trailingActions` in den Kopf. Der Frame meldet die Höhe der Zeile aus Pille und Plus-Knopf als `--module-controls-block`; das Brett lässt genau so viel Platz unter der letzten Zeile. (Kamera-Knöpfe und die Schätzung `SCHWEBEND` gab es seit dem Ende des Zooms schon nicht mehr.) Ursprünglich: **Die schwebende Ecke unten links hat nur einen Platz.** `ModuleFrame`
    rendert dort die Filter-Pille; `ModuleControls` legt eine zweite
    `PanelSafeArea` darüber — wer beides benutzt, stapelt seine Knöpfe auf die
    Pille. Wir weichen mit `className="justify-end"` in die rechte Ecke aus.
@@ -335,14 +354,14 @@ umgangen.
    `getMembers`/`observeMembers`/`getUser` direkt.
    *Vorschlag:* `injectSeedUsers(users, groupId)` analog zu `injectSeedItems`,
    oder `inviteMember(groupId, user: string | User)`.
-13. **Die Space-Konfiguration hat keinen Platz für mehr.** `GroupDialog` nimmt
+13. **✅ BEHOBEN (toolkit 0.4.0, rls#551).** Traum und Daten sind App-Abschnitte im `GroupDialog` (`appSections`, `appSectionsTitle="Karabirrdt"`), geschrieben nur über `patchData` (flach nach `Group.data`, Spec 04 Regeln 2 und 3). Der Dialog bekommt die Group live aus `useGroups` (shared-components, Regel 3); der eigene Dialog und das Zahnrad daneben sind entfernt. Offen bleibt der `actions`-Slot je Space im Switcher; er wird nicht mehr gebraucht. Ursprünglich: **Die Space-Konfiguration hat keinen Platz für mehr.** `GroupDialog` nimmt
    keine zusätzlichen Abschnitte und `WorkspaceSwitcher` keinen zweiten
    Menüpunkt je Space. Traum, Traumhorizont und der JSON-Austausch gehören
    zum Space und mussten darum in einen eigenen Dialog neben das Space-Menü.
    *Vorschlag:* ein `sections`-Slot im `GroupDialog` (oder Tabs, in die eine
    App eigene Abschnitte hängt) und ein `actions`-Slot je Space-Eintrag im
    Switcher.
-14. **Kein Baustein für Flächen-Bedienelemente oben rechts.** Gesucht in
+14. **Gegenstandslos** seit das Brett nicht mehr zoomt; Modul-Knöpfe stehen nach toolkit 0.4.0 ohnehin in `trailingActions` (bis rls#552). Ursprünglich: **Kein Baustein für Flächen-Bedienelemente oben rechts.** Gesucht in
    0.1.6 nach `ModuleMenu`, `MapControls`, `ZoomControls`, `LocateButton` —
    nichts davon existiert; `components/map/index.d.ts` exportiert nur die
    Adapter-Typen, `LocationPickProvider`, `MapView` und die Marker, und
@@ -358,7 +377,7 @@ umgangen.
    `NavbarEnd`, wenn `hasMessaging(connector)` wahr ist. Unser Connector hat
    keine `MessagingCapable`-Fähigkeit, also gibt es dafür keinen Platz — die
    Anzeige ist entfernt und nicht ersetzt.
-16. **Kein Umschalter für den Dunkelmodus.** Das Toolkit liefert nur die
+16. **✅ BEHOBEN (toolkit 0.4.0, rls#568).** `ColorSchemeToggle` in `NavbarEnd`, `applyInitialColorScheme()` in `main.tsx` vor dem ersten `await`. Neu dadurch: Die App folgt beim ersten Besuch der Systemvorgabe (vorher startete sie immer hell) und merkt eine Wahl. Ursprünglich: **Kein Umschalter für den Dunkelmodus.** Das Toolkit liefert nur die
    **Leser** `resolveColorScheme` und `observeColorScheme`
    (`lib/color-scheme.d.ts`) — ausdrücklich „for consumers that cannot express
    their theme in CSS" (eine WebGL-Karte), und die Doku hält fest: „The app
@@ -379,7 +398,7 @@ umgangen.
 
 ### Neu mit toolkit 0.3.0 (Umzug auf das Register, 28.09.2026)
 
-18. **Das Toolkit bündelt data-interface, statt es zu importieren.** In
+18. **✅ BEHOBEN (toolkit 0.4.0, rls#555).** Das Manifest wird einmal gebunden; ein Test belegt, dass `getTypeManifest()` aus data-interface sieht, was über das Toolkit gebunden wurde. Ursprünglich: **Das Toolkit bündelt data-interface, statt es zu importieren.** In
    `toolkit/dist/module-register-*.js` steckt eine eigene Kopie von
    `composeTypeManifest`, `setTypeManifest` und Co.; der MockConnector
    importiert das npm-Paket. `setTypeManifest` des Toolkits bindet nur seine
@@ -387,7 +406,7 @@ umgangen.
    das Manifest ohne App-Schicht. Wir binden darum beide (`register.ts`).
    *Vorschlag:* data-interface im Toolkit-Build als `external` führen; es ist
    ohnehin Abhängigkeit.
-19. **Eine Schicht kann den Standardwert eines Qualifiers nicht setzen.**
+19. **Im Toolkit behoben (toolkit 0.4.0, rls#556):** `QualifierValuesEntry.default`. Das Karabirrdt nutzt es noch nicht; der Umzug schreibt `role: "can"` weiter aus (nicht Teil dieses Nachzugs). Ursprünglich: **Eine Schicht kann den Standardwert eines Qualifiers nicht setzen.**
    `EdgeEntry.qualifier.default` („ein fehlender Wert gilt als …“, Regel 7)
    gibt es, `QualifierValuesEntry` nimmt aber nur `values`. Folge: Ein
    `assignedTo` ohne Rolle (alle Zuweisungen aus der Zeit vor dem Umzug)
@@ -397,7 +416,7 @@ umgangen.
    ausdrücklich; die Daten lassen sich jederzeit als JSON exportieren und
    anders umformen. *Für andere Apps bleibt der Vorschlag:* `default` am
    `QualifierValuesEntry` (höchstens eine Schicht je Kante).
-20. **Rückwärts-Listen kennen keine Gruppierung und keine Zusatzspalte.**
+20. **✅ BEHOBEN (toolkit 0.4.0, rls#557).** `list: { group: "stage", trailing: "status" }`; die Stufe ist dafür eine Auswahl (Begründung in „Die Register-Schicht“). Ursprünglich: **Rückwärts-Listen kennen keine Gruppierung und keine Zusatzspalte.**
    `EdgeEntry.list` hat nur `filter` und `sort`; die Zeilen-Dekoration
    (`ListRowDecoration.trailing`) gibt es nur für benannte Abfragen. Die
    Liste „Karten“ am Ziel ist darum flach, ohne die Stufe rechts.
@@ -408,7 +427,7 @@ umgangen.
    (Entwurf; Spec 06 nennt sie selbst als Beispiel). Merge-Regel: Ein
    vorhandener Feld- oder Kanten-Schlüssel ist ein Konflikt. Anton hat
    entschieden, die Kern-Werte zu übernehmen; kein Toolkit-PR.
-22. **`useSurfaceItems` und `useModuleFilteredItems` sind nicht exportiert.**
+22. **✅ BEHOBEN (toolkit 0.4.0, rls#558).** Das Brett liest `useModuleFilteredItems(karten)`. Ursprünglich: **`useSurfaceItems` und `useModuleFilteredItems` sind nicht exportiert.**
    Eine Fläche außerhalb des Modul-Hosts wendet den geteilten Filter selbst an
    (`useSharedFilter` + `applyFilterBarValue` + `applyItemSearch`), genau das,
    was der Hook verhindern soll.
@@ -425,11 +444,11 @@ umgangen.
 25. **Typ-Wörter gehören dem Toolkit.** `label` ist ein Skalar, den die Basis
    setzt: Die Karte heißt im Badge „Task“, das Ziel „Projekt“. Das Badge des
    Ziels (✦, violett) setzt die Schicht, weil die Basis keines hat.
-26. **Der MockConnector zählt Item-Ids hoch** (`item-100`, `item-101` … je
+26. **✅ BEHOBEN (mock-connector 0.2.3, rls#561).** Der Mock vergibt `crypto.randomUUID()`; die eigene Id-Vergabe im ServerConnector ist entfernt (für die Regelprüfung vor dem Anlegen steht ein Platzhalter). Ursprünglich: **Der MockConnector zählt Item-Ids hoch** (`item-100`, `item-101` … je
    Sitzung). Zwei Browser am selben Brett legten dieselbe Id an und
    überschrieben einander. Der ServerConnector vergibt deshalb selbst eine
    zufällige Id. *Vorschlag:* `crypto.randomUUID()` im Mock.
-27. **`ItemDetailRead` löst den Autor nur über Mitglieder und den eigenen
+27. **✅ BEHOBEN (toolkit 0.4.0, rls#562).** `ItemDetailRead` fragt `connector.getUser`, sonst „Unbekannt“. Karten des Tischs stehen jetzt auch nach der Wahl „Wer bist du?“ als „Erstellt von Am Tisch“ da, nie mehr als DID (geprüft im Browser). Ursprünglich: **`ItemDetailRead` löst den Autor nur über Mitglieder und den eigenen
    Nutzer auf.** Items, die der Tisch angelegt hat (alle aus der Zeit vor der
    Wahl „Wer bist du?“), stehen als „Erstellt von did:karabirrdt:tisch“ da,
    sobald jemand gewählt hat. *Vorschlag:* `connector.getUser` als Rückfall.
@@ -451,11 +470,22 @@ umgangen.
    schriebe der Speicher „Tisch" als Bearbeiter und verweigerte das Bearbeiten
    eigener Kommentare. *Vorschlag:* `setCurrentUser(user)` im Mock.
 
-29. **Keine Vorbelegung einer Item-Kante beim Anlegen.** Der Datenschlüssel
+29. **✅ BEHOBEN (toolkit 0.4.0, rls#564).** Eine Karte aus einer Zelle bekommt `initialData` mit `itemRelationDataKey("partOf")`; „Teil von“ steht schon im Formular. `mitPosition` setzt nur noch Stufe und Reihenfolge, keine Zeile mehr nach. Entfernt jemand den Chip, lehnt die Brett-Regel ab und das Formular zeigt den Grund. Ursprünglich: **Keine Vorbelegung einer Item-Kante beim Anlegen.** Der Datenschlüssel
    (`relation:partOf`) ist nicht exportiert; eine Karte aus einer Zelle zeigt
    „Teil von“ im Formular leer und bekommt die Zeile erst beim Speichern
    (`mitPosition` in `composer.ts`). *Vorschlag:* `itemRelationDataKey`
    exportieren.
+
+### Stand nach toolkit 0.4.0
+
+Offen sind: **1** (Punkte im Zeilenkopf), **17** (kein Connector für einen
+geteilten Raum ohne Konten), **23** (keine aggregierte Personenzeile am
+Ziel), **24** (keine Identität ohne Konto), **25** (Typ-Wörter gehören dem
+Toolkit), **28** (keine Prüfung je Typ vor dem Speichern); dazu im
+Mock-Connector **8** (Group-Id nicht übergebbar), **12** (keine Menschen nach
+dem Seed) und **30** (kein `setCurrentUser`) — deren Umgehungen im
+ServerConnector bleiben bis zum Umzug auf Supabase. **4** und **15** sind
+Hinweise ohne Handlungsbedarf, **21** ist entschieden.
 
 ## Was ein Vibe-Coder beim nächsten Mal wissen muss
 
@@ -489,8 +519,9 @@ umgangen.
 - **Module-Kopfzeilen gehören dem Toolkit.** In die Navbar kommt nur, was für
   die ganze App gilt (Space-Switch, Benutzer). Alles Modul-eigene —
   Aktionen, Suche, Filter, Verbindungsstand — geht über `ModuleToolbar` in
-  den Kopf der Modulfläche, die Kamera-Knöpfe über `ModuleControls` in die
-  schwebende Ecke. Eine Modul-Schaltfläche in der Navbar ist der sicherste
+  den Kopf der Modulfläche, auch Knöpfe der Fläche (`trailingActions`; die
+  schwebende Ecke gehört seit toolkit 0.4.0 allein Filter-Pille und
+  Plus-Knopf). Eine Modul-Schaltfläche in der Navbar ist der sicherste
   Weg, eine App zu bauen, die nie ein zweites Modul verträgt.
 - **Ein Space ist ein Brett.** Was in der App „Raum", „Board", „Projekt"
   heißt, ist im Stack eine Group. Dann erledigen `WorkspaceSwitcher` und
@@ -512,8 +543,12 @@ umgangen.
   `(createdBy, predicate, from, to)` ab. Wer an zwei Stellen zwei Kennungen
   benutzt (Server-Migration und App), bekommt zwei Datensätze für dieselbe
   Kante. Darum steht `AUTOR` in `modell.mjs` und sonst nirgends.
-- **Genau pinnen.** `0.x` bewegt sich: toolkit `0.3.0`, data-interface `0.4.0`,
-  mock-connector `0.2.2`, exakt ohne `^`.
+- **Genau pinnen.** `0.x` bewegt sich: toolkit `0.4.0`, data-interface `0.4.0`,
+  mock-connector `0.2.3`, exakt ohne `^`.
+- **Space-Einstellungen der App gehören in den `GroupDialog`** (`appSections`),
+  nicht in einen zweiten Dialog. Und die Group, die der Dialog bekommt, muss
+  die beobachtete sein, nicht die beim Öffnen gemerkte — sonst steht nach dem
+  Speichern der alte Wert im Feld.
 
 ## Offene Punkte
 
@@ -525,6 +560,14 @@ umgangen.
   `npm run umzug` umgezogen. Screenshots von Brett, Karten-Detail,
   Selbstaktion, Formular, Modul-Pick mit abgelehntem Faden und Ziel-Detail
   hängen am Pull Request.
+- **Nachzug auf toolkit 0.4.0 (01.10.2026)** geprüft mit `npm test`,
+  `npm run typecheck`, `npm run build` und Headless-Chrome gegen Vite (5184)
+  und Server (8126) auf einer umgezogenen Kopie der Brett-Datenbank: Brett mit
+  Kopf-Aktionen ohne `[rls]`-Warnung, Space-Dialog mit Abschnitt „Traum“
+  (Änderung erscheint im Dialog und im Kopf, liegt auf dem Server), Ziel mit
+  gegliederter Liste, neue Karte aus einer Zelle mit vorbelegtem „Teil von“
+  (gespeichert mit Stufe, Zeile und UUID), Autor „Am Tisch“; Desktop und
+  Telefon, hell und dunkel. Screenshots am Pull Request.
 - Die Bündelgröße liegt bei rund 1,2 MB (409 kB gzip) — das Toolkit bringt
   Editor, Karten- und Graph-Bausteine mit, von denen diese App wenig braucht.
   Aufteilen lohnt erst, wenn die App öffentlich läuft.
