@@ -1,6 +1,6 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
-import { ConnectorProvider } from "@real-life-stack/toolkit"
+import { ConnectorProvider, applyInitialColorScheme } from "@real-life-stack/toolkit"
 import { erstelleServerConnector } from "./connector/server-connector"
 import { brettAusPfad } from "./brett"
 import { bindeRegister } from "./register"
@@ -8,6 +8,9 @@ import App from "./App"
 import "./index.css"
 
 async function start() {
+  // Hell oder dunkel vor dem ersten await: sonst stünde die Seite beim Laden
+  // des Bretts hell da (gemerkte Wahl, sonst die Systemvorgabe).
+  applyInitialColorScheme()
   // Das Register der App vor dem ersten Render binden (Spec 06, Regel 1).
   bindeRegister()
   const brett = brettAusPfad()

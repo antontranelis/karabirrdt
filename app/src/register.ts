@@ -28,7 +28,7 @@
 import { TOOLKIT_TYPE_LAYER, composeTypeManifest, type TypeManifestLayer } from "@real-life-stack/data-interface"
 import { registerTypePresentation, setTypeManifest, type TypePresentationLayer } from "@real-life-stack/toolkit"
 import { Sparkle } from "lucide-react"
-import { FADEN_PRAEDIKAT, KARTEN_TYP, ROLLE_KANN, ROLLE_LERNT, ZIEL_TYP, ZUGEHOERIG_PRAEDIKAT, ZUWEISUNG } from "../../modell.mjs"
+import { FADEN_PRAEDIKAT, KARTEN_TYP, STUFEN, ROLLE_KANN, ROLLE_LERNT, ZIEL_TYP, ZUGEHOERIG_PRAEDIKAT, ZUWEISUNG } from "../../modell.mjs"
 
 /**
  * Manifest-Schicht der App: Das Ziel nimmt Karten auf (`partOf`, eingehend).
@@ -50,8 +50,19 @@ export const KARABIRRDT_REGISTER: TypePresentationLayer = {
         // (shared-components → Widget-Paare, Regel 1).
         { key: "hours", widget: "number", pos: "meta", label: "Aufwand", unit: "h", min: 0 },
         { key: "euros", widget: "number", pos: "meta", label: "Aufwand", unit: "€", min: 0 },
-        // Die Stufe ist die Spalte des Bretts: Modul-Interaktion (Katalog 4).
-        { key: "stage", widget: "number", pos: "module", edit: false },
+        // Die Stufe ist die Spalte des Bretts: Modul-Interaktion (Katalog 4),
+        // nie im Formular. Eine Auswahl der zwölf Stufen statt einer Zahl, damit
+        // die Liste „Karten“ am Ziel nach ihr gliedern kann und die Gruppe
+        // „3 · Information“ heißt statt „2“ (Spec 06 Regel 22). Gespeichert
+        // bleibt die Zahl 0–11; die Liste liest sie als Option.
+        {
+          key: "stage",
+          widget: "select",
+          pos: "module",
+          edit: false,
+          label: "Stufe",
+          options: STUFEN.map((name: string, i: number) => ({ id: String(i), label: `${i + 1} · ${name}` })),
+        },
       ],
       qualifierValues: [
         {
@@ -92,9 +103,19 @@ export const KARABIRRDT_REGISTER: TypePresentationLayer = {
         { key: "order", widget: "number", pos: "module", edit: false },
       ],
       edges: [
-        // Flache Liste: ListEntry kennt keine Gruppierung je Stufe und keine
-        // Zusatzspalte (Lücke, docs/rls-kompatibel.md).
-        { predicate: ZUGEHOERIG_PRAEDIKAT, itemRole: "to", storage: "embedded", widget: "item-relation", pos: "list", label: "Karten" },
+        // Gegliedert nach Stufe, rechts der Status (toolkit 0.4.0, Lücke 20):
+        // Die Gruppen ordnen die Karten in der Reihenfolge des Kreislaufs; den
+        // Status rechts, weil die Stufe schon die Überschrift ist und „wie weit“
+        // die zweite Achse der Karte ist.
+        {
+          predicate: ZUGEHOERIG_PRAEDIKAT,
+          itemRole: "to",
+          storage: "embedded",
+          widget: "item-relation",
+          pos: "list",
+          label: "Karten",
+          list: { group: "stage", trailing: "status" },
+        },
       ],
     },
   ],

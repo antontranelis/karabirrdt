@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import {
   createComposerMapping,
+  itemRelationDataKey,
   pickContentTypes,
   useCurrentGroup,
   useItems,
@@ -9,8 +10,9 @@ import {
   type ContentTypeConfig,
   type ItemEditorMapper,
   type PersonOption,
+  type WidgetData,
 } from "@real-life-stack/toolkit"
-import { KARTEN_TYP, ZIEL_TYP, ZUGEHOERIG_PRAEDIKAT, mitZiel } from "../../modell.mjs"
+import { KARTEN_TYP, ZIEL_TYP, ZUGEHOERIG_PRAEDIKAT } from "../../modell.mjs"
 
 /**
  * Formular für Karte und Ziel — vollständig aus dem Register (Spec 06,
@@ -62,10 +64,21 @@ export interface Zelle {
 }
 
 /**
+ * Die Vorbelegung des Formulars für eine Karte aus einer Zelle: „Teil von“
+ * zeigt die Zeile schon beim Öffnen (`itemRelationDataKey`, toolkit 0.4.0,
+ * Lücke 29). Wer den Chip entfernt oder ändert, bekommt genau das.
+ */
+export function vorbelegung(zelle: Zelle | null): Partial<WidgetData> {
+  if (!zelle?.zielId) return {}
+  return { [itemRelationDataKey(ZUGEHOERIG_PRAEDIKAT)]: [`item:${zelle.zielId}`] }
+}
+
+/**
  * Die Abbildung des Toolkits, dazu die Position einer NEUEN Karte (Stufe,
- * Reihenfolge, Zeile). Beim Bearbeiten bleibt alles beim Toolkit: Es lässt
- * `stage` und `order` unangetastet, und „Teil von" im Formular verschiebt
- * die Karte in eine andere Zeile.
+ * Reihenfolge) — beides Modul-Felder, die nie im Formular stehen. Die Zeile
+ * kommt aus dem Formular selbst (`vorbelegung`). Beim Bearbeiten bleibt alles
+ * beim Toolkit: Es lässt `stage` und `order` unangetastet, und „Teil von“ im
+ * Formular verschiebt die Karte in eine andere Zeile.
  */
 export function mitPosition(abbildung: ItemEditorMapper, zelle: Zelle | null, jetzt: () => number = Date.now): ItemEditorMapper {
   return (eingabe, ctx) => {
@@ -73,12 +86,7 @@ export function mitPosition(abbildung: ItemEditorMapper, zelle: Zelle | null, je
     if (!payload || ctx.mode !== "create") return payload
     if (payload.type === ZIEL_TYP) return { ...payload, data: { dots: 0, ...payload.data, order: jetzt() } }
     if (payload.type !== KARTEN_TYP) return payload
-    const gewaehlt = (payload.relations ?? []).some((r) => r.predicate === ZUGEHOERIG_PRAEDIKAT)
-    return {
-      ...payload,
-      data: { ...payload.data, stage: zelle?.stufe ?? 0, order: jetzt() },
-      relations: gewaehlt || !zelle?.zielId ? payload.relations : mitZiel({ relations: payload.relations ?? [] }, zelle.zielId),
-    }
+    return { ...payload, data: { ...payload.data, stage: zelle?.stufe ?? 0, order: jetzt() } }
   }
 }
 

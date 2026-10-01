@@ -237,6 +237,11 @@ export function KarabirrdtBoard({
               )
             })}
       </div>
+      {/* Unten liegen Filter-Pille und Plus-Knopf über der Fläche. Wie hoch
+          diese Zeile ist, meldet der ModuleFrame (`--module-controls-block`,
+          toolkit 0.4.0, Lücke 10); so viel Platz bleibt unter der letzten
+          Zeile, damit keine Karte darunter verschwindet. */}
+      <div data-ecke-polster aria-hidden style={{ height: "var(--module-controls-block, 0px)" }} />
     </div>
   )
 }

@@ -39,6 +39,7 @@ describe("Register-Schicht der Karabirrdt-App", () => {
       ["euros", "€"],
     ])
     expect(felder.find((f) => f.key === "stage")?.pos).toBe("module")
+    expect(felder.find((f) => f.key === "stage")?.edit).toBe(false)
     // Kern-Status und Kern-Beschriftungen bleiben (Anton 28.09.)
     expect(felder.find((f) => f.key === "status")?.options?.map((o) => o.label)).toEqual(["To Do", "In Arbeit", "Erledigt"])
     const kanten = karte.edges ?? []
@@ -74,6 +75,19 @@ describe("Register-Schicht der Karabirrdt-App", () => {
     // Badge vom Fragment, Wort von der Basis
     expect(ziel.badge?.className).toMatch(/violet/)
     expect(ziel.label).toBe("Projekt")
+  })
+
+  it("die Liste „Karten“ ist nach Stufe gegliedert und zeigt rechts den Status (Lücke 20)", () => {
+    const liste = resolveTypePresentation("project").edges?.find((e) => e.pos === "list")
+    expect(liste?.list).toMatchObject({ group: "stage", trailing: "status" })
+    // Die Stufe ist eine Auswahl der zwölf Stufen (Spec 06 Regel 22: nur
+    // status/select/number) — so heißt die Gruppe „3 · Information“ statt „2“.
+    const stufe = resolveTypePresentation("task").fields?.find((f) => f.key === "stage")
+    expect(stufe?.widget).toBe("select")
+    expect(stufe?.pos).toBe("module")
+    expect(stufe?.options?.map((o) => o.id)).toEqual(Array.from({ length: 12 }, (_, i) => String(i)))
+    expect(stufe?.options?.[0]?.label).toBe("1 · Bewusstsein")
+    expect(stufe?.options?.[11]?.label).toBe("12 · Weisheit")
   })
 
   it("der Composer leitet sich daraus ab — ohne eigene Widgets", () => {
