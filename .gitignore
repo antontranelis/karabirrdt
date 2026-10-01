@@ -1,2 +1,6 @@
 node_modules/
 data/
+# Eingefrorener Export von /alt (echte Bretter, npm run alt:einfrieren)
+public/alt-daten/
+# Lokale Schlüssel (der öffentliche Schlüssel kommt beim Ausliefern in config.json)
+app/.env.local

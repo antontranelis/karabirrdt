@@ -26,7 +26,13 @@ const TYPEN = {
   ".ico": "image/x-icon",
 };
 
-export function erstelleServer({ speicher }) {
+/**
+ * `nurLesen` friert das alte Brett zum Wechsel auf Supabase ein: Die API nimmt
+ * keine Änderung mehr an (423), der Export `GET /api/b/<brett>/rls` kommt
+ * weiter — so geht nach dem Export nichts verloren (Umzug: Export →
+ * Umwandeln → Import, `npm run import:supabase`).
+ */
+export function erstelleServer({ speicher, nurLesen = false }) {
   const server = http.createServer((req, res) => behandle(req, res).catch((e) => fehler(res, e.status ?? 500, e.message)));
   const wss = new WebSocketServer({ noServer: true });
   const clients = new Map(); // ws -> brett
@@ -58,6 +64,7 @@ export function erstelleServer({ speicher }) {
     if (api) {
       const [, brett, teil, id] = api;
       if (!gueltigeKennung(brett)) return fehler(res, 400, "Ungültige Brett-Kennung");
+      if (nurLesen && req.method !== "GET" && req.method !== "HEAD") return fehler(res, 423, "Eingefroren: nur lesend");
       if (!teil && req.method === "GET") return json(res, speicher.brett(brett));
       if (teil === "meta" && req.method === "PUT") {
         const meta = pruefeMeta(await koerper(req));
@@ -84,7 +91,7 @@ export function erstelleServer({ speicher }) {
           return json(res, { ok: true });
         }
       }
-      if (teil === "rls" && !id && req.method === "GET") return json(res, await rlsBrett(speicher, brett));
+      if (teil === "rls" && !id && req.method === "GET") return json(res, await rlsBrett(speicher, brett, { nurLesen }));
       if (teil === "rls" && !id && req.method === "DELETE") {
         speicher.brettLoeschen(brett);
         verteile(brett, { type: "reset", data: speicher.rlsBrett(brett) });
@@ -177,23 +184,28 @@ const gueltigeId = (id) => /^[A-Za-z0-9_-]{1,80}$/.test(id);
  * es genau einmal übersetzt und weggeschrieben — danach ist die RLS-Form die
  * Wahrheit und die alten Tabellen bedienen nur noch `/alt`.
  */
-async function rlsBrett(speicher, brett) {
+async function rlsBrett(speicher, brett, { nurLesen = false } = {}) {
   const mitglieder = speicher.mitglieder(brett);
   if (!speicher.hatRls(brett) && speicher.hatAlt(brett)) {
     const uebersetzt = await altNachRls(speicher.brett(brett), { brett, mitglieder });
+    // Eingefroren wird nichts mehr geschrieben, auch nicht die Übersetzung.
+    if (nurLesen) return { ...uebersetzt, members: mitglieder };
     speicher.rlsErsetzen(brett, uebersetzt);
     for (const m of mitglieder) speicher.mitgliedSetzen(brett, m.id, m);
   }
   // Karten, die noch das alte `who` tragen, einmalig auf Zuweisungen an
   // Mitglieder umstellen — und das Ergebnis wegschreiben, nicht bei jedem
-  // Lesen neu rechnen.
+  // Lesen neu rechnen (eingefroren nur in der Antwort).
+  const daten = speicher.rlsBrett(brett);
   if (mitglieder.length) {
-    for (const item of speicher.rlsBrett(brett).items) {
-      if (!istKarte(item) || !Array.isArray(item.data?.who) || !item.data.who.length) continue;
-      speicher.itemSetzen(brett, item.id, migriereWho(item, mitglieder).item);
-    }
+    daten.items = daten.items.map((item) => {
+      if (!istKarte(item) || !Array.isArray(item.data?.who) || !item.data.who.length) return item;
+      const neu = migriereWho(item, mitglieder).item;
+      if (!nurLesen) speicher.itemSetzen(brett, item.id, neu);
+      return neu;
+    });
   }
-  return speicher.rlsBrett(brett);
+  return daten;
 }
 
 function pruefeItem(doc, id) {
@@ -263,8 +275,10 @@ function fehler(res, status, text) {
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) {
   fs.mkdirSync(path.dirname(DATEN), { recursive: true });
   const speicher = new Speicher(DATEN);
-  const server = erstelleServer({ speicher });
-  server.listen(PORT, HOST, () => console.log(`Karabirrdt läuft auf http://${HOST}:${PORT} · Daten in ${DATEN}`));
+  // KARABIRRDT_NUR_LESEN=1: zum Wechsel eingefroren (siehe erstelleServer).
+  const nurLesen = process.env.KARABIRRDT_NUR_LESEN === "1";
+  const server = erstelleServer({ speicher, nurLesen });
+  server.listen(PORT, HOST, () => console.log(`Karabirrdt läuft auf http://${HOST}:${PORT} · Daten in ${DATEN}${nurLesen ? " · eingefroren, nur lesend" : ""}`));
   const stopp = () => { server.close(); speicher.schliessen(); process.exit(0); };
   process.on("SIGTERM", stopp);
   process.on("SIGINT", stopp);
