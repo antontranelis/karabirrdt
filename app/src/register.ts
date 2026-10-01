@@ -25,12 +25,7 @@
 // Dieses Modul wird genau einmal importiert, vor dem ersten Render
 // (main.tsx): Das Register liest beim Rendern, nicht beim Import.
 
-import {
-  TOOLKIT_TYPE_LAYER,
-  composeTypeManifest,
-  setTypeManifest as bindeDataInterface,
-  type TypeManifestLayer,
-} from "@real-life-stack/data-interface"
+import { TOOLKIT_TYPE_LAYER, composeTypeManifest, type TypeManifestLayer } from "@real-life-stack/data-interface"
 import { registerTypePresentation, setTypeManifest, type TypePresentationLayer } from "@real-life-stack/toolkit"
 import { Sparkle } from "lucide-react"
 import { FADEN_PRAEDIKAT, KARTEN_TYP, ROLLE_KANN, ROLLE_LERNT, ZIEL_TYP, ZUGEHOERIG_PRAEDIKAT, ZUWEISUNG } from "../../modell.mjs"
@@ -112,12 +107,10 @@ let gebunden = false
 /** Manifest binden und die Schicht registrieren — einmal, vor dem ersten Render. */
 export function bindeRegister(): void {
   if (gebunden) return
-  // Zweimal, weil es zwei Kopien gibt: Das Toolkit bringt data-interface
-  // eingebaut mit (toolkit 0.3.0 bündelt es, statt es als Abhängigkeit zu
-  // importieren), der MockConnector importiert das npm-Paket. Beide müssen
-  // dasselbe Manifest sehen (Lücke, docs/rls-kompatibel.md).
+  // Einmal: Seit toolkit 0.4.0 importiert das Toolkit data-interface, statt
+  // eine Kopie zu bündeln (Lücke 18, rls#555). Toolkit und MockConnector
+  // sehen damit denselben Manifest-Zustand.
   setTypeManifest(TYPE_MANIFEST)
-  bindeDataInterface(TYPE_MANIFEST)
   registerTypePresentation("karabirrdt", KARABIRRDT_REGISTER)
   gebunden = true
 }

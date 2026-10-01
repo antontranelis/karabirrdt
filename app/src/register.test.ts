@@ -1,16 +1,33 @@
 import { describe, expect, it } from "vitest"
 import { contentTypeFromRegister, resolveTypePresentation } from "@real-life-stack/toolkit"
-import { getTypeManifest } from "@real-life-stack/data-interface"
-import { bindeRegister } from "./register"
+import { TOOLKIT_TYPE_LAYER, composeTypeManifest, getTypeManifest } from "@real-life-stack/data-interface"
+import { setTypeManifest as setzeImToolkit } from "@real-life-stack/toolkit"
+import { KARABIRRDT_MANIFEST_LAYER, TYPE_MANIFEST, bindeRegister } from "./register"
 
 bindeRegister()
 
 describe("Register-Schicht der Karabirrdt-App", () => {
-  it("bindet das Manifest: Das Ziel nimmt Karten auf (←partOf) — in beiden Kopien", () => {
-    // Die Kopie, die der MockConnector importiert …
+  it("Toolkit und data-interface teilen EINEN Manifest-Zustand (Lücke 18, toolkit 0.4.0)", () => {
+    // Bis toolkit 0.3.0 bündelte das Toolkit eine eigene Kopie: Was über
+    // das Toolkit gebunden wurde, sah data-interface nicht.
+    const probe = composeTypeManifest([
+      TOOLKIT_TYPE_LAYER,
+      KARABIRRDT_MANIFEST_LAYER,
+      { name: "probe", extensions: [{ id: "project", relations: [{ predicate: "probe", itemRole: "to", otherKind: "task" }] }] },
+    ])
+    try {
+      setzeImToolkit(probe)
+      expect(getTypeManifest()).toBe(probe)
+    } finally {
+      setzeImToolkit(TYPE_MANIFEST)
+    }
+  })
+
+  it("bindet das Manifest einmal: Das Ziel nimmt Karten auf (←partOf), für MockConnector und Register", () => {
+    // Das Manifest, das der MockConnector aus data-interface liest …
     const ziel = getTypeManifest().get("project")
     expect(ziel?.relations).toContainEqual({ predicate: "partOf", itemRole: "to", otherKind: "task" })
-    // … und die im Toolkit gebündelte: Sie hätte die Liste ohne Manifest-Kante abgelehnt.
+    // … ist dasselbe, gegen das das Register die Liste „Karten" prüft.
     expect(resolveTypePresentation("project").edges?.some((e) => e.predicate === "partOf" && e.itemRole === "to")).toBe(true)
   })
 
