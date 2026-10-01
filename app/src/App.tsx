@@ -11,7 +11,6 @@ import {
   EmptyState,
   FilterScope,
   GroupDialog,
-  ItemComposer,
   ItemFocusContext,
   ModuleFrame,
   ModuleToolbar,
@@ -48,7 +47,8 @@ import { PruefungPanel } from "./panels/pruefung-panel"
 import { liveModus, spaceAbschnitte } from "./panels/space-abschnitte"
 import { STARTZIELE } from "./startziele"
 import { TISCH, hatIchWahl } from "./connector/server-connector"
-import { mitPosition, useAbbildung, useComposerProps, vorbelegung, type Zelle } from "./composer"
+import { useComposerProps, type Zelle } from "./composer"
+import { Anlegen } from "./panels/anlegen"
 import {
   KARTEN_TYP,
   VOCAB,
@@ -359,43 +359,6 @@ export default function App() {
       )}
     </AppShell>
     </ItemFocusContext.Provider>
-  )
-}
-
-/**
- * Anlegen — eine Form für beide Arten, aus dem Register. Welche es wird,
- * entscheidet die Typ-Auswahl des Formulars; aus einer Zelle heraus steht
- * sie fest (Karte), und die Karte landet in dieser Zelle.
- */
-function Anlegen({
-  zelle,
-  nurKarte,
-  composerProps,
-  onFertig,
-  onAbbruch,
-}: {
-  zelle: Zelle | null
-  nurKarte: boolean
-  composerProps: Partial<ContentComposerProps>
-  onFertig: (item: Item) => void
-  onAbbruch: () => void
-}) {
-  const { typen, mapSubmission } = useAbbildung()
-  const mapper = useMemo(() => mitPosition(mapSubmission, zelle), [mapSubmission, zelle])
-  // „Teil von“ steht schon im Formular, nicht erst beim Speichern (Lücke 29).
-  const vorbelegt = useMemo(() => vorbelegung(zelle), [zelle])
-  return (
-    <div className="p-4">
-      <ItemComposer
-        contentTypes={nurKarte ? typen.filter((t) => t.id === KARTEN_TYP) : typen}
-        initialContentType={KARTEN_TYP}
-        initialData={vorbelegt}
-        mapper={mapper}
-        composerProps={composerProps}
-        onDone={onFertig}
-        onCancel={onAbbruch}
-      />
-    </div>
   )
 }
 
