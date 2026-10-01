@@ -326,3 +326,9 @@ test("importiere --ersetzen: Datensätze an entfernten Karten gehen mit; nach ei
   assert.deepEqual(b2.fehler.map((f) => f.id), ["k-alt"]);
   assert.ok(c2.items.has("ziel-alt"));
 });
+
+test("planeUmzug lehnt fremdes JSON ab, bevor etwas geschrieben wird", async () => {
+  await assert.rejects(() => planeUmzug({ foo: "kein Brett" }), /Unbekanntes Format/);
+  await assert.rejects(() => planeUmzug([]), /Unbekanntes Format/);
+  assert.equal((await planeUmzug({ meta: { name: "Alt" }, goals: {}, tasks: {} })).items.length, 0);
+});

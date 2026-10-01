@@ -186,6 +186,13 @@ unsichtbar). Ein Plan mit Verstößen gegen die Brett-Regeln wird nicht
 geschrieben; `--ersetzen` (Abschnitt „Daten“) löscht nur, wenn alles andere
 fehlerfrei geschrieben ist.
 
+Offen (Codex-Runde 4, nicht gebaut): Übrige Datensätze (RelationRecords)
+übernimmt der Import nur zwischen zwei Items des Bretts, und einmal angelegte
+ändert ein zweiter Lauf nicht. Im heutigen Bestand gibt es nach `npm run
+umzug` keine solchen Datensätze mehr. Scheitert mitten im Import eine
+Anfrage, kann ein Zwischenstand stehen bleiben; der Weg zurück ist derselbe
+Aufruf noch einmal.
+
 ## Nachmigration
 
 Karten aus der alten Fassung tragen „Wer" als freie Kürzel. Die Zuordnung

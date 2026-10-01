@@ -25,6 +25,7 @@ import {
   MODUL,
   ZIEL_TYP,
   ZUWEISUNG,
+  istRlsFormat,
   lokaleId,
   normalisiereRls,
   regelVerstoesse,
@@ -69,6 +70,11 @@ function inhaltAnders(soll, ist) {
  */
 export async function planeUmzug(json, { slug, zuordnung = {} } = {}) {
   const quelle = /** @type {any} */ (json ?? {});
+  // Nur ein bekanntes Format: die RLS-Form `{group, items}` oder die alte
+  // `{meta, goals, tasks}`. Fremdes JSON wäre sonst ein leeres Brett, und
+  // „ersetzen“ räumte das offene Brett leer.
+  const altFormat = quelle && typeof quelle === "object" && ["goals", "tasks"].some((k) => quelle[k] && typeof quelle[k] === "object");
+  if (!istRlsFormat(quelle) && !altFormat) throw new Error("Unbekanntes Format: erwartet wird ein Export des Karabirrdt ({group, items} oder {meta, goals, tasks})");
   const rls = await normalisiereRls(quelle, { brett: slug ?? quelle?.group?.id ?? "haupt" });
   const kennung = slug ?? rls.group.id;
   if (typeof kennung !== "string" || !KENNUNG.test(kennung)) {

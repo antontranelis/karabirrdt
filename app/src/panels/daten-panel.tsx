@@ -97,7 +97,7 @@ export function DatenPanel({ group, items, relations }: Props) {
           try {
             const plan = await planeUmzug(json, { slug: brett })
             const bericht = await importiere(plan, rohVon(connector), { gruppe: group.id, ersetzen: true })
-            const ohne = plan.ohneKonto.length ? ` ${plan.ohneKonto.length} Zuweisungen ohne Konto bleiben stehen.` : ""
+            const ohne = plan.nichtUebernommen.length ? ` ${plan.nichtUebernommen.length} Datensätze nicht übernommen.` : ""
             setMeldung(
               bericht.fehler.length
                 ? `Teilweise ersetzt: ${bericht.fehler.length} Fehler (${bericht.fehler[0].grund}).`
