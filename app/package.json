@@ -11,13 +11,14 @@
   },
   "dependencies": {
     "@real-life-stack/data-interface": "0.4.0",
-    "@real-life-stack/mock-connector": "0.2.3",
+    "@real-life-stack/supabase-connector": "0.3.2",
     "@real-life-stack/toolkit": "0.4.0",
     "lucide-react": "0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@real-life-stack/mock-connector": "0.2.3",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/react": "16.3.3",
     "@types/react": "^19.0.0",

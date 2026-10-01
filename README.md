@@ -5,10 +5,13 @@ Zeilen, die zwölf Stufen von Träumen bis Feiern als Spalten, Karten in den
 Zellen und Fäden dazwischen. Alle, die dasselbe Brett offen haben, sehen
 Änderungen sofort.
 
-Es gibt die App zweimal: unter `/` die Fassung auf dem
+Unter `/` läuft die Fassung auf dem
 [Real Life Stack](https://github.com/real-life-org/real-life-stack)
-(React + Toolkit-Komponenten, Daten als Items und Relationen), unter `/alt`
-die ursprüngliche Seite aus einer Datei. Beide zeigen dasselbe Brett.
+(React + Toolkit-Komponenten, Daten als Items und Relationen) mit dem
+Supabase-Connector des Stacks: Anmeldung, Spaces, zeilenweise Rechte und
+Realtime kommen vom Server `https://supabase.real-life-stack.de`. Unter `/alt`
+liegt die ursprüngliche Seite; zum Wechsel wird sie eingefroren (nur lesend,
+siehe „Umzug auf Supabase“).
 Wie die Abbildung auf RLS aussieht, steht in
 [`docs/rls-kompatibel.md`](docs/rls-kompatibel.md); die Regeln und die
 Lesereihenfolge für alle, die hier bauen, in [`AGENTS.md`](AGENTS.md).
@@ -18,37 +21,51 @@ Lesereihenfolge für alle, die hier bauen, in [`AGENTS.md`](AGENTS.md).
 ```bash
 npm install
 npm run setup      # Abhängigkeiten der App (app/)
-npm run build      # baut die App nach public/
-npm start          # http://localhost:8124
+npm run build      # baut die App nach public/ (statisch)
+npm run dev:app    # Vite mit Hot Reload, http://localhost:5174
 ```
 
-Zum Entwickeln an der Oberfläche: `npm start` in einem Fenster,
-`npm run dev:app` in einem zweiten (Vite mit Hot Reload, leitet `/api` und
-`/ws` an den Server weiter).
+Die App ist statisch. Adresse und öffentlicher Schlüssel der
+Supabase-Instanz liest sie zur Laufzeit aus `config.json` (Spec 11 des
+Stacks; im Repository steht nur die Adresse, den Schlüssel trägt die
+ausgelieferte Datei). Zum Entwickeln genügt `app/.env.local` mit
+`VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` (nicht im Repository). Der
+öffentliche Schlüssel ist der `anon`-Key, nie der Service-Role-Key.
 
-Die Daten liegen in einer SQLite-Datei unter `data/karabirrdt.sqlite`
-(Node 22 bringt SQLite mit, es gibt keine nativen Abhängigkeiten).
+Der eigene Server (`npm start`, SQLite unter `data/karabirrdt.sqlite`) liefert
+bis zum Wechsel noch `/alt` und den Export der alten Bretter.
 
 | Variable | Standard | Bedeutung |
 |---|---|---|
 | `PORT` / `HOST` | `8124` / `0.0.0.0` | wo der Server hört |
 | `KARABIRRDT_DB` | `data/karabirrdt.sqlite` | Pfad der Datenbank |
+| `KARABIRRDT_NUR_LESEN` | — | `1`: eingefroren, die API nimmt keine Änderung mehr an (423) |
 
 ## Bretter
 
-Ein Brett ist ein Space: Es wird oben links im Space-Menü gewechselt und
-angelegt, und die Adresse folgt — `/` ist das Brett `haupt`, `/emil` das
-Brett `emil`. Kleinbuchstaben, Ziffern und Bindestriche; die Adresse eines
-neuen Bretts leitet sich aus seinem Namen ab.
+Ein Brett ist ein Space mit dem Modul `karabirrdt`: Es wird oben links im
+Space-Menü gewechselt und angelegt, und die Adresse folgt — `/emil` ist das
+Brett mit dem Slug `emil` (`Group.data.slug`; die Id vergibt der Server), `/`
+das erste eigene Brett. Kleinbuchstaben, Ziffern und Bindestriche; der Slug
+eines neuen Bretts leitet sich aus seinem Namen ab. Sichtbar sind nur Bretter,
+in denen man Mitglied ist; eine fremde Adresse sagt das und zeigt die eigene
+Kennung, damit ein Mitglied einladen kann.
+
+## Anmelden
+
+Anonym („Anonym ausprobieren“, danach der Anzeigename im Profil) oder mit
+E-Mail und Passwort. Wer Karten anlegt, ändert oder „Kann ich“ drückt,
+schreibt als diese Person.
 
 ## Aufbau
 
 ```text
-server.mjs      HTTP + WebSocket, liefert public/ aus
-speicher.mjs    SQLite: alte Tabellen (für /alt) und die RLS-Tabellen
+app/            Vite + React + @real-life-stack/* (Supabase-Connector), baut nach public/
 modell.mjs      die Abbildung Brett ↔ RLS, die Regeln und die Geometrie
-app/            Vite + React + @real-life-stack/*, baut nach public/
-public/alt.html die ursprüngliche Seite, unverändert in Funktion
+umwandeln.mjs   Export → Umwandeln → Import (Umzugsskript und Abschnitt „Daten“)
+server.mjs      der alte Server: /alt und der Export, bis zum Wechsel
+speicher.mjs    SQLite: alte Tabellen (für /alt) und die RLS-Tabellen
+public/alt.html die ursprüngliche Seite; mit /alt-daten/ eingefroren
 ```
 
 ## Bedienung
@@ -65,22 +82,22 @@ public/alt.html die ursprüngliche Seite, unverändert in Funktion
   muss) oder „Ermöglicht“ (was danach kommt) eine Karte suchen oder „Im Modul
   wählen“ und die Karte auf dem Brett anklicken. Ein Faden nach links wird
   abgelehnt.
-- **Wer:** „Kann ich“ und „Will lernen“ im Karten-Detail tragen dich ein.
-  Wer du bist, wählst du rechts oben im Benutzermenü unter „Profil“ (je Brett,
-  im Browser gemerkt). Andere trägst du beim Bearbeiten unter „Zugewiesen“
-  ein; ein Tipp auf den Namen wechselt zwischen „kann“ und „lernt“.
-  Mitglieder verwaltet das Space-Menü oben links.
+- **Wer:** „Kann ich“ und „Will lernen“ im Karten-Detail tragen dich ein, als
+  die angemeldete Person. Deinen Namen änderst du rechts oben im
+  Benutzermenü unter „Profil“. Andere trägst du beim Bearbeiten unter
+  „Zugewiesen“ ein; ein Tipp auf den Namen wechselt zwischen „kann“ und
+  „lernt“. Mitglieder verwaltet das Space-Menü oben links (Einladen aus den
+  eigenen Kontakten).
 - **Traum und Daten:** im Space-Menü oben links, „bearbeiten“, dann unter
   „Karabirrdt“ die Abschnitte „Traum“ und „Daten“.
 - **Hell oder dunkel:** der Knopf rechts oben; ohne Wahl folgt die App dem
   System.
 - **Prüfung:** Phasenabdeckung je Ziel, Karten ohne Namen, Karten ohne Fäden,
   Hebelpunkte, Summe der Stunden und Euro.
-- **Daten:** JSON kopieren, als Datei speichern oder einfügen (ersetzt das
-  Brett). Gilt dem offenen Brett.
+- **Daten:** JSON kopieren, als Datei speichern oder einfügen (ersetzt die
+  Karten und Ziele des offenen Bretts; derselbe Import wie im Umzugsskript).
 
-Der Browser hält zusätzlich eine lokale Kopie, damit die Seite auch ohne
-Server lesbar bleibt. Was ohne Verbindung geändert wird, bleibt lokal.
+Die App arbeitet online (Stopp-Punkt 6: Offline kommt später).
 
 ## Mit Docker
 
@@ -92,10 +109,12 @@ docker run -p 8124:8124 -v "$PWD/data":/data ghcr.io/antontranelis/karabirrdt:la
 
 ## Auf einem Server
 
-`deploy/docker-compose.server.yml` ist die Vorlage für den Betrieb hinter
-Traefik mit automatischem Zertifikat und Auto-Update über Watchtower. Die App
-kennt keine Benutzer: wer die Adresse hat, liest und ändert das Brett. Eine
-Basis-Anmeldung in Traefik davor ist deshalb nicht optional.
+`deploy/docker-compose.server.yml` ist die Vorlage für den bisherigen Betrieb
+hinter Traefik mit automatischem Zertifikat und Auto-Update über Watchtower.
+Für die Supabase-Fassung genügt eine statische Auslieferung von `public/` mit
+einer `config.json`, die den öffentlichen Schlüssel trägt; `/alt` und
+`/alt/<brett>` liefern `alt.html` aus, `/<slug>` die `index.html`. Das
+Ausrollen ist ein eigener Schritt (Prüfliste Betrieb im Brief zum Umzug).
 
 Der Server zieht das Abbild `latest`. Das entsteht nur aus einem
 Versions-Tag, nicht aus einem Merge auf `main`; `main` baut `:main` zum
@@ -134,6 +153,46 @@ Danach ist die RLS-Form die Wahrheit; die alten Endpunkte bedienen `/alt`.
 Letzter Schreiber gewinnt. Ein Brett ist Kilobytes groß, Konflikte sind bei
 einer Gruppe am Tisch praktisch keine.
 
+## Umzug auf Supabase
+
+Export → Umwandeln → Import, keine laufende Migration (Anton 29.09.): Die
+Daten lassen sich jederzeit als JSON exportieren und anders umformen.
+
+1. Den alten Server einfrieren (`KARABIRRDT_NUR_LESEN=1`): Die API nimmt
+   keine Änderung mehr an, der Export kommt weiter.
+2. `/alt` einfrieren: `npm run alt:einfrieren -- --db <kopie.sqlite>` schreibt
+   je Brett die alte Form nach `public/alt-daten/` (nicht im Repository);
+   liegt sie dort, liest `alt.html` nur noch sie.
+3. Je Brett importieren, angemeldet als die importierende Person (sie gilt als
+   Autor der Karten und legt den Space an):
+
+```bash
+KB_SUPABASE_ANON_KEY=… KB_EMAIL=… KB_PASSWORT=… \
+npm run import:supabase -- --quelle http://localhost:8124/api/b/real-life/rls --brett real-life --probe
+npm run import:supabase -- --quelle export.json --brett real-life \
+  --zuordnung user:emil=<konto-id-von-emil>
+```
+
+Das Skript liest das JSON (URL oder Datei), bringt es in die heutige Form
+(dieselbe wie nach `npm run umzug`), legt den Space mit dem Slug an oder
+findet ihn, übernimmt die Ids der Items und ist idempotent; `--probe`
+schreibt nichts. `--zuordnung` schreibt Zuweisungen eines Mitglieds auf sein
+Konto um und lädt es ein. Solange ein Mitglied ohne Konto Zuweisungen hat,
+hält der Import an: Platzhalter-Personen, die beim ersten Login verknüpft
+werden, trägt der Stack noch nicht
+([`docs/rls-kompatibel.md`](docs/rls-kompatibel.md), Lücke 33);
+`--ohne-konto-uebernehmen` übernimmt sie ausdrücklich unverändert (dann
+unsichtbar). Ein Plan mit Verstößen gegen die Brett-Regeln wird nicht
+geschrieben; `--ersetzen` (Abschnitt „Daten“) löscht nur, wenn alles andere
+fehlerfrei geschrieben ist.
+
+Offen (Codex-Runde 4, nicht gebaut): Übrige Datensätze (RelationRecords)
+übernimmt der Import nur zwischen zwei Items des Bretts, und einmal angelegte
+ändert ein zweiter Lauf nicht. Im heutigen Bestand gibt es nach `npm run
+umzug` keine solchen Datensätze mehr. Scheitert mitten im Import eine
+Anfrage, kann ein Zwischenstand stehen bleiben; der Weg zurück ist derselbe
+Aufruf noch einmal.
+
 ## Nachmigration
 
 Karten aus der alten Fassung tragen „Wer" als freie Kürzel. Die Zuordnung
@@ -171,8 +230,8 @@ Fäden zurück. Einzelheiten in [`docs/rls-kompatibel.md`](docs/rls-kompatibel.m
 ## Tests
 
 ```bash
-npm test           # Speicher, API, Datenmodell, Umzug (node --test),
-                   # danach Register, Formular und Connector der App (Vitest)
+npm test           # Speicher, API, Datenmodell, Umzug, Umwandeln (node --test),
+                   # danach Register, Formular, Brett-Regeln der App (Vitest)
 npm run typecheck  # TypeScript der App
 ```
 

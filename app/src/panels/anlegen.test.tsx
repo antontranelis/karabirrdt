@@ -1,40 +1,37 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import { act, render, waitFor } from "@testing-library/react"
 import { ConnectorProvider } from "@real-life-stack/toolkit"
+import { MockConnector } from "@real-life-stack/mock-connector"
 import { bindeRegister } from "../register"
-import { TISCH, erstelleServerConnector } from "../connector/server-connector"
+import { mitBrettRegeln } from "../connector/brett-regeln"
 import { Anlegen } from "./anlegen"
 
 bindeRegister()
-afterEach(() => vi.unstubAllGlobals())
 
-// Der echte ServerConnector über einem Server im Speicher (wie in
-// server-connector.test.ts): So sieht das Formular, was es im Brett sieht.
-const ziel = (id: string, title: string) => ({ id, type: "project", createdAt: "", createdBy: TISCH.id, data: { title } })
-
-class StillerSocket {
-  onopen = null
-  onmessage = null
-  onclose = null
-  onerror = null
-  close() {}
-}
+// Ein Connector mit den Brett-Regeln der App (wie im Betrieb um den
+// Supabase-Connector, hier um den MockConnector): So sieht das Formular, was
+// es im Brett sieht.
+const ziel = (id: string, title: string) => ({ id, type: "project", createdAt: "", createdBy: "ich", data: { title } })
 
 async function verbinde() {
-  vi.stubGlobal("WebSocket", StillerSocket)
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (pfad: string) => {
-      const antwort =
-        pfad === "/api/gruppen"
-          ? [{ id: "haupt", name: "Haupt", data: {} }]
-          : pfad.endsWith("/rls")
-            ? { group: { id: "haupt", name: "Haupt", data: {} }, items: [ziel("a", "Ziel Alpha"), ziel("b", "Ziel Beta")], relations: [], members: [] }
-            : { ok: true }
-      return new Response(JSON.stringify(antwort), { status: 200 })
-    }),
+  const items = [ziel("a", "Ziel Alpha"), ziel("b", "Ziel Beta")]
+  const mock = new MockConnector(
+    { items, groups: [{ id: "g", name: "Brett", data: {} }], users: [{ id: "ich", displayName: "Ich" }], groupMembers: { g: ["ich"] }, groupItems: { g: ["a", "b"] } },
+    { allowFixtureAuthors: true },
   )
-  return (await erstelleServerConnector("haupt")).connector
+  await mock.init()
+  mock.setCurrentGroup("g")
+  // Wie der Supabase-Connector: kein Verschieben zwischen Spaces
+  // (`ItemGroupCapable` fehlt dort), sonst verlangte das Formular einen Space.
+  const wieSupabase = new Proxy(mock, {
+    has: (ziel, name) => name !== "moveItemToGroup" && name !== "getItemGroupId" && Reflect.has(ziel, name),
+    get: (ziel, name) => {
+      if (name === "moveItemToGroup" || name === "getItemGroupId") return undefined
+      const wert = Reflect.get(ziel, name, ziel)
+      return typeof wert === "function" ? wert.bind(ziel) : wert
+    },
+  })
+  return mitBrettRegeln(wieSupabase)
 }
 
 describe("Anlegen aus einer Zelle", () => {

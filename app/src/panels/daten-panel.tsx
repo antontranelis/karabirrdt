@@ -1,22 +1,27 @@
 import { useState } from "react"
 import type { Group, Item, RelationRecord } from "@real-life-stack/data-interface"
-import { Button, Label, Textarea } from "@real-life-stack/toolkit"
-import { importiereBrett } from "../connector/server-connector"
+import { Button, Label, Textarea, useConnector } from "@real-life-stack/toolkit"
+import { rohVon } from "../connector/brett-regeln"
+import { slugVon } from "../brett"
 import { rlsNachAlt } from "../../../modell.mjs"
+import { importiere, planeUmzug } from "../../../umwandeln.mjs"
 
 interface Props {
-  brett: string
-  group: Group | null
+  group: Group
   items: Item[]
   relations: RelationRecord[]
 }
 
 /**
  * JSON heraus und hinein. Heraus kommt die RLS-Form; hinein gehen beide,
- * die alte `{meta, goals, tasks}` und die neue `{group, items, relations}` —
- * der Server erkennt das Format und übersetzt.
+ * die alte `{meta, goals, tasks}` und die neue `{group, items, relations}`.
+ * Der Import ist derselbe wie im Umzugsskript (`umwandeln.mjs`): ins offene
+ * Brett, Ids bleiben, Autor ist, wer importiert; Karten und Ziele, die das
+ * JSON nicht kennt, fallen weg.
  */
-export function DatenPanel({ brett, group, items, relations }: Props) {
+export function DatenPanel({ group, items, relations }: Props) {
+  const connector = useConnector()
+  const brett = slugVon(group)
   const rls = { group, items, relations }
   const [text, setText] = useState(() => JSON.stringify(rls, null, 1))
   const [meldung, setMeldung] = useState<string | null>(null)
@@ -89,8 +94,18 @@ export function DatenPanel({ brett, group, items, relations }: Props) {
             return
           }
           setSicher(false)
-          await importiereBrett(brett, json)
-          setMeldung("Brett ersetzt.")
+          try {
+            const plan = await planeUmzug(json, { slug: brett })
+            const bericht = await importiere(plan, rohVon(connector), { gruppe: group.id, ersetzen: true })
+            const ohne = plan.nichtUebernommen.length ? ` ${plan.nichtUebernommen.length} Datensätze nicht übernommen.` : ""
+            setMeldung(
+              bericht.fehler.length
+                ? `Teilweise ersetzt: ${bericht.fehler.length} Fehler (${bericht.fehler[0].grund}).`
+                : `Brett ersetzt: ${bericht.angelegt.length} neu, ${bericht.geaendert.length} geändert, ${bericht.entfernt.length} entfernt.${ohne}`,
+            )
+          } catch (e) {
+            setMeldung(e instanceof Error ? e.message : String(e))
+          }
         }}
       >
         {sicher ? "Brett wirklich ersetzen?" : "Einfügen und ersetzen"}

@@ -14,9 +14,9 @@ import { DatenPanel } from "./daten-panel"
  * erscheint eine gespeicherte Änderung, ohne dass ein Abschnitt einen eigenen
  * Schreibstand hält (shared-components, Regel 3).
  *
- * `canEdit` bleibt hier unbeachtet: Das Karabirrdt kennt keine Konten
- * (Lücke 24), „Admin“ wäre nur das zufällig erste Mitglied der Liste. Den
- * Traum durfte schon bisher jeder am Tisch ändern.
+ * `canEdit` bleibt hier unbeachtet: Ändern darf den Space der Server
+ * entscheiden (auf Supabase nur, wer ihn angelegt hat); ein abgelehnter Patch
+ * erscheint als Fehler im Abschnitt.
  */
 export function spaceAbschnitte({
   brett,
@@ -36,7 +36,7 @@ export function spaceAbschnitte({
       icon: FileJson,
       render: ({ group }) =>
         group.id === brett ? (
-          <DatenPanel brett={brett} group={group} items={items} relations={relations} />
+          <DatenPanel group={group} items={items} relations={relations} />
         ) : (
           <p className="p-4 text-sm text-muted-foreground">
             Export und Import gelten dem offenen Brett. Wechsle zuerst in „{group.name || group.id}“.

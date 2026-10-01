@@ -4,89 +4,34 @@
 App (Toolkit-Komponenten + Hooks)
         │
         ▼
-   DataInterface           ← die App kennt nur diesen Vertrag
+   DataInterface             ← die App kennt nur diesen Vertrag
         │
-  ServerConnector          ← diese Datei: Proxy um den MockConnector
-     ├── MockConnector     ← Gedächtnis im Browser, Beobachtbarkeit, Regeln
-     └── fetch + WebSocket ← der Karabirrdt-Server (SQLite, ein Brett je Adresse)
+  mitBrettRegeln             ← brett-regeln.ts: die Regeln des Bretts, vor jedem Schreiben
+        │
+  SupabaseConnector          ← @real-life-stack/supabase-connector, exakt gepinnt
+        │
+  supabase.real-life-stack.de (Postgres, RLS-Policies, Realtime, Anmeldung)
 ```
 
-Ein **Brett ist eine Group**: `/api/gruppen` listet alle Bretter als Groups,
-der `WorkspaceSwitcher` wechselt zwischen ihnen, und die Adresse `/<brett>`
-folgt dem Wechsel (`history.pushState`, „Zurück" hört mit). Beim Wechsel
-werden die Items des anderen Bretts nachgeladen und die WebSocket umgehängt.
+`verbindung.ts` baut den Connector aus der Laufzeit-Konfiguration
+(`config.json`, sonst `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`) und legt
+die Brett-Regeln darum.
 
-`server-connector.ts` ist **kein** eigener Connector von Grund auf, sondern
-eine Schicht um `MockConnector`:
+`brett-regeln.ts` ist kein eigener Connector, sondern eine dünne Schicht
+(Komposition, ein Proxy): Sie beantwortet nur `createItem`, `updateItem` und
+`deleteItem` selbst und reicht alles andere durch. So gelten die Regeln für
+jeden Schreibweg, auch die des Toolkits (Formular, Selbstaktion, ⋮-Menü):
 
-1. Beim Start liest er `GET /api/b/<brett>/rls` und macht daraus den Seed —
-   Items, RelationRecords (als Items mit `type: "relation"`, Spec 08) und die
-   Group.
-2. Jede Schreibbewegung geht **erst** in den MockConnector (damit die
-   Oberfläche sofort stimmt) und **dann** an den Server.
-3. Nachrichten der anderen Clients kommen über die WebSocket und werden in
-   den MockConnector gelegt. Die Oberfläche merkt davon nichts: sie hört
-   ohnehin nur auf die Observables.
-4. `setCurrentGroup` wechselt das Brett, `createGroup` legt eins an
-   (`PUT /api/b/<kennung>/group`, Kennung aus dem Namen abgeleitet und gegen
-   die vorhandenen geprüft), `deleteGroup` entfernt eins
-   (`DELETE /api/b/<kennung>/rls`).
+- ein Faden läuft nie nach links, nie im Kreis, nie auf sich selbst;
+- eine Karte gehört zu genau einem Ziel;
+- Löschen nimmt mit, was ohne das Gelöschte keinen Halt hat (Karten eines
+  Ziels, Fäden auf eine gelöschte Karte).
 
-Beim **Anlegen** lädt die Seite auf dem neuen Brett neu, statt weich zu
-wechseln: `MockConnector.createGroup` vergibt die Id selbst (zufällig, seit 0.2.3)
-und nimmt keine mit, also lässt sich die Kennung des Servers nicht
-durchreichen — Upstream-Lücke, siehe `docs/rls-kompatibel.md`.
+Die Regeln bleiben App-Prüfung: Der Stack ist backend-agnostisch, App-Logik
+gehört nie ins Backend (Stopp-Punkt 5). Eine Prüfung vor dem Speichern im
+Stack kommt mit rls#563.
 
-Ein `Proxy` reicht alles durch, was nicht überschrieben ist. Dadurch erbt die
-App jede Fähigkeit des MockConnectors — auch die, die erst später dazukommt —
-ohne dass hier eine Liste gepflegt werden müsste, die lautlos veraltet.
-
-## Gegen einen anderen Connector tauschen
-
-Die Oberfläche redet ausschließlich über Hooks (`useItems`,
-`useRelationRecords`, `useCreateItem`, …) mit dem Connector. Ein Tausch
-berührt deshalb genau eine Datei, `src/main.tsx`:
-
-```ts
-// statt erstelleServerConnector(brett):
-import { WotConnector } from "@real-life-stack/wot-connector"
-
-const connector = new WotConnector({ /* … */ })
-await connector.init()
-connector.setCurrentGroup(spaceId)
-```
-
-Danach ist das Brett ein WoT-Space: verschlüsselt, mehrgerätefähig, ohne
-diesen Server. Was dabei zu prüfen ist:
-
-- **Fähigkeiten statt Annahmen.** Der ServerConnector meldet nur, was der
-  Server kann: kein `groupScope` (Anlegen in einem anderen Brett, ohne es zu
-  öffnen), kein `moveItemToGroup` (Verschieben zwischen Brettern), obwohl der
-  MockConnector darunter beides hätte. Das Formular zeigt den Space darum
-  fest. Genauso sollte jede neue Fläche vorgehen (`isWritable`, `hasGroups`, …).
-- **Regeln des Bretts.** Ein Faden läuft nie nach links, nie im Kreis, nie auf
-  sich selbst, und eine Karte gehört zu genau einem Ziel. `createItem` und
-  `updateItem` lehnen jede Änderung ab, die einen neuen Verstoß brächte
-  (`neuerRegelVerstoss` in `modell.mjs`), gleich ob sie aus dem Formular,
-  einer Selbstaktion oder dem Brett kommt. Ein alter Verstoß blockiert nichts.
-- **Bekannte Grenzen dieses Syncs.** Der Server schreibt ganze Dokumente,
-  der letzte Schreiber gewinnt, und das Echo erkennt nur die letzte eigene
-  Signatur je Item. Daraus folgen die Einschränkungen in
-  [`docs/rls-kompatibel.md`](../../../docs/rls-kompatibel.md#bekannte-einschränkungen)
-  (kein Brettwechsel bei offenem Formular; gleichzeitiges Bearbeiten derselben
-  Karte kann sich überschreiben). Sie werden nicht hier geflickt, sondern mit
-  dem Wechsel auf einen Stack-Connector gelöst.
-- **Identität.** Dieser Connector kennt keine Anmeldung. Wer am Bildschirm
-  sitzt, wählt sich im Benutzermenü („Wer bist du?“, `waehleIch`); gemerkt
-  wird das je Brett im Browser und als `getCurrentUser` geliefert, und der
-  MockConnector darunter schreibt und prüft Autorenrechte mit derselben
-  Person. Ohne Wahl ist es `did:karabirrdt:tisch`. `allowFixtureAuthors: true` bleibt: Autor
-  und Entstehungszeit kommen vom Server statt aus der Sitzung.
-- **Ids.** Neue Items bekommen ihre Id vom MockConnector, seit 0.2.3 zufällig
-  (`crypto.randomUUID()`); bis 0.2.2 zählte er `item-100`, `item-101` … je
-  Sitzung, und diese Schicht vergab die Id darum selbst.
-- **Fäden sind eingebettet** (`blocks` an der Voraussetzung) und wandern mit
-  der Karte. Die Ablage für RelationRecords bleibt für andere Prädikate.
-- **Migration.** `GET /api/b/<brett>/rls` übersetzt ein altes Brett einmalig.
-  Wer auf einen anderen Connector zieht, exportiert im Daten-Panel und
-  importiert dort.
+Ein Brett ist eine Group mit `modules: ["karabirrdt"]`; die Adresse `/<slug>`
+löst über `Group.data.slug` auf (`../brett.ts`). Den Connector zu tauschen
+(etwa gegen den WoT-Connector) heißt: `verbindung.ts` ersetzen. Die
+Oberfläche merkt davon nichts.

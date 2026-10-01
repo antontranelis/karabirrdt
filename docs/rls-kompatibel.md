@@ -1,8 +1,8 @@
 # Karabirrdt auf dem Real Life Stack
 
-Diese App gibt es zweimal: als ursprüngliche Vanilla-Seite (weiter erreichbar
-unter `/alt`) und als RLS-App (`/`). Beide zeigen dasselbe Brett und benutzen
-denselben Server. Der Sinn der zweiten Fassung: **sie kann später ohne Umbau
+Diese App gibt es zweimal: als ursprüngliche Vanilla-Seite (unter `/alt`, zum
+Wechsel eingefroren und nur lesend) und als RLS-App (`/`) auf dem
+Supabase-Connector des Stacks. Der Sinn der zweiten Fassung: **sie kann später ohne Umbau
 des UI-Codes als Modul im Real Life Stack laufen**, und sie ist ein lesbares
 Beispiel „so baue ich eine RLS-kompatible App".
 
@@ -22,20 +22,20 @@ im Stack entstanden; die Lesereihenfolge steht in [`AGENTS.md`](../AGENTS.md).
 
 ## Die Abbildung
 
-Stand: toolkit 0.4.0, data-interface 0.4.0, mock-connector 0.2.3 (exakt
-gepinnt; data-interface ist seit toolkit 0.4.0 nicht mehr im Toolkit
+Stand: toolkit 0.4.0, data-interface 0.4.0, supabase-connector 0.3.2
+(exakt gepinnt; der mock-connector 0.2.3 nur noch für die Tests; data-interface ist seit toolkit 0.4.0 nicht mehr im Toolkit
 gebündelt, sondern dessen Abhängigkeit). Seit toolkit 0.3.0 kommen Karten- und Ziel-Detail samt Formular aus
 dem **Register des Stacks** (Spec 06, Feld- und Kantenregister); die App
 liefert nur noch eine Register-Schicht dazu (`app/src/register.ts`).
 
 | Karabirrdt | RLS | Felder |
 |---|---|---|
-| Brett | **Group** (Space) | `data: { name, dream, horizon, scope: "group", modules: ["karabirrdt"] }` |
+| Brett | **Group** (Space) | `data: { slug, dream, horizon, scope: "group", modules: ["karabirrdt"] }`; Adresse `/<slug>` |
 | Ziel (Zeile) | **Item** `type: "project"`, `@context` + `project/v1` | `data: { title, description, dots, order }` |
 | Karte (Zelle) | **Item** `type: "task"`, `@context` + `task/v1` | `data: { title, description, status, stage, hours, euros, order }` |
 | „kann" | **eingebettete Relation** `assignedTo` → `global:<userId>`, `meta.role: "can"` | ohne `role` gilt ebenfalls „kann" |
 | „lernt" | **eingebettete Relation** `assignedTo` → `global:<userId>`, `meta.role: "learns"` | früher eigenes Prädikat `wantsToLearn`, `npm run umzug` zieht um |
-| Mitglied | **User** des Spaces (`{id: "user:anton", displayName}`) | eigene Tabelle je Brett, `GET/PUT/DELETE /members` |
+| Mitglied | **User** des Spaces: ein Konto auf der Supabase-Instanz (anonym oder E-Mail) | Mitgliedschaft im Space (`group_members`), Name aus dem Profil |
 | Kürzel eines Mitglieds | `Group.data.initialen: { AT: "user:anton", … }` | gewachsene Kürzel des Teams, als Daten am Space statt im Code |
 | Karte → Zeile | **eingebettete Relation** `partOf` → `item:<zielId>` | im Detail „Teil von" |
 | Faden | **eingebettete Relation** `blocks` an der Voraussetzung → `item:<abhängige Karte>` | im Detail „Ermöglicht" (an der Voraussetzung) und „Braucht" (an der abhängigen Karte); früher RelationRecord, `npm run umzug` zieht um |
@@ -126,33 +126,31 @@ Der Server muss dabei gestoppt sein, oder das Skript läuft gegen eine Kopie
 (`--db`): Ein Browser mit der alten App schriebe sonst Karten ohne ihre Fäden
 zurück. Ein JSON-Import im alten Format wird beim Import genauso umgezogen.
 
-## Bekannte Einschränkungen
+## Abgleich: der Supabase-Connector
 
-Der Abgleich zwischen Browser und Server ist ein Eigenbau (`ServerConnector`,
-Lücke 17): Der Browser hält einen MockConnector, der nur das offene Brett
-kennt, und schickt nach jeder Änderung das **ganze** Item per PUT an den
-Server; der letzte Schreiber gewinnt, ohne Versionsvergleich. Das Formular des
-Toolkits speichert seit S3 in mehreren Schritten (Item, dann „Braucht“ an
-anderen Karten, dann Selbstaktion und Status). Daraus folgt, bis die App auf
-einen Stack-Connector umzieht (Anton, 28.09.: eigene Aufgabe, Supabase):
+Bis 01.10.2026 glich ein Eigenbau Browser und Server ab (`ServerConnector`:
+MockConnector im Browser, ganze Dokumente per PUT an einen eigenen Server, der
+letzte Schreiber gewann). Die Codex-Runden 2 bis 5 zu PR #2 fanden dort je
+einen neuen Fehler. Seit dem Umzug auf den Supabase-Connector entfallen die
+drei bekannten Einschränkungen von damals:
 
-- **Kein Brettwechsel bei offenem Formular.** Wer während des Speicherns das
-  Brett wechselt, kann die späteren Schritte („Braucht“) in das neue Brett
-  schreiben, wenn es dort eine Karte mit derselben Id gibt. Erst speichern
-  oder abbrechen, dann wechseln.
-- **Gleichzeitiges Bearbeiten derselben Karte kann sich überschreiben.** Seit
-  die Fäden eingebettet an der Voraussetzung liegen, ändern ein neuer Faden
-  und eine Titeländerung dasselbe Dokument; kommen beide gleichzeitig (zwei
-  Browser, oder ein verspätetes Echo), gewinnt das zuletzt geschriebene.
-- **Die Regeln des Bretts prüft jeder Browser gegen seinen Stand.** Zwei
-  gleichzeitige Änderungen, einzeln erlaubt, können zusammen einen Kreis
-  ergeben.
+- **Brettwechsel bei offenem Formular:** Der Connector schreibt in den Space,
+  der beim Schreiben gilt, und liest „Braucht“ und Co. frisch vom Server; es
+  gibt keinen Browser-Speicher je Brett mehr, in den ein späterer Schritt
+  fallen könnte.
+- **Gleichzeitiges Bearbeiten derselben Karte:** Jede Änderung ist ein Update
+  der Zeile auf dem Server, Realtime (`postgres_changes`) liefert sie allen
+  anderen; kein verspätetes Echo setzt mehr einen neueren Stand zurück. Zwei
+  Änderungen desselben Items zur selben Zeit: die spätere gilt.
+- **Wer bin ich:** Die Anmeldung ist echt (anonym oder E-Mail); „Kann ich“
+  schreibt die angemeldete Person, der Server bindet den Autor (RLS-Policy).
 
-Die Codex-Runden 2 bis 5 fanden genau hier je einen neuen Fehler; die
-Härtungen dafür (Schreibschlange, Echo-Liste, Brett-Halt) sind wieder
-herausgenommen, weil sie nur den Eigenbau stützten. Die Lösung ist der Umzug
-auf einen Connector mit Space-Scope und Realtime
-(`.agents/plans/karabirrdt-supabase-brief.md`).
+Geblieben ist eine Einschränkung, bewusst: **Die Regeln des Bretts prüft die
+App** (Stopp-Punkt 5, der Stack ist backend-agnostisch). Sie prüft gegen den
+Stand des Servers unmittelbar vor dem Schreiben; zwei gleichzeitige
+Änderungen aus zwei Browsern, einzeln erlaubt, können zusammen einen Kreis
+ergeben. Die Prüfung vor dem Speichern im Stack kommt mit rls#563. Offline
+arbeitet die App nicht (Stopp-Punkt 6: später).
 
 ## Welche Toolkit-Bausteine benutzt werden
 
@@ -169,14 +167,18 @@ auf einen Connector mit Space-Scope und Realtime
 | `requestItemPick` des Composers | „Im Modul wählen" bei „Braucht", „Ermöglicht", „Teil von": Klick auf eine Karte oder einen Zeilenkopf im Brett |
 | `ItemFocusContext` | der Fokus-Vertrag, gehalten im Zustand der App: Chips in der Meta-Box und Zeilen der Liste öffnen ihr Ziel im selben Panel |
 | `CreateFab` | der Plus-Knopf unten rechts |
-| `UserMenu` | rechts in der Navbar; „Profil" öffnet die Wahl „Wer bist du?" |
+| `UserMenu` | rechts in der Navbar; „Profil" öffnet das eigene Profil, „Abmelden“ |
+| `AuthScreen` | die Anmeldung vor der App: anonym oder E-Mail (Methoden aus `getAuthMethods` des Connectors) |
+| `ProfilePanelContent` | das eigene Profil im Panel; wer anonym kommt, setzt hier zuerst den Namen |
+| `loadRuntimeConfig`, `getRuntimeConfig` | Adresse und öffentlicher Schlüssel der Instanz aus `config.json` (Spec 11) |
+| `useContacts` | die Kontakte, aus denen der `GroupDialog` einlädt |
 | `ModuleFrame` (`fill="bleed"`, `panelFit="inset"`) + `FilterScope` | die Modulfläche: Suche und Filter-Pille stellt die Fläche, darunter das scrollende Brett |
 | `ModuleToolbar` (`trailingActions`) | Modul-Aktionen im Kopf: Traumhorizont, Prüfung |
 | `useModuleFilteredItems` | die Karten, gefiltert wie der Kopf es zeigt |
 | `--module-controls-block` | Platz unter der letzten Zeile des Bretts für Filter-Pille und Plus-Knopf |
 | `ItemPreview density="dense"` + `ItemAssignees size="xs"` | **jede** Karte auf dem Brett: die Matrix-Kachel aus rls#360, gefüllt „kann", umrandet „lernt" |
 | `AdaptivePanel` (`allowedModes: ["floating","sidebar","drawer"]`) | die schwebende Detail-Karte; auf schmalen Schirmen der Drawer |
-| `EmptyState`, `Dialog` | das leere Brett, die Wahl „Wer bist du?" |
+| `EmptyState` | das leere Brett; kein Brett oder eine fremde Adresse |
 | `useItems`, `useCreateItem`/`useUpdateItem`, `useCurrentGroup`, `useCurrentUser`, `useMembers`, `useConnector` | alle Lese- und Schreibwege |
 | `cn`, Tokens aus `styles/globals.css`, `Button` | Gestaltung |
 
@@ -188,8 +190,9 @@ beiden Signalen (`prefers-color-scheme` **und** `.dark`/`[data-theme]`).
 und `ziel-detail.tsx`, die Widgets `AufwandWidget` und `PunkteWidget`,
 `peopleRelations` mit zwei Personenfeldern, der Fäden-Block mit
 „Voraussetzung hinzufügen" und der eigene Hook `faeden.ts`. **Geblieben**,
-weil das Toolkit dafür nichts hat: das Prüfungs-Panel, das Raster mit Fäden und Zeilenköpfen (die
-Fachlichkeit des Moduls), und die Wahl „Wer bist du?" (Lücke 24).
+weil das Toolkit dafür nichts hat: das Prüfungs-Panel und das Raster mit Fäden und Zeilenköpfen (die
+Fachlichkeit des Moduls). Die Wahl „Wer bist du?“ ist mit der Anmeldung
+entfallen (Lücke 24).
 
 ### Abweichungen vom Entwurf (Detail-Simulator, KB-Karte und KB-Ziel)
 
@@ -308,7 +311,7 @@ umgangen.
    mehr; falls je wieder eine Fläche mit Rändern eingepasst werden soll,
    gilt der alte Einwand gegen `fitCamera` weiter (feste Polsterung 0.82,
    Zoomklemme 0.08…1.6, Punktwolke statt Rechteck).
-8. **`GroupManager.createGroup` vergibt die Id selbst.** `MockConnector`
+8. **Entfallen mit dem Umzug auf Supabase (Stopp-Punkt 3).** Eine Group-Id vom Aufrufer gibt es im Stack nicht (rls#549 geschlossen: im WoT unzulässig, auf Supabase ein Existenz-Leck); die Adresse steht als Slug in `Group.data.slug`, ein neues Brett öffnet ohne Neuladen. Ursprünglich: **`GroupManager.createGroup` vergibt die Id selbst.** `MockConnector`
    schreibt eine eigene Id (bis 0.2.2 `group-<zeit>`, seit 0.2.3 eine UUID) und nimmt keine entgegen. Ein Connector, der
    den MockConnector benutzt (siehe Lücke 9) kann eine vom Server oder von
    der Spec bestimmte Id also nicht durchreichen; wir laden beim Anlegen
@@ -346,7 +349,7 @@ umgangen.
    Affordance beim Typ `task`. *Vorschlag:*
    `{ predicate: "wantsToLearn", itemRole: "from", otherKind: "person" }`
    im `CORE_TYPE_MANIFEST`.
-12. **Der MockConnector nimmt nach dem Seed keine Menschen mehr auf.**
+12. **Entfallen mit dem Umzug auf Supabase:** Mitglieder sind Konten, `inviteMember` und `getMembers` kommen vom Connector. Ursprünglich: **Der MockConnector nimmt nach dem Seed keine Menschen mehr auf.**
    `users` ist privat, `inviteMember(groupId, userId)` kennt nur Kennungen,
    und `injectSeedItems` gilt nur für Items. Ein Connector, der ihn benutzt,
    kann Mitglieder eines nachgeladenen Spaces also nicht hineinreichen —
@@ -389,7 +392,7 @@ umgangen.
    *Vorschlag:* ein `ColorSchemeToggle` im Toolkit, der die `dark`-Klasse
    führt, die Wahl merkt und beim ersten Besuch `prefers-color-scheme` liest —
    sonst schreibt jede App diese fünf Zeilen neu und sie laufen auseinander.
-17. **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
+17. **✅ Erledigt durch den Umzug auf den Supabase-Connector** (01.10.2026); der `ServerConnector` ist entfernt. Ursprünglich: **Kein Connector für „ein Server, viele Clients, keine Anmeldung".** Der
    Mock-Connector ist speicherflüchtig, der Local-Connector einsam, Supabase
    und WoT bringen Identität mit. Diese App braucht dazwischen einen
    geteilten Raum ohne Konten — deshalb `ServerConnector`.
@@ -434,7 +437,7 @@ umgangen.
 23. **Keine aggregierte Personenzeile am Ziel.** Der Entwurf zeigt am Ziel alle
    Menschen seiner Karten; das Register kennt keine Zeile, die über eine
    Rückwärts-Kante sammelt.
-24. **Keine Identität ohne Konto.** Die Selbstaktionen schreiben den aktuellen
+24. **✅ Erledigt durch die anonyme Anmeldung** (`AuthScreen`, Methode `anonymous`); „Kann ich“ schreibt die angemeldete Person. Ursprünglich: **Keine Identität ohne Konto.** Die Selbstaktionen schreiben den aktuellen
    Nutzer; diese App hat keine Anmeldung. Sie fragt darum selbst „Wer bist
    du?“ (Profil im Benutzermenü), merkt die Wahl je Brett im Browser und
    liefert sie als `getCurrentUser`. Ohne Wahl ist es der Tisch, dann trüge
@@ -464,7 +467,7 @@ umgangen.
    geschrieben wird, kann die Karte gespeichert sein und nur der neue Faden
    fehlen („Konnte nicht gespeichert werden … Erneut“). *Vorschlag:* eine
    optionale Prüfung je Typ vor dem Speichern.
-30. **Der MockConnector lässt seinen Nutzer nicht setzen.** `authenticate`
+30. **Entfallen mit dem Umzug auf Supabase.** Ursprünglich: **Der MockConnector lässt seinen Nutzer nicht setzen.** `authenticate`
    nimmt immer den ersten Seed-Nutzer; für „Wer bist du?" setzt der
    ServerConnector `currentUser` und `currentUserObs` des Mocks selbst, sonst
    schriebe der Speicher „Tisch" als Bearbeiter und verweigerte das Bearbeiten
@@ -476,7 +479,7 @@ umgangen.
    (`mitPosition` in `composer.ts`). *Vorschlag:* `itemRelationDataKey`
    exportieren.
 
-31. **Der MockConnector braucht einen sicheren Kontext.** Er ruft
+31. **Im Betrieb entfallen** (der Mock läuft nur noch in den Tests). Ursprünglich: **Der MockConnector braucht einen sicheren Kontext.** Er ruft
    `crypto.randomUUID()` beim Anlegen (Item-Id, seit 0.2.3) und schon bei
    jedem Anlegen, Ändern und Löschen für den Aktivitätseintrag
    (`appendActivity`, auch in 0.2.2). `randomUUID` gibt es nur über HTTPS und
@@ -496,6 +499,55 @@ umgangen.
    `composer.test.ts`). *Vorschlag:* Die Abbildung lässt `relation:`-Schlüssel
    fallen, deren Kante der gewählte Typ nicht führt.
 
+### Neu mit dem Umzug auf Supabase (01.10.2026)
+
+33. **Platzhalter-Personen trägt der Stack nicht (Stopp-Punkt 2, offen).**
+   Entschieden ist: Mitglieder ohne Konto (`global:user:<name>`) werden
+   Platzhalter-Personen (Profil ohne Konto), die beim ersten Login mit dem
+   Konto verknüpft werden. Geprüft am 01.10.:
+   - Spec 12 Regel 3 kennt den Platzhalter (ein `person`-Item ohne
+     `data.did`, angelegt von einem Mitglied). Die Verknüpfung
+     Platzhalter ↔ Profil beim Beitritt ist ausdrücklich nicht Teil der Spec
+     (Regel 3, Nicht-Ziele).
+   - Der Supabase-Connector legt ein solches Item an wie jedes andere, mehr
+     nicht; Profile sind Zeilen in `profiles` und hängen an einem Konto.
+   - Das Toolkit löst Zuweisungen nur über `global:<userId>` gegen Nutzer auf
+     (`ItemAssignees`, Personen-Feld im Formular, Selbstaktionen). Eine
+     Zuweisung an einen Platzhalter (`item:<id>`) erschiene weder auf der
+     Karte noch im Detail noch im Formular.
+   Das braucht eine Erweiterung von Spec und Toolkit (Zuweisung an einen
+   Platzhalter, Verknüpfen beim Login) und ist darum nicht im Karabirrdt
+   nachgebaut. Bis dahin hält der Import an, solange ein Mitglied ohne Konto
+   Zuweisungen hat; `--zuordnung` schreibt sie für Mitglieder mit Konto um,
+   `--ohne-konto-uebernehmen` übernimmt sie ausdrücklich unverändert
+   (unsichtbar). Im echten Brett „real-life“ trägt nur ein Mitglied
+   Zuweisungen.
+34. **Anonym angemeldet heißt namenlos.** `AuthScreen` fragt beim anonymen
+   Einstieg keinen Namen ab; die Instanz legt das Profil mit leerem Namen an.
+   Die App öffnet darum danach das Profil (`ProfilePanelContent`).
+   *Vorschlag:* ein optionaler Anzeigename bei der Methode `anonymous`.
+35. **Einladen nur aus den Kontakten.** Der `GroupDialog` lädt aus `contacts`
+   ein; auf Supabase braucht ein Kontakt erst eine angenommene Anfrage. Wer
+   zum ersten Mal an den Tisch kommt, kann die eigene Kennung zeigen (die App
+   zeigt sie bei einer fremden Adresse), ein Mitglied hat aber keinen Weg, sie
+   einzugeben. *Vorschlag:* Einladung per Link oder Kennung im Dialog.
+36. **Traum und Horizont ändert nur, wer das Brett angelegt hat.** Die Policy
+   der Instanz erlaubt Änderungen an einer Group nur ihrem Ersteller; bisher
+   durfte jede Person am Tisch den Traum ändern. Ein abgelehnter Patch
+   erscheint als Fehler im Abschnitt „Traum“.
+37. **Ein Slug ist nur unter den eigenen Brettern eindeutig.** Groups sind nur
+   für Mitglieder lesbar; zwei Personen können Bretter mit demselben Slug
+   anlegen, und `/<slug>` löst unter den eigenen auf.
+38. **`useItems` übernimmt eine Filteränderung nicht verlässlich.** Beobachtet
+   mit toolkit 0.4.0 und supabase-connector 0.3.2 im Browser: Wechselt
+   `group` im Filter derselben Komponente (vom leeren Wert auf das erste
+   Brett), kommen die Items nicht an, obwohl die Beobachtung des Connectors
+   sie hat (`loaded: true`, 7 Ziele) und ein frisch eingehängter Aufrufer sie
+   sofort sieht; `isLoading` bleibt stehen. Ursache im Hook nicht geklärt.
+   Die App hängt darum je Brett neu ein (`key` = Id des offenen Bretts in
+   `main.tsx`) und liest ausdrücklich im offenen Brett (`group`): Beim
+   Wechsel stehen nie Karten des vorigen Bretts unter dem neuen.
+
 ### Stand nach toolkit 0.4.0
 
 Offen sind: **1** (Punkte im Zeilenkopf), **17** (kein Connector für einen
@@ -508,6 +560,14 @@ ServerConnector bleiben bis zum Umzug auf Supabase — sowie neu **31**
 (Mock schreibt nur in einem sicheren Kontext) und **32** (Formular-Abbildung
 behält Kanten-Schlüssel nach einem Typwechsel). **4** und **15** sind
 Hinweise ohne Handlungsbedarf, **21** ist entschieden.
+
+### Stand nach dem Umzug auf Supabase
+
+Offen sind: **1**, **23**, **25**, **28** (wie zuvor), dazu **32** und neu
+**33** (Platzhalter-Personen, braucht Spec und Toolkit), **34** bis **38**.
+Geschlossen oder entfallen durch den Umzug: **8**, **12**, **17**, **24**,
+**30**, im Betrieb **31**, und die drei bekannten Einschränkungen des
+Eigenbau-Syncs.
 
 ## Was ein Vibe-Coder beim nächsten Mal wissen muss
 
@@ -590,6 +650,17 @@ Hinweise ohne Handlungsbedarf, **21** ist entschieden.
   gegliederter Liste, neue Karte aus einer Zelle mit vorbelegtem „Teil von“
   (gespeichert mit Stufe, Zeile und UUID), Autor „Am Tisch“; Desktop und
   Telefon, hell und dunkel. Screenshots liegen lokal vor (nicht im Repo).
+- **Umzug auf Supabase (01.10.2026)** geprüft mit `npm test`, `npm run
+  typecheck`, `npm run build` und live gegen die Instanz im freigegebenen
+  Testraum (Nutzer und Space mit `kb-test-`, danach gelöscht): Umzugsskript
+  mit einem anonymisierten Export einer Kopie (78 Items, 89 Fäden-Datensätze
+  eingebettet; Probe, Import, zweiter Lauf ohne Änderung, Zuordnung mit
+  Einladung); im Browser Anmeldung mit E-Mail, Brett unter `/<slug>`,
+  Karten-Detail, „Kann ich“ schreibt die angemeldete Person, eine Änderung
+  aus einem zweiten Konto erscheint per Realtime in unter einer Sekunde,
+  anonyme Anmeldung mit Profil, fremde Adresse mit Kennung, nach der Einladung
+  öffnet das Brett ohne Neuladen; `/alt` eingefroren (Änderungen gehen auf
+  den Stand zurück, keine Schreibanfrage). Desktop und Telefon.
 - Die Bündelgröße liegt bei rund 1,2 MB (409 kB gzip) — das Toolkit bringt
   Editor, Karten- und Graph-Bausteine mit, von denen diese App wenig braucht.
   Aufteilen lohnt erst, wenn die App öffentlich läuft.
