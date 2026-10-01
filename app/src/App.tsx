@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { Group, Item, User } from "@real-life-stack/data-interface"
-import { hasGroups } from "@real-life-stack/data-interface"
+import { hasGroups, isAuthenticatable } from "@real-life-stack/data-interface"
 import {
   AdaptivePanel,
   AppShell,
@@ -20,6 +20,7 @@ import {
   UserMenu,
   WorkspaceSwitcher,
   useConnector,
+  useContacts,
   useCreateGroup,
   useCreateItem,
   useCurrentGroup,
@@ -42,11 +43,11 @@ import {
 import { Sparkles } from "lucide-react"
 import { KarabirrdtBoard } from "./board/karabirrdt-board"
 import { ItemDetail } from "./panels/item-detail"
-import { IchDialog } from "./panels/ich-dialog"
+import { ProfilPanel, ohneNamen, useMeinProfil } from "./panels/profil"
 import { PruefungPanel } from "./panels/pruefung-panel"
 import { liveModus, spaceAbschnitte } from "./panels/space-abschnitte"
 import { STARTZIELE } from "./startziele"
-import { TISCH, hatIchWahl } from "./connector/server-connector"
+import { istBrett, neuesBrett, slugAusPfad, slugVon, startBrett } from "./brett"
 import { useComposerProps, type Zelle } from "./composer"
 import { Anlegen } from "./panels/anlegen"
 import {
@@ -65,6 +66,7 @@ type Ansicht =
   | { art: "neu"; zelle: Zelle }
   | { art: "anlegen" }
   | { art: "pruefung" }
+  | { art: "profil" }
   | null
 
 /** Ein laufender Modul-Pick (Edit-Regeln 7): das Formular wartet auf einen Klick ins Brett. */
@@ -75,10 +77,18 @@ interface Pick {
 
 export default function App() {
   const connector = useConnector()
-  const group = useCurrentGroup()
-  const brett = group?.id ?? "haupt"
-  const { data: gruppen } = useGroups()
+  const offeneGruppe = useCurrentGroup()
+  const { data: alleGruppen, isLoading: gruppenLaden } = useGroups()
+  // Die Instanz teilen sich mehrere Apps: Bretter sind nur die Spaces mit dem
+  // Modul `karabirrdt`.
+  const gruppen = useMemo(() => alleGruppen.filter(istBrett), [alleGruppen])
+  // Ein gerade angelegtes oder gewähltes Brett kann noch fehlen, bis die Liste
+  // nachgeladen ist; verborgen wird nur ein Space, der bekannt KEIN Brett ist.
+  const group = offeneGruppe && !alleGruppen.some((g) => g.id === offeneGruppe.id && !istBrett(g)) ? offeneGruppe : null
+  const brett = group?.id ?? ""
   const { data: ich } = useCurrentUser()
+  const profil = useMeinProfil(connector)
+  const { activeContacts } = useContacts()
   const { data: mitglieder } = useMembers(group?.id ?? null)
   const { data: ziele } = useItems({ type: ZIEL_TYP })
   const { data: karten } = useItems({ type: KARTEN_TYP })
@@ -99,7 +109,7 @@ export default function App() {
   const [pick, setPick] = useState<Pick | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [gruppenDialog, setGruppenDialog] = useState(false)
-  const [ichDialog, setIchDialog] = useState(false)
+  const [unbekannt, setUnbekannt] = useState<string | null>(null)
   const [dialogModus, setDialogModus] = useState<GroupDialogMode>({ type: "create" })
 
   const oeffne = useCallback((a: Ansicht) => {
@@ -186,10 +196,50 @@ export default function App() {
 
   const wechsleRaum = useCallback(
     (w: Workspace) => {
+      setUnbekannt(null)
       if (hasGroups(connector)) connector.setCurrentGroup(w.id)
     },
     [connector],
   )
+
+  // ------------------------------------------------------------- Adresse
+  //
+  // `/<slug>` öffnet das Brett mit diesem Slug (Group.data.slug); der Wechsel
+  // im Space-Switch schreibt die Adresse nach, „Zurück“ hört mit.
+  const oeffneAdresse = useCallback(() => {
+    if (!hasGroups(connector)) return
+    const start = startBrett(gruppen, slugAusPfad(location.pathname))
+    if (start.art === "brett") {
+      setUnbekannt(null)
+      if (connector.getCurrentGroup()?.id !== start.gruppe.id) connector.setCurrentGroup(start.gruppe.id)
+    } else {
+      setUnbekannt(start.art === "unbekannt" ? start.slug : null)
+      if (connector.getCurrentGroup()) connector.setCurrentGroup(null)
+    }
+  }, [connector, gruppen])
+  useEffect(() => {
+    if (gruppenLaden || group) return
+    // Eine unbekannte Adresse bleibt stehen, bis das Brett erscheint — etwa
+    // weil ein Mitglied einen gerade eingeladen hat (Realtime).
+    if (unbekannt && !gruppen.some((g) => slugVon(g) === unbekannt)) return
+    oeffneAdresse()
+  }, [gruppenLaden, group, unbekannt, gruppen, oeffneAdresse])
+  useEffect(() => {
+    // Erst mit den Daten der Group steht ihr Slug fest (setCurrentGroup
+    // liefert sofort eine Group nur mit Id, die Daten folgen).
+    if (!group || (!group.name && Object.keys(group.data ?? {}).length === 0)) return
+    const ziel = `/${slugVon(group)}`
+    if (location.pathname !== ziel) history.pushState(null, "", ziel)
+  }, [group])
+  useEffect(() => {
+    window.addEventListener("popstate", oeffneAdresse)
+    return () => window.removeEventListener("popstate", oeffneAdresse)
+  }, [oeffneAdresse])
+
+  // Wer sich anonym anmeldet, hat noch keinen Namen: erst das Profil.
+  useEffect(() => {
+    if (ohneNamen(profil) && ansicht === null) setAnsicht({ art: "profil" })
+  }, [profil, ansicht])
 
   // --------------------------------------------------------------- Brett
 
@@ -240,9 +290,10 @@ export default function App() {
               System. Den Startwert setzt main.tsx vor dem ersten Render. */}
           <ColorSchemeToggle />
           <UserMenu
-            user={ich ?? TISCH}
-            subtitle={!ich || ich.id === TISCH.id ? "Wer bist du? Unter Profil wählen" : undefined}
-            onProfile={hatIchWahl(connector) ? () => setIchDialog(true) : undefined}
+            user={ich ?? { id: "" }}
+            subtitle={ohneNamen(profil) ? "Noch ohne Namen" : undefined}
+            onProfile={() => oeffne({ art: "profil" })}
+            onLogout={isAuthenticatable(connector) ? () => void connector.logout() : undefined}
           />
         </NavbarEnd>
       </Navbar>
@@ -253,6 +304,17 @@ export default function App() {
             inset) — ein Raster mit Spaltenköpfen verträgt keinen schwebenden
             Kopf. Der FilterScope umschließt Kopf UND Inhalt: Die Suche gehört
             der Fläche, die Karten lesen denselben Filter. */}
+        {!group ? (
+          <OhneBrett
+            unbekannt={unbekannt}
+            laedt={gruppenLaden}
+            ichId={ich?.id ?? ""}
+            onAnlegen={() => {
+              setDialogModus({ type: "create" })
+              setGruppenDialog(true)
+            }}
+          />
+        ) : (
         <FilterScope>
           <ModuleFrame fill="bleed" panelFit="inset" maxWidth="max-w-none" searchLabel="Karten durchsuchen">
             <BrettModul
@@ -273,7 +335,7 @@ export default function App() {
                 for (const [i, titel] of STARTZIELE.entries())
                   await anlegen({
                     type: ZIEL_TYP,
-                    createdBy: ich?.id ?? TISCH.id,
+                    createdBy: ich?.id ?? "",
                     "@context": [VOCAB.BASE, VOCAB.PROJECT],
                     data: { title: titel, dots: 0, order: i },
                   })
@@ -281,6 +343,7 @@ export default function App() {
             />
           </ModuleFrame>
         </FilterScope>
+        )}
       </AppShellMain>
 
       {/* Die schwebende Detail-Karte. `floating` ist der Modus des Toolkits
@@ -317,6 +380,7 @@ export default function App() {
           />
         )}
         {ansicht?.art === "pruefung" && <PruefungPanel ziele={ziele} karten={karten} faeden={faeden} />}
+        {ansicht?.art === "profil" && <ProfilPanel connector={connector} profil={profil ?? null} onClose={() => oeffne(null)} />}
       </AdaptivePanel>
 
       {/* Traum und Daten sind App-Abschnitte im GroupDialog (toolkit 0.4.0,
@@ -328,28 +392,23 @@ export default function App() {
         mode={liveModus(dialogModus, gruppen)}
         appSections={raumAbschnitte}
         appSectionsTitle="Karabirrdt"
-        currentUserId={ich?.id ?? TISCH.id}
+        contacts={activeContacts}
+        currentUserId={ich?.id}
         onCreateGroup={async (name) => {
-          await gruppeAnlegen(name)
+          const neu = await gruppeAnlegen(name, neuesBrett(name, gruppen.map(slugVon)))
+          setUnbekannt(null)
+          if (hasGroups(connector)) connector.setCurrentGroup(neu.id)
         }}
         onUpdateGroup={async (id, aenderungen) => {
           await gruppeAendern(id, aenderungen)
         }}
         onDeleteGroup={async (id) => {
           await gruppeLoeschen(id)
+          const rest = gruppen.find((g) => g.id !== id)
+          if (hasGroups(connector)) connector.setCurrentGroup(rest?.id ?? null)
         }}
         onInviteMember={einladen}
         onRemoveMember={entfernen}
-      />
-
-      <IchDialog
-        open={ichDialog}
-        onOpenChange={setIchDialog}
-        mitglieder={mitglieder}
-        ich={ich}
-        onWahl={(id) => {
-          if (hatIchWahl(connector)) connector.waehleIch(id)
-        }}
       />
 
       {meldung && (
@@ -461,5 +520,24 @@ function BrettModul({
 
       <CreateFab label="Neu" onClick={() => onAnsicht({ art: "anlegen" })} />
     </>
+  )
+}
+
+/** Kein Brett offen: keins angelegt, oder die Adresse gehört zu keinem eigenen. */
+function OhneBrett({ unbekannt, laedt, ichId, onAnlegen }: { unbekannt: string | null; laedt: boolean; ichId: string; onAnlegen: () => void }) {
+  if (laedt) return <div className="grid h-full place-items-center text-muted-foreground">Lade Bretter …</div>
+  return (
+    <div className="grid h-full place-items-center p-4">
+      <EmptyState
+        icon={Sparkles}
+        title={unbekannt ? `Das Brett „${unbekannt}“ ist nicht da.` : "Noch kein Brett."}
+        description={
+          unbekannt
+            ? `Entweder gibt es das Brett nicht, oder du bist noch kein Mitglied. Ein Mitglied kann dich einladen; deine Kennung ist ${ichId}.`
+            : "Ein Brett ist ein Space: die Ziele aus dem Traumkreis als Zeilen, die zwölf Stufen als Spalten."
+        }
+        action={<Button onClick={onAnlegen}>Brett anlegen</Button>}
+      />
+    </div>
   )
 }

@@ -21,12 +21,10 @@ export default defineConfig({
   },
   server: {
     // 5173 gehört der Reference-App des Stacks; das Karabirrdt hört daneben.
+    // Ein eigener Server steckt nicht mehr dahinter: Die App spricht mit
+    // Supabase (Adresse und Schlüssel aus config.json oder app/.env.local).
     port: 5174,
     strictPort: true,
     fs: { allow: [".", ".."] },
-    proxy: {
-      "/api": "http://127.0.0.1:8124",
-      "/ws": { target: "ws://127.0.0.1:8124", ws: true },
-    },
   },
 })
