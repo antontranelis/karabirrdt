@@ -75,7 +75,17 @@ interface Pick {
   onPick: (itemId: string) => { ok: true } | { ok: false; reason: string }
 }
 
-export default function App() {
+/** Was einen Wechsel des Bretts überdauert; die App selbst hängt je Brett neu ein. */
+export interface BrettAdresse {
+  /** Eine Adresse, die es unter den eigenen Brettern (noch) nicht gibt. */
+  unbekannt: string | null
+  setUnbekannt: (slug: string | null) => void
+  /** Ein gerade angelegtes Brett, bis die Liste es kennt. */
+  neuerSlug: string | null
+  setNeuerSlug: (slug: string | null) => void
+}
+
+export default function App({ unbekannt, setUnbekannt, neuerSlug, setNeuerSlug }: BrettAdresse) {
   const connector = useConnector()
   const offeneGruppe = useCurrentGroup()
   const { data: alleGruppen, isLoading: gruppenLaden } = useGroups()
@@ -93,8 +103,13 @@ export default function App() {
   const profil = useMeinProfil(connector)
   const { activeContacts } = useContacts()
   const { data: mitglieder } = useMembers(group?.id ?? null)
-  const { data: ziele } = useItems({ type: ZIEL_TYP })
-  const { data: karten } = useItems({ type: KARTEN_TYP })
+  // Gelesen wird ausdrücklich im offenen Brett (`group`, Spec 02): Jedes
+  // Brett hat seine eigene Beobachtung, beim Wechsel stehen nie die Karten
+  // des vorigen unter dem Kopf des neuen. Ohne Brett liest das nichts.
+  // Die App hängt je Brett neu ein (main.tsx, Lücke 38), der Filter ändert
+  // sich also nie im selben Leben.
+  const { data: ziele, isLoading: zieleLaden } = useItems({ type: ZIEL_TYP, group: brett })
+  const { data: karten, isLoading: kartenLaden } = useItems({ type: KARTEN_TYP, group: brett })
   const faeden = useMemo(() => faedenVon(karten), [karten])
   // Übrige RelationRecords (etwa Fäden in einen anderen Space, die der Umzug
   // bewahrt): Sie gehören in den Export, sonst löschte ein Rück-Import sie.
@@ -112,9 +127,6 @@ export default function App() {
   const [pick, setPick] = useState<Pick | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [gruppenDialog, setGruppenDialog] = useState(false)
-  const [unbekannt, setUnbekannt] = useState<string | null>(null)
-  // Ein gerade angelegtes Brett, bis die Liste es kennt.
-  const [neuerSlug, setNeuerSlug] = useState<string | null>(null)
   const [dialogModus, setDialogModus] = useState<GroupDialogMode>({ type: "create" })
 
   const oeffne = useCallback((a: Ansicht) => {
@@ -325,6 +337,7 @@ export default function App() {
             <BrettModul
               ziele={ziele}
               karten={karten}
+              laedt={zieleLaden || kartenLaden}
               faeden={faeden}
               mitglieder={mitglieder}
               aktiv={offenId ?? null}
@@ -435,6 +448,8 @@ export default function App() {
 interface ModulProps {
   ziele: Item[]
   karten: Item[]
+  /** Die Items des Bretts sind noch nicht da. */
+  laedt: boolean
   faeden: Faden[]
   mitglieder: User[]
   aktiv: string | null
@@ -458,6 +473,7 @@ interface ModulProps {
 function BrettModul({
   ziele,
   karten,
+  laedt,
   faeden,
   mitglieder,
   aktiv,
@@ -496,7 +512,9 @@ function BrettModul({
         }
       />
 
-      {ziele.length === 0 ? (
+      {laedt ? (
+        <div className="grid h-full place-items-center text-muted-foreground">Lade Brett …</div>
+      ) : ziele.length === 0 ? (
         <div className="grid h-full place-items-center">
           <EmptyState
             icon={Sparkles}

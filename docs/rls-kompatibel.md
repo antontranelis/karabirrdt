@@ -538,6 +538,15 @@ umgangen.
 37. **Ein Slug ist nur unter den eigenen Brettern eindeutig.** Groups sind nur
    für Mitglieder lesbar; zwei Personen können Bretter mit demselben Slug
    anlegen, und `/<slug>` löst unter den eigenen auf.
+38. **`useItems` übernimmt eine Filteränderung nicht verlässlich.** Beobachtet
+   mit toolkit 0.4.0 und supabase-connector 0.3.2 im Browser: Wechselt
+   `group` im Filter derselben Komponente (vom leeren Wert auf das erste
+   Brett), kommen die Items nicht an, obwohl die Beobachtung des Connectors
+   sie hat (`loaded: true`, 7 Ziele) und ein frisch eingehängter Aufrufer sie
+   sofort sieht; `isLoading` bleibt stehen. Ursache im Hook nicht geklärt.
+   Die App hängt darum je Brett neu ein (`key` = Id des offenen Bretts in
+   `main.tsx`) und liest ausdrücklich im offenen Brett (`group`): Beim
+   Wechsel stehen nie Karten des vorigen Bretts unter dem neuen.
 
 ### Stand nach toolkit 0.4.0
 
@@ -555,7 +564,7 @@ Hinweise ohne Handlungsbedarf, **21** ist entschieden.
 ### Stand nach dem Umzug auf Supabase
 
 Offen sind: **1**, **23**, **25**, **28** (wie zuvor), dazu **32** und neu
-**33** (Platzhalter-Personen, braucht Spec und Toolkit), **34** bis **37**.
+**33** (Platzhalter-Personen, braucht Spec und Toolkit), **34** bis **38**.
 Geschlossen oder entfallen durch den Umzug: **8**, **12**, **17**, **24**,
 **30**, im Betrieb **31**, und die drei bekannten Einschränkungen des
 Eigenbau-Syncs.

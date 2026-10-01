@@ -1,11 +1,26 @@
-import { StrictMode } from "react"
+import { StrictMode, useState } from "react"
 import { createRoot } from "react-dom/client"
-import { ConnectorProvider, applyInitialColorScheme, loadRuntimeConfig } from "@real-life-stack/toolkit"
+import { ConnectorProvider, applyInitialColorScheme, loadRuntimeConfig, useCurrentGroup } from "@real-life-stack/toolkit"
 import { erstelleVerbindung } from "./connector/verbindung"
 import { bindeRegister } from "./register"
 import { Anmeldung } from "./panels/anmeldung"
 import App from "./App"
 import "./index.css"
+
+/**
+ * Die App hängt je Brett neu ein (`key` = Id des offenen Bretts): Alles, was
+ * dem vorigen Brett gehörte (geöffnetes Panel, Formular, Beobachtungen der
+ * Items), fällt weg. Ändert `useItems` seinen Filter im selben Leben der
+ * Komponente, kamen die Items des neuen Bretts nicht an (Lücke 38). Was den
+ * Wechsel überdauern muss — eine unbekannte Adresse, ein gerade angelegtes
+ * Brett —, hält dieser Rahmen.
+ */
+function JeBrett() {
+  const offen = useCurrentGroup()
+  const [unbekannt, setUnbekannt] = useState<string | null>(null)
+  const [neuerSlug, setNeuerSlug] = useState<string | null>(null)
+  return <App key={offen?.id ?? ""} {...{ unbekannt, setUnbekannt, neuerSlug, setNeuerSlug }} />
+}
 
 async function start() {
   // Hell oder dunkel vor dem ersten await: sonst stünde die Seite beim Laden
@@ -29,7 +44,7 @@ async function start() {
       <StrictMode>
         <ConnectorProvider connector={connector}>
           <Anmeldung connector={connector}>
-            <App />
+            <JeBrett />
           </Anmeldung>
         </ConnectorProvider>
       </StrictMode>,

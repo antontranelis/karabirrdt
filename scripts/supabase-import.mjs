@@ -92,6 +92,7 @@ async function main() {
     const w = a.probe ? " würde" : "";
     console.log(`  ${b.angelegt.length}${w} angelegt · ${b.geaendert.length}${w} geändert · ${b.gleich.length} gleich · ${b.datensaetze} Datensätze · ${b.eingeladen.length}${w} eingeladen`);
     for (const f of b.fehler) console.log(`  Fehler ${f.id}: ${f.grund}`);
+    if (b.fehler.length) console.log("  Nicht alles geschrieben: denselben Aufruf noch einmal laufen lassen (idempotent).");
     if (b.fehler.length) process.exitCode = 1;
   } finally {
     await c.logout().catch(() => {});

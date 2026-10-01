@@ -303,3 +303,26 @@ test("importiere --ersetzen: eine gescheiterte Einladung verhindert das Löschen
   assert.equal(bericht.ersetzenAusgelassen, true);
   assert.ok(c.items.has("alt"));
 });
+
+test("importiere --ersetzen: Datensätze an entfernten Karten gehen mit; nach einem Löschfehler bleibt das Ziel", async () => {
+  const c = speicherConnector();
+  const g = await c.createGroup("Offen", { slug: "offen", modules: [MODUL] });
+  await c.createItem({ id: "ziel-alt", type: ZIEL_TYP, data: { title: "alt" } }, { group: g.id });
+  await c.createItem({ id: "k-alt", type: KARTEN_TYP, data: { stage: 0 }, relations: [{ predicate: "partOf", target: "item:ziel-alt" }] }, { group: g.id });
+  await c.createItem({ id: "rec", type: "relation", data: { predicate: "relatedTo" }, relations: [{ predicate: "from", target: "item:k-alt" }, { predicate: "to", target: "space:x/item:y" }] }, { group: g.id });
+  const b = await importiere(await zugeordnet(), c, { gruppe: g.id, ersetzen: true });
+  assert.deepEqual(b.entfernt, ["rec", "k-alt", "ziel-alt"]);
+
+  const c2 = speicherConnector();
+  const g2 = await c2.createGroup("Offen", { slug: "offen", modules: [MODUL] });
+  await c2.createItem({ id: "ziel-alt", type: ZIEL_TYP, data: { title: "alt" } }, { group: g2.id });
+  await c2.createItem({ id: "k-alt", type: KARTEN_TYP, data: { stage: 0 }, relations: [{ predicate: "partOf", target: "item:ziel-alt" }] }, { group: g2.id });
+  const loeschen = c2.deleteItem;
+  c2.deleteItem = async (id) => {
+    if (id === "k-alt") throw new Error("Netz weg");
+    return loeschen(id);
+  };
+  const b2 = await importiere(await zugeordnet(), c2, { gruppe: g2.id, ersetzen: true });
+  assert.deepEqual(b2.fehler.map((f) => f.id), ["k-alt"]);
+  assert.ok(c2.items.has("ziel-alt"));
+});

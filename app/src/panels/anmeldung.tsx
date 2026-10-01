@@ -9,7 +9,7 @@ import { AuthScreen } from "@real-life-stack/toolkit"
  * Connectors: Läuft die Sitzung ab oder meldet sich jemand in einem anderen
  * Tab ab, ist das Brett wieder zu.
  *
- * Endet eine Sitzung, lädt die Seite neu: Der Connector hält Space und
+ * Endet eine Sitzung oder wechselt das Konto, lädt die Seite neu: Der Connector hält Space und
  * gelesene Items über die Sitzung hinaus, und ein anderes Konto dürfte sie
  * nie sehen. Ein frischer Connector ist die einzige saubere Grenze.
  */
@@ -17,13 +17,17 @@ export function Anmeldung({ connector, children }: { connector: DataInterface; c
   const [stand, setStand] = useState<AuthState["status"]>(() =>
     isAuthenticatable(connector) ? connector.getAuthState().current.status : "authenticated",
   )
-  const warAngemeldet = useRef(stand === "authenticated")
+  // Wer angemeldet war (Kennung); eine Token-Erneuerung derselben Person
+  // ändert sie nicht.
+  const konto = useRef<string | null>(null)
   useEffect(() => {
     if (!isAuthenticatable(connector)) return
     const beobachtet = connector.getAuthState()
     const setze = (s: AuthState) => {
-      if (s.status === "authenticated") warAngemeldet.current = true
-      else if (s.status === "unauthenticated" && warAngemeldet.current) return location.reload()
+      if (s.status === "authenticated") {
+        if (konto.current !== null && konto.current !== s.user.id) return location.reload()
+        konto.current = s.user.id
+      } else if (s.status === "unauthenticated" && konto.current !== null) return location.reload()
       setStand(s.status)
     }
     setze(beobachtet.current)
@@ -36,10 +40,7 @@ export function Anmeldung({ connector, children }: { connector: DataInterface; c
     <AuthScreen
       connector={connector}
       title="Karabirrdt"
-      onAuthenticated={() => {
-        warAngemeldet.current = true
-        setStand("authenticated")
-      }}
+      onAuthenticated={() => setStand("authenticated")}
     />
   )
 }

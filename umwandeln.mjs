@@ -187,7 +187,12 @@ export async function importiere(plan, c, { probe = false, gruppe, ersetzen = fa
   const vorhanden = new Map(bestand.map((i) => [i.id, i]));
   const imPlan = new Set(plan.items.map((i) => i.id));
   const brettTyp = (i) => i.type === KARTEN_TYP || i.type === ZIEL_TYP;
-  const weg = ersetzen ? bestand.filter((i) => !imPlan.has(i.id) && brettTyp(i)) : [];
+  const wegKarten = ersetzen ? bestand.filter((i) => !imPlan.has(i.id) && brettTyp(i)) : [];
+  // Datensätze (Items vom Typ `relation`), die an einem entfernten Item
+  // hängen, gehen mit — zuerst, wie in der Kaskade der App.
+  const wegKartenIds = new Set(wegKarten.map((i) => i.id));
+  const haengtAn = (i) => i.type === "relation" && (i.relations ?? []).some((r) => (r?.predicate === "from" || r?.predicate === "to") && wegKartenIds.has(lokaleId(r.target)));
+  const weg = [...bestand.filter((i) => !imPlan.has(i.id) && haengtAn(i)), ...wegKarten];
 
   // 2. Prüfen, vor dem ersten Schreiben
   const konflikte = plan.items.filter((i) => vorhanden.has(i.id) && vorhanden.get(i.id).type !== i.type);
@@ -263,16 +268,25 @@ export async function importiere(plan, c, { probe = false, gruppe, ersetzen = fa
   }
 
   // 4. Löschen zuletzt, nur ohne Fehler: Sonst stünde das Brett nach einem
-  // gescheiterten Import ohne alte und ohne neue Karten da. Karten vor
-  // Zielen, damit nach einem Teilfehler keine Karte ohne Ziel bleibt.
+  // gescheiterten Import ohne alte und ohne neue Karten da. Datensätze vor
+  // Karten vor Zielen; beim ersten Fehler hört das Löschen auf, damit keine
+  // Karte ohne ihr Ziel zurückbleibt.
+  //
+  // Atomar ist das nicht: Die Schreibschritte sind einzelne Anfragen, und
+  // scheitert eine mitten in Phase 3, kann ein Zwischenstand stehen bleiben
+  // (auch einer, der eine Brett-Regel verletzt). Der Weg zurück ist derselbe
+  // Import noch einmal: Er ist idempotent und führt zum geprüften Endstand.
+  // Ein Bericht mit Fehlern heißt darum „noch einmal laufen lassen“.
   if (ersetzen && bericht.fehler.length) bericht.ersetzenAusgelassen = true;
   else {
-    for (const ist of [...weg].sort((a, b) => Number(a.type === ZIEL_TYP) - Number(b.type === ZIEL_TYP))) {
+    const rang = (i) => (i.type === "relation" ? 0 : i.type === ZIEL_TYP ? 2 : 1);
+    for (const ist of [...weg].sort((a, b) => rang(a) - rang(b))) {
       try {
         if (!probe) await c.deleteItem(ist.id);
         bericht.entfernt.push(ist.id);
       } catch (e) {
         fehler(ist.id, e);
+        break;
       }
     }
   }

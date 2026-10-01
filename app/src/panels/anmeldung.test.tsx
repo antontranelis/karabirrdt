@@ -35,4 +35,15 @@ describe("Anmeldung", () => {
     act(() => stand.set({ status: "unauthenticated" }))
     expect(reload).toHaveBeenCalledTimes(1)
   })
+
+  it("wechselt das Konto ohne Abmelden, lädt die Seite neu; dieselbe Person nicht", () => {
+    const reload = vi.fn()
+    vi.stubGlobal("location", { ...window.location, reload })
+    const { c, stand } = connector({ status: "authenticated", user: { id: "a" } })
+    render(<Anmeldung connector={c}><p>Brett</p></Anmeldung>)
+    act(() => stand.set({ status: "authenticated", user: { id: "a", displayName: "A" } }))
+    expect(reload).not.toHaveBeenCalled()
+    act(() => stand.set({ status: "authenticated", user: { id: "b" } }))
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
 })
