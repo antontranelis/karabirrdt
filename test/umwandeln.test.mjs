@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FADEN_PRAEDIKAT, KARTEN_TYP, MODUL, ZIEL_TYP, faeden, zugewiesen } from "../modell.mjs";
-import { importiere, planeUmzug } from "../umwandeln.mjs";
+import { importSperre, importiere, planeUmzug } from "../umwandeln.mjs";
 
 /** Ein Export aus der Zeit vor `npm run umzug`, wie `GET /api/b/<brett>/rls` ihn liefert. */
 function altExport() {
@@ -85,6 +85,9 @@ test("planeUmzug: eigener Slug, ungültiger Slug wird abgelehnt", async () => {
 
 // --------------------------------------------------------------- Import
 
+/** Ein Plan, in dem jedes Mitglied einem Konto zugeordnet ist (sonst hält der Import an). */
+const zugeordnet = (json = altExport(), konten = { "user:anton": "u-anton", "user:emil": "u-emil" }) => planeUmzug(json, { zuordnung: konten });
+
 /** Ein kleiner Connector mit den Fähigkeiten, die der Import braucht. */
 function speicherConnector(ich = "ich") {
   const groups = [];
@@ -143,7 +146,7 @@ function speicherConnector(ich = "ich") {
 
 test("importiere: legt die Group mit Slug an, übernimmt die Ids, Autor ist die importierende Person", async () => {
   const c = speicherConnector("anton-uuid");
-  const plan = await planeUmzug(altExport());
+  const plan = await zugeordnet();
   const bericht = await importiere(plan, c);
   assert.equal(bericht.gruppe.neu, true);
   assert.equal(c.groups.length, 1);
@@ -157,7 +160,7 @@ test("importiere: legt die Group mit Slug an, übernimmt die Ids, Autor ist die 
 
 test("importiere: ein zweiter Lauf ändert nichts (idempotent), eine Änderung wird nachgezogen", async () => {
   const c = speicherConnector();
-  const plan = await planeUmzug(altExport());
+  const plan = await zugeordnet();
   await importiere(plan, c);
   c.aufrufe.length = 0;
   const zweiter = await importiere(plan, c);
@@ -167,7 +170,7 @@ test("importiere: ein zweiter Lauf ändert nichts (idempotent), eine Änderung w
   assert.equal(zweiter.gleich.length, 3);
   assert.deepEqual(c.aufrufe, []);
 
-  const geaendert = await planeUmzug({ ...altExport(), items: altExport().items.map((i) => (i.id === "z" ? { ...i, data: { title: "Z neu", dots: 4 } } : i)) });
+  const geaendert = await zugeordnet({ ...altExport(), items: altExport().items.map((i) => (i.id === "z" ? { ...i, data: { title: "Z neu", dots: 4 } } : i)) });
   const dritter = await importiere(geaendert, c);
   assert.deepEqual(dritter.geaendert, ["z"]);
   assert.equal(c.items.get("z").item.data.title, "Z neu");
@@ -175,7 +178,7 @@ test("importiere: ein zweiter Lauf ändert nichts (idempotent), eine Änderung w
 
 test("importiere --probe: schreibt nichts und sagt, was geschähe", async () => {
   const c = speicherConnector();
-  const bericht = await importiere(await planeUmzug(altExport()), c, { probe: true });
+  const bericht = await importiere(await zugeordnet(), c, { probe: true });
   assert.equal(bericht.gruppe.neu, true);
   assert.deepEqual(bericht.angelegt.sort(), ["a", "b", "z"]);
   assert.deepEqual(c.aufrufe, []);
@@ -184,7 +187,7 @@ test("importiere --probe: schreibt nichts und sagt, was geschähe", async () => 
 test("importiere: eine Id, die schon in einem anderen Space liegt, ist ein Fehler je Item, kein Abbruch", async () => {
   const c = speicherConnector();
   await c.createItem({ id: "a", type: KARTEN_TYP, data: {} }, { group: "fremd" });
-  const bericht = await importiere(await planeUmzug(altExport()), c);
+  const bericht = await importiere(await zugeordnet(), c);
   assert.deepEqual(bericht.fehler.map((f) => f.id), ["a"]);
   assert.deepEqual(bericht.angelegt.sort(), ["b", "z"]);
 });
@@ -194,7 +197,7 @@ test("importiere: in eine gegebene Group, ersetzen entfernt nur Karten und Ziele
   const g = await c.createGroup("Offen", { slug: "offen", modules: [MODUL] });
   await c.createItem({ id: "alt", type: KARTEN_TYP, data: {} }, { group: g.id });
   await c.createItem({ id: "notiz", type: "comment", data: {} }, { group: g.id });
-  const bericht = await importiere(await planeUmzug(altExport()), c, { gruppe: g.id, ersetzen: true });
+  const bericht = await importiere(await zugeordnet(), c, { gruppe: g.id, ersetzen: true });
   assert.equal(bericht.gruppe.id, g.id);
   assert.deepEqual(bericht.entfernt, ["alt"]);
   assert.ok(c.items.has("notiz"));
@@ -205,10 +208,10 @@ test("importiere: in eine gegebene Group, ersetzen entfernt nur Karten und Ziele
 
 test("importiere: lädt zugeordnete Konten einmal ein", async () => {
   const c = speicherConnector();
-  const plan = await planeUmzug(altExport(), { zuordnung: { "user:anton": "u-anton" } });
+  const plan = await zugeordnet();
   await importiere(plan, c);
   await importiere(plan, c);
-  assert.deepEqual(c.aufrufe.filter(([art]) => art === "inviteMember"), [["inviteMember", "u-anton"]]);
+  assert.deepEqual(c.aufrufe.filter(([art]) => art === "inviteMember"), [["inviteMember", "u-anton"], ["inviteMember", "u-emil"]]);
 });
 
 test("Skript --probe ohne Anmeldung: zeigt den Plan aus einer Datei und schreibt nichts", async () => {
@@ -224,5 +227,43 @@ test("Skript --probe ohne Anmeldung: zeigt den Plan aus einer Datei und schreibt
   assert.match(aus, /Probe · Brett „Real Life“ → \/kb-test-x/);
   assert.match(aus, /3 Items · 0 Datensätze/);
   assert.match(aus, /ohne Konto: Anton \(global:user:anton\) an 1 Karten/);
+  // Ohne --probe hält der Import vor dem Anmelden an.
+  let fehler = null;
+  try {
+    execFileSync(process.execPath, [path.join(import.meta.dirname, "..", "scripts", "supabase-import.mjs"), "--quelle", datei], { env, encoding: "utf8", stdio: "pipe" });
+  } catch (e) {
+    fehler = e;
+  }
+  assert.equal(fehler?.status, 2);
+  assert.match(String(fehler?.stderr), /angehalten: Zuweisungen an Mitglieder ohne Konto/);
   assert.match(aus, /nicht übernommen .*r2/);
+});
+
+test("importiere hält an: Mitglieder ohne Konto (Platzhalter fehlen) oder ein Regelverstoß; schreibt dann nichts", async () => {
+  const c = speicherConnector();
+  await assert.rejects(async () => importiere(await planeUmzug(altExport()), c), /ohne Konto/);
+  assert.deepEqual(c.aufrufe, []);
+  // ausdrücklich erlaubt: unverändert übernehmen
+  const b = await importiere(await planeUmzug(altExport()), c, { ohneKontoUebernehmen: true });
+  assert.equal(b.angelegt.length, 3);
+
+  const links = altExport();
+  links.items.push({ id: "spaet", type: KARTEN_TYP, data: { title: "spät", stage: 9 }, relations: [{ predicate: "partOf", target: "item:z" }, { predicate: FADEN_PRAEDIKAT, target: "item:a" }] });
+  const plan = await zugeordnet(links);
+  assert.match(importSperre(plan), /Regelverstoß/);
+  const c2 = speicherConnector();
+  await assert.rejects(() => importiere(plan, c2), /Regelverstoß/);
+  assert.deepEqual(c2.aufrufe, []);
+});
+
+test("importiere --ersetzen löscht nicht, wenn Schreiben scheiterte", async () => {
+  const c = speicherConnector();
+  const g = await c.createGroup("Offen", { slug: "offen", modules: [MODUL] });
+  await c.createItem({ id: "alt", type: KARTEN_TYP, data: {} }, { group: g.id });
+  await c.createItem({ id: "a", type: KARTEN_TYP, data: {} }, { group: "fremd" });
+  const bericht = await importiere(await zugeordnet(), c, { gruppe: g.id, ersetzen: true });
+  assert.deepEqual(bericht.fehler.map((f) => f.id), ["a"]);
+  assert.equal(bericht.ersetzenAusgelassen, true);
+  assert.deepEqual(bericht.entfernt, []);
+  assert.ok(c.items.has("alt"));
 });

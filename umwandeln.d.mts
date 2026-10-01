@@ -9,6 +9,7 @@ export interface UmzugPlan {
   nichtUebernommen: unknown[]
   ohneKonto: { ziel: string; name: string; karten: number }[]
   einladen: string[]
+  verstoesse: string[]
 }
 
 export interface ImportBericht {
@@ -20,11 +21,14 @@ export interface ImportBericht {
   eingeladen: string[]
   datensaetze: number
   fehler: { id: string; grund: string }[]
+  ersetzenAusgelassen?: boolean
 }
+
+export function importSperre(plan: UmzugPlan, optionen?: { ohneKontoUebernehmen?: boolean }): string | null
 
 export function planeUmzug(json: unknown, optionen?: { slug?: string; zuordnung?: Record<string, string> }): Promise<UmzugPlan>
 export function importiere(
   plan: UmzugPlan,
   connector: unknown,
-  optionen?: { probe?: boolean; gruppe?: string; ersetzen?: boolean },
+  optionen?: { probe?: boolean; gruppe?: string; ersetzen?: boolean; ohneKontoUebernehmen?: boolean },
 ): Promise<ImportBericht>

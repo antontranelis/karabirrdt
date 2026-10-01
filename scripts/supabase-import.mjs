@@ -3,6 +3,7 @@
 //
 //   npm run import:supabase -- --quelle <url|datei> [--brett <slug>]
 //                              [--zuordnung user:<name>=<konto-id> …] [--probe]
+//                              [--ohne-konto-uebernehmen]
 //
 // `--quelle` ist das JSON von `GET /api/b/<brett>/rls` (URL) oder eine Datei
 // damit, nie die SQLite selbst. Vor dem Export das alte Brett einfrieren
@@ -12,19 +13,25 @@
 // der Karten (Stopp-Punkt 1) und legt den Space an. Zwei Läufe hintereinander
 // ändern nichts; `--probe` schreibt nicht.
 //
+// Zuweisungen an Mitglieder ohne Konto halten den Import an: Platzhalter-
+// Personen gibt es im Stack noch nicht (Lücke 33). Jede über `--zuordnung`
+// einem Konto zuordnen, oder mit `--ohne-konto-uebernehmen` ausdrücklich
+// unverändert (und unsichtbar) übernehmen.
+//
 // Umgebung (Werte werden nie ausgegeben):
 //   KB_SUPABASE_URL       Vorgabe https://supabase.real-life-stack.de
 //   KB_SUPABASE_ANON_KEY  der öffentliche Schlüssel der Instanz
 //   KB_EMAIL, KB_PASSWORT Konto der importierenden Person
 import fs from "node:fs";
-import { importiere, planeUmzug } from "../umwandeln.mjs";
+import { importSperre, importiere, planeUmzug } from "../umwandeln.mjs";
 
 function argumente(argv) {
-  const a = { zuordnung: {}, probe: false };
+  const a = { zuordnung: {}, probe: false, ohneKonto: false };
   for (let i = 2; i < argv.length; i++) {
     const name = argv[i];
     const wert = argv[i + 1];
     if (name === "--probe") a.probe = true;
+    else if (name === "--ohne-konto-uebernehmen") a.ohneKonto = true;
     else if (name === "--quelle" || name === "--brett") {
       a[name.slice(2)] = wert;
       i++;
@@ -55,7 +62,14 @@ async function main() {
   console.log(`${a.probe ? "Probe" : "Import"} · Brett „${plan.group.name}“ → /${plan.slug}`);
   console.log(`  ${plan.items.length} Items · ${plan.datensaetze.length} Datensätze im Brett`);
   if (plan.nichtUebernommen.length) console.log(`  nicht übernommen (Ziel in einem anderen Space): ${plan.nichtUebernommen.map((r) => r.id).join(", ")}`);
-  for (const o of plan.ohneKonto) console.log(`  ohne Konto: ${o.name} (${o.ziel}) an ${o.karten} Karten — bleibt stehen, Platzhalter offen`);
+  for (const o of plan.ohneKonto) console.log(`  ohne Konto: ${o.name} (${o.ziel}) an ${o.karten} Karten — Platzhalter offen, --zuordnung ${o.ziel.slice(7)}=<konto-id>`);
+  for (const v of plan.verstoesse) console.log(`  Regelverstoß: ${v}`);
+  const sperre = importSperre(plan, { ohneKontoUebernehmen: a.ohneKonto });
+  if (sperre && !a.probe) {
+    console.error(`  angehalten: ${sperre}`);
+    process.exitCode = 2;
+    return;
+  }
 
   const url = process.env.KB_SUPABASE_URL ?? "https://supabase.real-life-stack.de";
   const schluessel = process.env.KB_SUPABASE_ANON_KEY;
@@ -73,7 +87,7 @@ async function main() {
   try {
     const ich = await c.authenticate("email", { email, password: passwort });
     console.log(`  angemeldet als ${ich.displayName ?? ich.id}`);
-    const b = await importiere(plan, c, { probe: a.probe });
+    const b = await importiere(plan, c, { probe: a.probe, ohneKontoUebernehmen: a.ohneKonto });
     console.log(`  Space ${b.gruppe.neu ? (a.probe ? "würde angelegt" : "angelegt") : "gefunden"}${b.gruppe.id ? ` (${b.gruppe.id})` : ""}`);
     const w = a.probe ? " würde" : "";
     console.log(`  ${b.angelegt.length}${w} angelegt · ${b.geaendert.length}${w} geändert · ${b.gleich.length} gleich · ${b.datensaetze} Datensätze · ${b.eingeladen.length}${w} eingeladen`);

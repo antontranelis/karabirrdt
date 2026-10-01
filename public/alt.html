@@ -553,7 +553,7 @@ function renderData(side){
   const ta=$('dJson'); ta.value=JSON.stringify(localSnapshot(),null,1);
   $('dFile').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ta.value=String(r.result||'');try{JSON.parse(ta.value);toast('Datei geladen. Jetzt „Einfügen und ersetzen“.');}catch(x){toast('Die Datei ist kein gültiges JSON.');}}; r.readAsText(f);});
   $('dCopy').onclick=async()=>{try{await navigator.clipboard.writeText(ta.value);toast('Kopiert.');}catch(e){ta.select();toast('Bitte manuell kopieren (Strg+C).');}};
-  $('dImport').onclick=()=>{let j;try{j=JSON.parse(ta.value);if(!j||typeof j!=='object')throw 0;}catch(e){toast('Das ist kein gültiges JSON.');return;} armed($('dImport'),'Brett wirklich ersetzen?',()=>{
+  $('dImport').onclick=()=>{if(EINGEFROREN){toast('Eingefroren, nur lesend.');return;} let j;try{j=JSON.parse(ta.value);if(!j||typeof j!=='object')throw 0;}catch(e){toast('Das ist kein gültiges JSON.');return;} armed($('dImport'),'Brett wirklich ersetzen?',()=>{
     state.meta=Object.assign({name:'',dream:'',horizon:''},j.meta||{}); state.goals=j.goals||{}; state.tasks=j.tasks||{};
     saveLocal(); state.sel=null; state.view='card'; render();
     schreibe('/import','POST',{meta:state.meta,goals:state.goals,tasks:state.tasks}).then(()=>toast('Brett ersetzt.'));

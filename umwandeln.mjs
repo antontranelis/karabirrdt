@@ -27,6 +27,7 @@ import {
   ZUWEISUNG,
   lokaleId,
   normalisiereRls,
+  regelVerstoesse,
   verwaisteFaeden,
 } from "./modell.mjs";
 
@@ -126,7 +127,28 @@ export async function planeUmzug(json, { slug, zuordnung = {} } = {}) {
       .map((e) => ({ ziel: e.ziel, name: e.name, karten: e.karten.size }))
       .sort((a, b) => a.ziel.localeCompare(b.ziel)),
     einladen: [...einladen],
+    // Die Regeln des Bretts (Fäden nach rechts, genau ein Ziel) gelten auch
+    // für einen Import; ein Plan mit Verstößen wird nicht geschrieben.
+    verstoesse: [...new Set(regelVerstoesse(items).values())],
   };
+}
+
+/**
+ * Warum der Plan nicht geschrieben werden darf, oder null.
+ *
+ * - Verstöße gegen die Brett-Regeln.
+ * - Zuweisungen an Mitglieder ohne Konto: Platzhalter-Personen sind
+ *   entschieden (Stopp-Punkt 2), aber im Stack noch nicht da (Lücke 33).
+ *   Solche Zuweisungen blieben unsichtbar; geschrieben wird erst, wenn jede
+ *   über `zuordnung` einem Konto zugeordnet ist oder `ohneKontoUebernehmen`
+ *   es ausdrücklich erlaubt.
+ */
+export function importSperre(plan, { ohneKontoUebernehmen = false } = {}) {
+  if (plan.verstoesse.length) return `Regelverstoß im Import: ${plan.verstoesse.join(" ")}`;
+  if (plan.ohneKonto.length && !ohneKontoUebernehmen) {
+    return `Zuweisungen an Mitglieder ohne Konto: ${plan.ohneKonto.map((o) => `${o.name} (${o.ziel}, ${o.karten} Karten)`).join(", ")}. Erst einem Konto zuordnen; Platzhalter-Personen gibt es im Stack noch nicht.`;
+  }
+  return null;
 }
 
 /**
@@ -136,10 +158,14 @@ export async function planeUmzug(json, { slug, zuordnung = {} } = {}) {
  * @param {any} c  ein Connector mit Groups, `groupScope` und ItemWriter
  * @param {{ probe?: boolean, gruppe?: string, ersetzen?: boolean }} optionen
  *   `gruppe`: in diese Group statt der mit dem Slug (Abschnitt „Daten“ der App);
- *   `ersetzen`: Karten und Ziele der Group, die der Plan nicht kennt, löschen.
+ *   `ersetzen`: Karten und Ziele der Group, die der Plan nicht kennt, löschen
+ *   (nur, wenn alles andere ohne Fehler geschrieben ist);
+ *   `ohneKontoUebernehmen`: siehe `importSperre`.
  */
-export async function importiere(plan, c, { probe = false, gruppe, ersetzen = false } = {}) {
+export async function importiere(plan, c, { probe = false, gruppe, ersetzen = false, ohneKontoUebernehmen = false } = {}) {
   if (c?.groupScope !== true) throw new Error("Der Connector kann nicht in einen bestimmten Space schreiben (groupScope)");
+  const sperre = importSperre(plan, { ohneKontoUebernehmen });
+  if (sperre && !probe) throw new Error(sperre);
   const bericht = { gruppe: { id: null, neu: false }, angelegt: [], geaendert: [], gleich: [], entfernt: [], eingeladen: [], datensaetze: 0, fehler: [] };
 
   const gruppen = await c.getGroups();
@@ -184,7 +210,11 @@ export async function importiere(plan, c, { probe = false, gruppe, ersetzen = fa
     }
   }
 
-  if (ersetzen) {
+  // Ersetzen löscht nur, wenn der Rest vollständig geschrieben ist: Sonst
+  // stünde das Brett nach einem gescheiterten Import ohne alte und ohne neue
+  // Karten da.
+  if (ersetzen && bericht.fehler.length) bericht.ersetzenAusgelassen = true;
+  else if (ersetzen) {
     const behalten = new Set(plan.items.map((i) => i.id));
     for (const ist of vorhanden.values()) {
       if (behalten.has(ist.id) || (ist.type !== KARTEN_TYP && ist.type !== ZIEL_TYP)) continue;

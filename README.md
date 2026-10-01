@@ -177,10 +177,14 @@ Das Skript liest das JSON (URL oder Datei), bringt es in die heutige Form
 (dieselbe wie nach `npm run umzug`), legt den Space mit dem Slug an oder
 findet ihn, übernimmt die Ids der Items und ist idempotent; `--probe`
 schreibt nichts. `--zuordnung` schreibt Zuweisungen eines Mitglieds auf sein
-Konto um und lädt es ein. Mitglieder ohne Konto bleiben als
-`global:user:<name>` stehen und werden gemeldet: Platzhalter-Personen, die beim
-ersten Login verknüpft werden, trägt der Stack noch nicht
-([`docs/rls-kompatibel.md`](docs/rls-kompatibel.md), Lücke 33).
+Konto um und lädt es ein. Solange ein Mitglied ohne Konto Zuweisungen hat,
+hält der Import an: Platzhalter-Personen, die beim ersten Login verknüpft
+werden, trägt der Stack noch nicht
+([`docs/rls-kompatibel.md`](docs/rls-kompatibel.md), Lücke 33);
+`--ohne-konto-uebernehmen` übernimmt sie ausdrücklich unverändert (dann
+unsichtbar). Ein Plan mit Verstößen gegen die Brett-Regeln wird nicht
+geschrieben; `--ersetzen` (Abschnitt „Daten“) löscht nur, wenn alles andere
+fehlerfrei geschrieben ist.
 
 ## Nachmigration
 

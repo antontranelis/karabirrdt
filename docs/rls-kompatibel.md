@@ -517,9 +517,11 @@ umgangen.
      Karte noch im Detail noch im Formular.
    Das braucht eine Erweiterung von Spec und Toolkit (Zuweisung an einen
    Platzhalter, Verknüpfen beim Login) und ist darum nicht im Karabirrdt
-   nachgebaut. Bis dahin bleiben solche Zuweisungen stehen, wie sie sind
-   (unsichtbar), das Umzugsskript meldet sie, und `--zuordnung` schreibt sie
-   für Mitglieder mit Konto um.
+   nachgebaut. Bis dahin hält der Import an, solange ein Mitglied ohne Konto
+   Zuweisungen hat; `--zuordnung` schreibt sie für Mitglieder mit Konto um,
+   `--ohne-konto-uebernehmen` übernimmt sie ausdrücklich unverändert
+   (unsichtbar). Im echten Brett „real-life“ trägt nur ein Mitglied
+   Zuweisungen.
 34. **Anonym angemeldet heißt namenlos.** `AuthScreen` fragt beim anonymen
    Einstieg keinen Namen ab; die Instanz legt das Profil mit leerem Namen an.
    Die App öffnet darum danach das Profil (`ProfilePanelContent`).

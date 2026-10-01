@@ -84,7 +84,11 @@ export default function App() {
   const gruppen = useMemo(() => alleGruppen.filter(istBrett), [alleGruppen])
   // Ein gerade angelegtes oder gewähltes Brett kann noch fehlen, bis die Liste
   // nachgeladen ist; verborgen wird nur ein Space, der bekannt KEIN Brett ist.
-  const group = offeneGruppe && !alleGruppen.some((g) => g.id === offeneGruppe.id && !istBrett(g)) ? offeneGruppe : null
+  // Die Daten der Group kommen aus der beobachteten Liste (ein geänderter
+  // Traumhorizont erscheint sofort); `useCurrentGroup` liefert nur, welche
+  // offen ist, und überbrückt, bis die Liste sie kennt.
+  const ausListe = offeneGruppe ? alleGruppen.find((g) => g.id === offeneGruppe.id) : undefined
+  const group = !offeneGruppe ? null : ausListe ? (istBrett(ausListe) ? ausListe : null) : offeneGruppe
   const brett = group?.id ?? ""
   const { data: ich } = useCurrentUser()
   const profil = useMeinProfil(connector)

@@ -112,4 +112,19 @@ describe("liveModus: der Dialog bekommt die beobachtete Group, nicht den Schnapp
     const alt = gruppe()
     expect(liveModus({ type: "edit", group: alt }, [])).toEqual({ type: "edit", group: alt })
   })
+
+  it("ein Import mit Regelverstoß schreibt nichts und sagt warum", async () => {
+    const m = await mock()
+    zeige("daten", gruppe({ modules: ["karabirrdt"], slug: "haupt" }), undefined, "haupt", mitBrettRegeln(m))
+    const json = {
+      group: { id: "haupt", name: "Haupt", data: {} },
+      items: [{ id: "k", type: "task", createdAt: "", createdBy: "x", data: { title: "ohne Ziel", stage: 0 } }],
+      relations: [],
+    }
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: JSON.stringify(json) } })
+    fireEvent.click(screen.getByText("Einfügen und ersetzen"))
+    fireEvent.click(screen.getByText("Brett wirklich ersetzen?"))
+    await waitFor(() => expect(screen.getByText(/Regelverstoß/)).toBeTruthy())
+    expect((await m.getItems({ group: "haupt" })).map((i) => i.id)).toEqual(["weg"])
+  })
 })

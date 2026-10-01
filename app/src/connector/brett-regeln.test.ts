@@ -22,9 +22,9 @@ async function brett() {
   const mock = new MockConnector(
     {
       items,
-      groups: [{ id: "g", name: "Brett", data: {} }],
+      groups: [{ id: "g", name: "Brett", data: {} }, { id: "h", name: "Anderes", data: {} }],
       users: [{ id: "ich", displayName: "Ich" }],
-      groupMembers: { g: ["ich"] },
+      groupMembers: { g: ["ich"], h: ["ich"] },
       groupItems: { g: items.map((i) => i.id) },
     },
     { allowFixtureAuthors: true },
@@ -61,6 +61,24 @@ describe("Brett-Regeln um den Connector", () => {
     expect((await mock.getItem("a"))?.relations?.some((r) => r.predicate === "blocks")).toBe(false)
     await connector.deleteItem("z")
     expect(await mock.getItems()).toEqual([])
+  })
+
+  it("ein Brettwechsel während des Anlegens schreibt in das Brett, gegen das geprüft wurde", async () => {
+    const { mock, connector } = await brett()
+    const laufend = connector.createItem({ type: "project", createdBy: "ich", data: { title: "neu" } })
+    mock.setCurrentGroup("h")
+    const neu = await laufend
+    expect((await mock.getItems({ group: "g" })).map((i) => i.id)).toContain(neu.id)
+    expect((await mock.getItems({ group: "h" })).map((i) => i.id)).not.toContain(neu.id)
+  })
+
+  it("Ändern und Löschen eines Items außerhalb des offenen Bretts wird nicht ungeprüft geschrieben", async () => {
+    const { mock, connector } = await brett()
+    mock.setCurrentGroup("h")
+    await expect(connector.updateItem("b", { relations: [{ predicate: "partOf", target: "item:z" }, { predicate: "blocks", target: "item:a" }] })).rejects.toThrow(/nicht im offenen Brett/)
+    await expect(connector.deleteItem("z")).rejects.toThrow(/nicht im offenen Brett/)
+    mock.setCurrentGroup("g")
+    expect((await mock.getItems({ group: "g" })).length).toBe(4)
   })
 
   it("reicht alles andere durch und meldet die Fähigkeiten des Connectors darunter", async () => {

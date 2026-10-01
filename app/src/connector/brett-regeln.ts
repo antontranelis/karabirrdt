@@ -1,4 +1,4 @@
-import type { CreateItemInput, CreateItemOptions, DataInterface, Item, ItemWriter, RelationRecord } from "@real-life-stack/data-interface"
+import { hasGroups, hasGroupScope, type CreateItemInput, type CreateItemOptions, type DataInterface, type Item, type ItemWriter, type RelationRecord } from "@real-life-stack/data-interface"
 import { kaskade, neuerRegelVerstoss, recordVonRelationItem } from "../../../modell.mjs"
 
 /**
@@ -24,31 +24,51 @@ type Basis = DataInterface & ItemWriter
 
 const ROH = Symbol("karabirrdt:roh")
 
+/**
+ * Ändern und Löschen schreiben über die Id; geprüft wird gegen den Space, der
+ * offen ist. Liegt das Item dort nicht (etwa nach einem Brettwechsel), wird
+ * nicht ungeprüft geschrieben.
+ */
+export const NICHT_IM_BRETT = "Dieses Item liegt nicht im offenen Brett – dort ändern."
+
 /** Platzhalter-Id eines neuen Items in der Regelprüfung, vor dem Anlegen. */
 const NOCH_OHNE_ID = "\u0000neu"
 
 export function mitBrettRegeln<C extends Basis>(basis: C): C {
+  // Der Space, der beim Aufruf offen ist — festgehalten VOR dem ersten await,
+  // damit Prüfen und Schreiben denselben meinen, auch wenn jemand dazwischen
+  // das Brett wechselt.
+  const offen = () => (hasGroups(basis) ? basis.getCurrentGroup()?.id : undefined) ?? undefined
   const lies = (gruppe?: string) => basis.getItems(gruppe ? { group: gruppe } : undefined)
-  const pruefe = async (gruppe: string | undefined, nachher: (vorher: Item[]) => Item[]) => {
-    const vorher = await lies(gruppe)
-    const grund = neuerRegelVerstoss(vorher, nachher(vorher))
+  const pruefe = (vorher: Item[], nachher: Item[]) => {
+    const grund = neuerRegelVerstoss(vorher, nachher)
     if (grund) throw new Error(grund)
+  }
+  /** Die Items des Space, in dem `id` liegt — oder ein Fehler, wenn es nicht im offenen liegt. */
+  const imOffenen = async (id: string, gruppe: string | undefined) => {
+    const alle = await lies(gruppe)
+    if (!alle.some((i) => i.id === id)) throw new Error(NICHT_IM_BRETT)
+    return alle
   }
 
   const eigene: Record<string | symbol, unknown> = {
     [ROH]: basis,
     createItem: async (eingabe: CreateItemInput, optionen?: CreateItemOptions) => {
-      await pruefe(optionen?.group, (vorher) => [...vorher, { createdAt: "", ...eingabe, id: eingabe.id ?? NOCH_OHNE_ID } as Item])
+      const gruppe = optionen?.group ?? offen()
+      const vorher = await lies(gruppe)
+      pruefe(vorher, [...vorher, { createdAt: "", ...eingabe, id: eingabe.id ?? NOCH_OHNE_ID } as Item])
       // `options.group` gehört zu `groupScope` (02), nicht zum schmalen ItemWriter.
       const anlegen = basis.createItem as (eingabe: CreateItemInput, optionen?: CreateItemOptions) => Promise<Item>
-      return anlegen.call(basis, eingabe, optionen)
+      const ziel = gruppe && hasGroupScope(basis) ? { ...optionen, group: gruppe } : optionen
+      return anlegen.call(basis, eingabe, ziel)
     },
     updateItem: async (id: string, aenderungen: Partial<Item>) => {
-      await pruefe(undefined, (vorher) => vorher.map((i) => (i.id === id ? ({ ...i, ...aenderungen, id } as Item) : i)))
+      const vorher = await imOffenen(id, offen())
+      pruefe(vorher, vorher.map((i) => (i.id === id ? ({ ...i, ...aenderungen, id } as Item) : i)))
       return basis.updateItem(id, aenderungen)
     },
     deleteItem: async (id: string) => {
-      const alle = await lies()
+      const alle = await imOffenen(id, offen())
       const datensaetze = alle.map(recordVonRelationItem).filter((r): r is RelationRecord => !!r)
       const weg = kaskade(alle, id, datensaetze)
       for (const { id: kid, relations } of weg.aendern) await basis.updateItem(kid, { relations })
