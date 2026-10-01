@@ -476,6 +476,17 @@ umgangen.
    (`mitPosition` in `composer.ts`). *Vorschlag:* `itemRelationDataKey`
    exportieren.
 
+31. **Der MockConnector braucht einen sicheren Kontext.** Er ruft
+   `crypto.randomUUID()` beim Anlegen (Item-Id, seit 0.2.3) und schon bei
+   jedem Anlegen, Ändern und Löschen für den Aktivitätseintrag
+   (`appendActivity`, auch in 0.2.2). `randomUUID` gibt es nur über HTTPS und
+   auf `localhost`; über `http://<LAN-IP>:8124` scheitert jedes Schreiben mit
+   „crypto.randomUUID is not a function“. Das war vor diesem Nachzug genauso
+   (die eigene Id half nicht, `appendActivity` warf danach); ausgerollt läuft
+   das Karabirrdt hinter HTTPS. Keine Umgehung in der App.
+   *Vorschlag:* im Mock eine Id aus `crypto.getRandomValues()` bilden, wenn
+   `randomUUID` fehlt.
+
 ### Stand nach toolkit 0.4.0
 
 Offen sind: **1** (Punkte im Zeilenkopf), **17** (kein Connector für einen
@@ -484,7 +495,8 @@ Ziel), **24** (keine Identität ohne Konto), **25** (Typ-Wörter gehören dem
 Toolkit), **28** (keine Prüfung je Typ vor dem Speichern); dazu im
 Mock-Connector **8** (Group-Id nicht übergebbar), **12** (keine Menschen nach
 dem Seed) und **30** (kein `setCurrentUser`) — deren Umgehungen im
-ServerConnector bleiben bis zum Umzug auf Supabase. **4** und **15** sind
+ServerConnector bleiben bis zum Umzug auf Supabase — sowie neu **31**
+(Mock schreibt nur in einem sicheren Kontext). **4** und **15** sind
 Hinweise ohne Handlungsbedarf, **21** ist entschieden.
 
 ## Was ein Vibe-Coder beim nächsten Mal wissen muss
@@ -567,7 +579,7 @@ Hinweise ohne Handlungsbedarf, **21** ist entschieden.
   (Änderung erscheint im Dialog und im Kopf, liegt auf dem Server), Ziel mit
   gegliederter Liste, neue Karte aus einer Zelle mit vorbelegtem „Teil von“
   (gespeichert mit Stufe, Zeile und UUID), Autor „Am Tisch“; Desktop und
-  Telefon, hell und dunkel. Screenshots am Pull Request.
+  Telefon, hell und dunkel. Screenshots liegen lokal vor (nicht im Repo).
 - Die Bündelgröße liegt bei rund 1,2 MB (409 kB gzip) — das Toolkit bringt
   Editor, Karten- und Graph-Bausteine mit, von denen diese App wenig braucht.
   Aufteilen lohnt erst, wenn die App öffentlich läuft.
