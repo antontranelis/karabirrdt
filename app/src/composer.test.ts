@@ -45,6 +45,9 @@ describe("Formular aus dem Register", () => {
       { mode: "create", existingItem: null },
     )
     expect(payload?.relations ?? []).toEqual([])
+    // Der Formularschlüssel der Karte landet nicht als Datenfeld im Ziel
+    // (Codex-Runde 3; der Mapper des Toolkits reicht ihn durch, Lücke 32).
+    expect(payload?.data).toEqual({ title: "Ziel", dots: 0, order: 5 })
   })
 
   it("Bearbeiten lässt Stufe und Reihenfolge, wo sie sind", () => {

@@ -487,6 +487,15 @@ umgangen.
    *Vorschlag:* im Mock eine Id aus `crypto.getRandomValues()` bilden, wenn
    `randomUUID` fehlt.
 
+32. **Die Formular-Abbildung reicht Kanten-Schlüssel eines anderen Typs als
+   Datenfeld durch.** Belegt man „Teil von“ einer Karte vor
+   (`itemRelationDataKey("partOf")`) und wechselt im Formular den Typ auf das
+   Ziel, behält der `ContentComposer` die Daten, und `createComposerMapping`
+   schreibt `"relation:partOf"` in `data` des Ziels. Im Karabirrdt nimmt
+   `mitPosition` diesen einen Schlüssel beim Ziel heraus (Test in
+   `composer.test.ts`). *Vorschlag:* Die Abbildung lässt `relation:`-Schlüssel
+   fallen, deren Kante der gewählte Typ nicht führt.
+
 ### Stand nach toolkit 0.4.0
 
 Offen sind: **1** (Punkte im Zeilenkopf), **17** (kein Connector für einen
@@ -496,7 +505,8 @@ Toolkit), **28** (keine Prüfung je Typ vor dem Speichern); dazu im
 Mock-Connector **8** (Group-Id nicht übergebbar), **12** (keine Menschen nach
 dem Seed) und **30** (kein `setCurrentUser`) — deren Umgehungen im
 ServerConnector bleiben bis zum Umzug auf Supabase — sowie neu **31**
-(Mock schreibt nur in einem sicheren Kontext). **4** und **15** sind
+(Mock schreibt nur in einem sicheren Kontext) und **32** (Formular-Abbildung
+behält Kanten-Schlüssel nach einem Typwechsel). **4** und **15** sind
 Hinweise ohne Handlungsbedarf, **21** ist entschieden.
 
 ## Was ein Vibe-Coder beim nächsten Mal wissen muss

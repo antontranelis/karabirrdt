@@ -84,7 +84,13 @@ export function mitPosition(abbildung: ItemEditorMapper, zelle: Zelle | null, je
   return (eingabe, ctx) => {
     const payload = abbildung(eingabe, ctx)
     if (!payload || ctx.mode !== "create") return payload
-    if (payload.type === ZIEL_TYP) return { ...payload, data: { dots: 0, ...payload.data, order: jetzt() } }
+    if (payload.type === ZIEL_TYP) {
+      // Wird aus der vorbelegten Karte ein Ziel, reicht der Mapper des
+      // Toolkits den Formularschlüssel von „Teil von“ als Datenfeld durch
+      // (Lücke 32). Das Ziel führt diese Kante nicht; der Schlüssel fällt weg.
+      const { [itemRelationDataKey(ZUGEHOERIG_PRAEDIKAT)]: _vorbelegt, ...daten } = payload.data ?? {}
+      return { ...payload, data: { dots: 0, ...daten, order: jetzt() } }
+    }
     if (payload.type !== KARTEN_TYP) return payload
     return { ...payload, data: { ...payload.data, stage: zelle?.stufe ?? 0, order: jetzt() } }
   }
