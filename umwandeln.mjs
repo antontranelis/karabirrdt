@@ -152,14 +152,22 @@ export function importSperre(plan, { ohneKontoUebernehmen = false } = {}) {
 }
 
 /**
- * Den Plan schreiben, idempotent.
+ * Den Plan schreiben, idempotent, in vier Phasen:
+ *
+ * 1. Lesen: den Space (über `gruppe` oder den Slug) und seinen Bestand.
+ * 2. Prüfen, bevor irgendetwas geschrieben wird: der ENTSTEHENDE Bestand
+ *    (was bleibt plus was kommt) gegen die Brett-Regeln, und keine Id, die
+ *    im Space schon mit einem anderen Typ liegt.
+ * 3. Schreiben: Space, Items, Datensätze, Einladungen; Fehler je Schritt
+ *    werden gesammelt, nicht abgebrochen.
+ * 4. Erst danach, und nur ohne jeden Fehler: beim Ersetzen löschen, was der
+ *    Plan nicht kennt.
  *
  * @param {Awaited<ReturnType<typeof planeUmzug>>} plan
  * @param {any} c  ein Connector mit Groups, `groupScope` und ItemWriter
- * @param {{ probe?: boolean, gruppe?: string, ersetzen?: boolean }} optionen
+ * @param {{ probe?: boolean, gruppe?: string, ersetzen?: boolean, ohneKontoUebernehmen?: boolean }} optionen
  *   `gruppe`: in diese Group statt der mit dem Slug (Abschnitt „Daten“ der App);
- *   `ersetzen`: Karten und Ziele der Group, die der Plan nicht kennt, löschen
- *   (nur, wenn alles andere ohne Fehler geschrieben ist);
+ *   `ersetzen`: Karten und Ziele der Group, die der Plan nicht kennt, löschen;
  *   `ohneKontoUebernehmen`: siehe `importSperre`.
  */
 export async function importiere(plan, c, { probe = false, gruppe, ersetzen = false, ohneKontoUebernehmen = false } = {}) {
@@ -167,31 +175,56 @@ export async function importiere(plan, c, { probe = false, gruppe, ersetzen = fa
   const sperre = importSperre(plan, { ohneKontoUebernehmen });
   if (sperre && !probe) throw new Error(sperre);
   const bericht = { gruppe: { id: null, neu: false }, angelegt: [], geaendert: [], gleich: [], entfernt: [], eingeladen: [], datensaetze: 0, fehler: [] };
+  const fehler = (id, e) => bericht.fehler.push({ id, grund: e instanceof Error ? e.message : String(e) });
 
+  // 1. Lesen
   const gruppen = await c.getGroups();
   let g = gruppe
     ? gruppen.find((x) => x.id === gruppe)
     : gruppen.find((x) => x.data?.slug === plan.slug && (x.data?.modules ?? []).includes(MODUL));
   if (gruppe && !g) throw new Error(`Space ${gruppe} nicht gefunden`);
+  const bestand = g ? await c.getItems({ group: g.id }) : [];
+  const vorhanden = new Map(bestand.map((i) => [i.id, i]));
+  const imPlan = new Set(plan.items.map((i) => i.id));
+  const brettTyp = (i) => i.type === KARTEN_TYP || i.type === ZIEL_TYP;
+  const weg = ersetzen ? bestand.filter((i) => !imPlan.has(i.id) && brettTyp(i)) : [];
 
+  // 2. Prüfen, vor dem ersten Schreiben
+  const konflikte = plan.items.filter((i) => vorhanden.has(i.id) && vorhanden.get(i.id).type !== i.type);
+  if (konflikte.length) {
+    throw new Error(`Typkonflikt: ${konflikte.map((i) => `${i.id} liegt als ${vorhanden.get(i.id).type} vor, der Import bringt ${i.type}`).join("; ")}`);
+  }
+  const wegIds = new Set(weg.map((i) => i.id));
+  const entsteht = [...bestand.filter((i) => !imPlan.has(i.id) && !wegIds.has(i.id)), ...plan.items];
+  const verstoss = [...new Set(regelVerstoesse(entsteht).values())];
+  if (verstoss.length && !probe) throw new Error(`Regelverstoß im entstehenden Brett: ${verstoss.join(" ")}`);
+
+  if (!g && probe) {
+    bericht.gruppe.neu = true;
+    bericht.angelegt = plan.items.map((i) => i.id);
+    bericht.eingeladen = [...plan.einladen];
+    bericht.datensaetze = plan.datensaetze.length;
+    return bericht;
+  }
+
+  // 3. Schreiben
   if (!g) {
     bericht.gruppe.neu = true;
-    if (probe) {
-      bericht.angelegt = plan.items.map((i) => i.id);
-      bericht.eingeladen = [...plan.einladen];
-      bericht.datensaetze = plan.datensaetze.length;
-      return bericht;
-    }
     g = await c.createGroup(plan.group.name, plan.group.data);
   } else {
     // Traum, Horizont und Co. aus dem Import; ein vorhandener Slug bleibt
     // (in eine offene Group importiert, behält sie ihre Adresse).
     const daten = { ...g.data, ...plan.group.data, slug: g.data?.slug ?? plan.slug };
-    if (stabil(daten) !== stabil(g.data ?? {}) && !probe) await c.updateGroup(g.id, { data: daten });
+    if (stabil(daten) !== stabil(g.data ?? {}) && !probe) {
+      try {
+        await c.updateGroup(g.id, { data: daten });
+      } catch (e) {
+        fehler(`Space ${g.id}`, e);
+      }
+    }
   }
   bericht.gruppe.id = g.id;
 
-  const vorhanden = new Map((await c.getItems({ group: g.id })).map((i) => [i.id, i]));
   for (const item of plan.items) {
     const ist = vorhanden.get(item.id);
     try {
@@ -199,31 +232,11 @@ export async function importiere(plan, c, { probe = false, gruppe, ersetzen = fa
         if (!probe) await c.createItem(item, { group: g.id });
         bericht.angelegt.push(item.id);
       } else if (inhaltAnders(item, ist)) {
-        if (!probe) {
-          const { id: _id, type: _type, ...inhalt } = item;
-          await c.updateItem(item.id, Object.fromEntries(INHALT.map((k) => [k, inhalt[k]])));
-        }
+        if (!probe) await c.updateItem(item.id, Object.fromEntries(INHALT.map((k) => [k, item[k]])));
         bericht.geaendert.push(item.id);
       } else bericht.gleich.push(item.id);
     } catch (e) {
-      bericht.fehler.push({ id: item.id, grund: e instanceof Error ? e.message : String(e) });
-    }
-  }
-
-  // Ersetzen löscht nur, wenn der Rest vollständig geschrieben ist: Sonst
-  // stünde das Brett nach einem gescheiterten Import ohne alte und ohne neue
-  // Karten da.
-  if (ersetzen && bericht.fehler.length) bericht.ersetzenAusgelassen = true;
-  else if (ersetzen) {
-    const behalten = new Set(plan.items.map((i) => i.id));
-    for (const ist of vorhanden.values()) {
-      if (behalten.has(ist.id) || (ist.type !== KARTEN_TYP && ist.type !== ZIEL_TYP)) continue;
-      try {
-        if (!probe) await c.deleteItem(ist.id);
-        bericht.entfernt.push(ist.id);
-      } catch (e) {
-        bericht.fehler.push({ id: ist.id, grund: e instanceof Error ? e.message : String(e) });
-      }
+      fehler(item.id, e);
     }
   }
 
@@ -234,15 +247,34 @@ export async function importiere(plan, c, { probe = false, gruppe, ersetzen = fa
       if (!probe) await c.createRelationRecord(r);
       bericht.datensaetze += 1;
     } catch (e) {
-      bericht.fehler.push({ id: `${r.predicate} ${r.from} → ${r.to}`, grund: e instanceof Error ? e.message : String(e) });
+      fehler(`${r.predicate} ${r.from} → ${r.to}`, e);
     }
   }
 
   const mitglieder = new Set(g.members ?? []);
   for (const konto of plan.einladen) {
     if (mitglieder.has(konto)) continue;
-    if (!probe) await c.inviteMember(g.id, konto);
-    bericht.eingeladen.push(konto);
+    try {
+      if (!probe) await c.inviteMember(g.id, konto);
+      bericht.eingeladen.push(konto);
+    } catch (e) {
+      fehler(`Einladung ${konto}`, e);
+    }
+  }
+
+  // 4. Löschen zuletzt, nur ohne Fehler: Sonst stünde das Brett nach einem
+  // gescheiterten Import ohne alte und ohne neue Karten da. Karten vor
+  // Zielen, damit nach einem Teilfehler keine Karte ohne Ziel bleibt.
+  if (ersetzen && bericht.fehler.length) bericht.ersetzenAusgelassen = true;
+  else {
+    for (const ist of [...weg].sort((a, b) => Number(a.type === ZIEL_TYP) - Number(b.type === ZIEL_TYP))) {
+      try {
+        if (!probe) await c.deleteItem(ist.id);
+        bericht.entfernt.push(ist.id);
+      } catch (e) {
+        fehler(ist.id, e);
+      }
+    }
   }
   return bericht;
 }

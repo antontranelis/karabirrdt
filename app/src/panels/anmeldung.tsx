@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { isAuthenticatable, type AuthState, type DataInterface } from "@real-life-stack/data-interface"
 import { AuthScreen } from "@real-life-stack/toolkit"
 
@@ -8,19 +8,38 @@ import { AuthScreen } from "@real-life-stack/toolkit"
  * die schon ein Konto haben. Die Schranke folgt dem Anmeldestand des
  * Connectors: Läuft die Sitzung ab oder meldet sich jemand in einem anderen
  * Tab ab, ist das Brett wieder zu.
+ *
+ * Endet eine Sitzung, lädt die Seite neu: Der Connector hält Space und
+ * gelesene Items über die Sitzung hinaus, und ein anderes Konto dürfte sie
+ * nie sehen. Ein frischer Connector ist die einzige saubere Grenze.
  */
 export function Anmeldung({ connector, children }: { connector: DataInterface; children: ReactNode }) {
   const [stand, setStand] = useState<AuthState["status"]>(() =>
     isAuthenticatable(connector) ? connector.getAuthState().current.status : "authenticated",
   )
+  const warAngemeldet = useRef(stand === "authenticated")
   useEffect(() => {
     if (!isAuthenticatable(connector)) return
     const beobachtet = connector.getAuthState()
-    setStand(beobachtet.current.status)
-    return beobachtet.subscribe((s) => setStand(s.status))
+    const setze = (s: AuthState) => {
+      if (s.status === "authenticated") warAngemeldet.current = true
+      else if (s.status === "unauthenticated" && warAngemeldet.current) return location.reload()
+      setStand(s.status)
+    }
+    setze(beobachtet.current)
+    return beobachtet.subscribe(setze)
   }, [connector])
 
   if (stand === "authenticated" || !isAuthenticatable(connector)) return <>{children}</>
   if (stand === "loading") return <div className="grid h-full place-items-center text-muted-foreground">Melde an …</div>
-  return <AuthScreen connector={connector} title="Karabirrdt" onAuthenticated={() => setStand("authenticated")} />
+  return (
+    <AuthScreen
+      connector={connector}
+      title="Karabirrdt"
+      onAuthenticated={() => {
+        warAngemeldet.current = true
+        setStand("authenticated")
+      }}
+    />
+  )
 }

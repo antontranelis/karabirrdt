@@ -31,6 +31,8 @@ const ROH = Symbol("karabirrdt:roh")
  */
 export const NICHT_IM_BRETT = "Dieses Item liegt nicht im offenen Brett – dort ändern."
 
+export const KEIN_BRETT = "Kein Brett offen – erst ein Brett öffnen."
+
 /** Platzhalter-Id eines neuen Items in der Regelprüfung, vor dem Anlegen. */
 const NOCH_OHNE_ID = "\u0000neu"
 
@@ -46,6 +48,9 @@ export function mitBrettRegeln<C extends Basis>(basis: C): C {
   }
   /** Die Items des Space, in dem `id` liegt — oder ein Fehler, wenn es nicht im offenen liegt. */
   const imOffenen = async (id: string, gruppe: string | undefined) => {
+    // Ohne offenes Brett liest der Connector über alle Spaces — dann ist
+    // nichts „im offenen Brett“.
+    if (!gruppe) throw new Error(NICHT_IM_BRETT)
     const alle = await lies(gruppe)
     if (!alle.some((i) => i.id === id)) throw new Error(NICHT_IM_BRETT)
     return alle
@@ -55,11 +60,12 @@ export function mitBrettRegeln<C extends Basis>(basis: C): C {
     [ROH]: basis,
     createItem: async (eingabe: CreateItemInput, optionen?: CreateItemOptions) => {
       const gruppe = optionen?.group ?? offen()
+      if (!gruppe) throw new Error(KEIN_BRETT)
       const vorher = await lies(gruppe)
       pruefe(vorher, [...vorher, { createdAt: "", ...eingabe, id: eingabe.id ?? NOCH_OHNE_ID } as Item])
       // `options.group` gehört zu `groupScope` (02), nicht zum schmalen ItemWriter.
       const anlegen = basis.createItem as (eingabe: CreateItemInput, optionen?: CreateItemOptions) => Promise<Item>
-      const ziel = gruppe && hasGroupScope(basis) ? { ...optionen, group: gruppe } : optionen
+      const ziel = hasGroupScope(basis) ? { ...optionen, group: gruppe } : optionen
       return anlegen.call(basis, eingabe, ziel)
     },
     updateItem: async (id: string, aenderungen: Partial<Item>) => {
@@ -73,7 +79,10 @@ export function mitBrettRegeln<C extends Basis>(basis: C): C {
       const weg = kaskade(alle, id, datensaetze)
       for (const { id: kid, relations } of weg.aendern) await basis.updateItem(kid, { relations })
       for (const rid of weg.relations) await basis.deleteItem(rid)
-      for (const iid of weg.items) await basis.deleteItem(iid)
+      // Das angefragte Item zuletzt: Scheitert unterwegs etwas, bleibt das
+      // Ziel stehen, keine Karte steht ohne Ziel da, und ein zweiter Versuch
+      // findet alles wieder.
+      for (const iid of [...weg.items.filter((x) => x !== id), id]) await basis.deleteItem(iid)
     },
   }
 

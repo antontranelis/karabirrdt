@@ -267,3 +267,39 @@ test("importiere --ersetzen löscht nicht, wenn Schreiben scheiterte", async () 
   assert.deepEqual(bericht.entfernt, []);
   assert.ok(c.items.has("alt"));
 });
+
+test("importiere prüft den ENTSTEHENDEN Bestand: ein bleibender Faden darf durch den Import nicht nach links zeigen", async () => {
+  const c = speicherConnector();
+  const g = await c.createGroup("Offen", { slug: "offen", modules: [MODUL] });
+  // vorhandene Voraussetzung in Stufe 2 → Faden auf b
+  await c.createItem({ id: "v", type: KARTEN_TYP, data: { title: "v", stage: 2 }, relations: [{ predicate: "partOf", target: "item:z" }, { predicate: FADEN_PRAEDIKAT, target: "item:b" }] }, { group: g.id });
+  c.aufrufe.length = 0;
+  // Import bringt b in Stufe 0 (Original 2 → hier 0)
+  const json = altExport();
+  json.relations = [];
+  json.items = json.items.map((i) => (i.id === "b" ? { ...i, data: { ...i.data, stage: 0 } } : i));
+  await assert.rejects(async () => importiere(await zugeordnet(json), c, { gruppe: g.id }), /entstehenden Brett/);
+  assert.deepEqual(c.aufrufe, []);
+});
+
+test("importiere: eine Id mit anderem Typ im Space ist ein Konflikt vor jedem Schreiben", async () => {
+  const c = speicherConnector();
+  const g = await c.createGroup("Offen", { slug: "offen", modules: [MODUL] });
+  await c.createItem({ id: "z", type: KARTEN_TYP, data: {}, relations: [{ predicate: "partOf", target: "item:q" }] }, { group: g.id });
+  c.aufrufe.length = 0;
+  await assert.rejects(async () => importiere(await zugeordnet(), c, { gruppe: g.id }), /Typkonflikt/);
+  assert.deepEqual(c.aufrufe, []);
+});
+
+test("importiere --ersetzen: eine gescheiterte Einladung verhindert das Löschen und steht im Bericht", async () => {
+  const c = speicherConnector();
+  const g = await c.createGroup("Offen", { slug: "offen", modules: [MODUL] });
+  await c.createItem({ id: "alt", type: KARTEN_TYP, data: {}, relations: [{ predicate: "partOf", target: "item:z" }] }, { group: g.id });
+  c.inviteMember = async () => {
+    throw new Error("kein Recht");
+  };
+  const bericht = await importiere(await zugeordnet(), c, { gruppe: g.id, ersetzen: true });
+  assert.ok(bericht.fehler.some((f) => /Einladung/.test(f.id)));
+  assert.equal(bericht.ersetzenAusgelassen, true);
+  assert.ok(c.items.has("alt"));
+});

@@ -81,6 +81,31 @@ describe("Brett-Regeln um den Connector", () => {
     expect((await mock.getItems({ group: "g" })).length).toBe(4)
   })
 
+  it("ohne offenes Brett: kein Anlegen, Ändern oder Löschen", async () => {
+    const { mock, connector } = await brett()
+    mock.setCurrentGroup(null)
+    await expect(connector.createItem({ type: "project", createdBy: "ich", data: { title: "x" } })).rejects.toThrow(/Kein Brett/)
+    await expect(connector.updateItem("c", { data: { title: "c2", stage: 5 } })).rejects.toThrow(/nicht im offenen Brett/)
+    await expect(connector.deleteItem("z")).rejects.toThrow(/nicht im offenen Brett/)
+  })
+
+  it("Löschen eines Ziels: scheitert eine Karte, bleibt das Ziel, und ein zweiter Versuch räumt auf", async () => {
+    const { mock, connector } = await brett()
+    const original = mock.deleteItem.bind(mock)
+    let einmal = true
+    mock.deleteItem = async (id: string) => {
+      if (id === "c" && einmal) {
+        einmal = false
+        throw new Error("Netz weg")
+      }
+      return original(id)
+    }
+    await expect(connector.deleteItem("z")).rejects.toThrow(/Netz weg/)
+    expect(await mock.getItem("z")).not.toBeNull()
+    await connector.deleteItem("z")
+    expect(await mock.getItems({ group: "g" })).toEqual([])
+  })
+
   it("reicht alles andere durch und meldet die Fähigkeiten des Connectors darunter", async () => {
     const { mock, connector } = await brett()
     expect(hasGroups(connector)).toBe(true)

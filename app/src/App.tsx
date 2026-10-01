@@ -84,11 +84,10 @@ export default function App() {
   const gruppen = useMemo(() => alleGruppen.filter(istBrett), [alleGruppen])
   // Ein gerade angelegtes oder gewähltes Brett kann noch fehlen, bis die Liste
   // nachgeladen ist; verborgen wird nur ein Space, der bekannt KEIN Brett ist.
-  // Die Daten der Group kommen aus der beobachteten Liste (ein geänderter
-  // Traumhorizont erscheint sofort); `useCurrentGroup` liefert nur, welche
-  // offen ist, und überbrückt, bis die Liste sie kennt.
-  const ausListe = offeneGruppe ? alleGruppen.find((g) => g.id === offeneGruppe.id) : undefined
-  const group = !offeneGruppe ? null : ausListe ? (istBrett(ausListe) ? ausListe : null) : offeneGruppe
+  // Offen ist nur ein Brett, das die beobachtete Liste kennt: Die Daten kommen
+  // von dort (ein geänderter Traumhorizont erscheint sofort), und ein Brett,
+  // in dem man nicht mehr Mitglied ist, schließt sich.
+  const group = (offeneGruppe && gruppen.find((g) => g.id === offeneGruppe.id)) || null
   const brett = group?.id ?? ""
   const { data: ich } = useCurrentUser()
   const profil = useMeinProfil(connector)
@@ -114,6 +113,8 @@ export default function App() {
   const [meldung, setMeldung] = useState<string | null>(null)
   const [gruppenDialog, setGruppenDialog] = useState(false)
   const [unbekannt, setUnbekannt] = useState<string | null>(null)
+  // Ein gerade angelegtes Brett, bis die Liste es kennt.
+  const [neuerSlug, setNeuerSlug] = useState<string | null>(null)
   const [dialogModus, setDialogModus] = useState<GroupDialogMode>({ type: "create" })
 
   const oeffne = useCallback((a: Ansicht) => {
@@ -311,7 +312,7 @@ export default function App() {
         {!group ? (
           <OhneBrett
             unbekannt={unbekannt}
-            laedt={gruppenLaden}
+            laedt={gruppenLaden || (!!neuerSlug && unbekannt === neuerSlug)}
             ichId={ich?.id ?? ""}
             onAnlegen={() => {
               setDialogModus({ type: "create" })
@@ -399,9 +400,13 @@ export default function App() {
         contacts={activeContacts}
         currentUserId={ich?.id}
         onCreateGroup={async (name) => {
-          const neu = await gruppeAnlegen(name, neuesBrett(name, gruppen.map(slugVon)))
-          setUnbekannt(null)
-          if (hasGroups(connector)) connector.setCurrentGroup(neu.id)
+          const daten = neuesBrett(name, gruppen.map(slugVon))
+          await gruppeAnlegen(name, daten)
+          // Über die Adresse öffnen: sobald die Liste das neue Brett kennt.
+          setNeuerSlug(daten.slug)
+          history.pushState(null, "", `/${daten.slug}`)
+          if (hasGroups(connector)) connector.setCurrentGroup(null)
+          setUnbekannt(daten.slug)
         }}
         onUpdateGroup={async (id, aenderungen) => {
           await gruppeAendern(id, aenderungen)
