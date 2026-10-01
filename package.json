@@ -16,9 +16,14 @@
     "typecheck": "npm --prefix app run typecheck",
     "dev:app": "npm --prefix app run dev",
     "nachmigration": "node scripts/nachmigration.mjs",
-    "umzug": "node scripts/umzug-register.mjs"
+    "umzug": "node scripts/umzug-register.mjs",
+    "import:supabase": "node scripts/supabase-import.mjs",
+    "alt:einfrieren": "node scripts/alt-einfrieren.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@real-life-stack/supabase-connector": "0.3.2"
   }
 }
