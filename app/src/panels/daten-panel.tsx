@@ -1,6 +1,6 @@
 import { useState } from "react"
-import type { Group, Item, RelationRecord } from "@real-life-stack/data-interface"
-import { Button, Label, Textarea } from "@real-life-stack/toolkit"
+import type { Group, Item, RelationRecord } from "@real-life/data-interface"
+import { Button, Label, Textarea } from "@real-life/toolkit"
 import { importiereBrett } from "../connector/server-connector"
 import { rlsNachAlt } from "../../../modell.mjs"
 

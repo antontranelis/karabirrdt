@@ -1,5 +1,5 @@
-import type { User } from "@real-life-stack/data-interface"
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@real-life-stack/toolkit"
+import type { User } from "@real-life/data-interface"
+import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@real-life/toolkit"
 
 interface Props {
   open: boolean

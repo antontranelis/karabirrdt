@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, render, waitFor } from "@testing-library/react"
-import { ConnectorProvider } from "@real-life-stack/toolkit"
+import { ConnectorProvider } from "@real-life/toolkit"
 import { bindeRegister } from "../register"
 import { TISCH, erstelleServerConnector } from "../connector/server-connector"
 import { Anlegen } from "./anlegen"

@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { ItemDetailRead, ItemDetailView, useCurrentGroup, type ContentComposerProps } from "@real-life-stack/toolkit"
+import { ItemDetailRead, ItemDetailView, useCurrentGroup, type ContentComposerProps } from "@real-life/toolkit"
 import { mitPosition, useAbbildung } from "../composer"
 
 interface Props {

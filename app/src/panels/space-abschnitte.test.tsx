@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { fireEvent, render, screen } from "@testing-library/react"
-import type { Group } from "@real-life-stack/data-interface"
-import type { GroupDialogMode } from "@real-life-stack/toolkit"
+import type { Group } from "@real-life/data-interface"
+import type { GroupDialogMode } from "@real-life/toolkit"
 import { liveModus, spaceAbschnitte } from "./space-abschnitte"
 
 const gruppe = (data: Record<string, unknown> = {}, id = "haupt"): Group => ({ id, name: "Haupt", data })

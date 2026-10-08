@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { hasGroupScope, hasItemGroups, hasRelationRecords, hasRelationRecordWriter, type Item } from "@real-life-stack/data-interface"
+import { hasGroupScope, hasItemGroups, hasRelationRecords, hasRelationRecordWriter, type Item } from "@real-life/data-interface"
 import { erstelleServerConnector, hatIchWahl, TISCH } from "./server-connector"
 
 // Ein Server im Speicher: GET liefert das Brett, PUT/DELETE werden mitgeschrieben.

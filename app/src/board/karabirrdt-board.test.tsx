@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { render } from "@testing-library/react"
-import type { Item } from "@real-life-stack/data-interface"
+import type { Item } from "@real-life/data-interface"
 import { KarabirrdtBoard } from "./karabirrdt-board"
 
 const ziel: Item = { id: "z1", type: "project", createdAt: "", createdBy: "u", data: { title: "Ziel: eins", dots: 2 } }

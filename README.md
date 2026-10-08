@@ -47,7 +47,7 @@ neuen Bretts leitet sich aus seinem Namen ab.
 server.mjs      HTTP + WebSocket, liefert public/ aus
 speicher.mjs    SQLite: alte Tabellen (für /alt) und die RLS-Tabellen
 modell.mjs      die Abbildung Brett ↔ RLS, die Regeln und die Geometrie
-app/            Vite + React + @real-life-stack/*, baut nach public/
+app/            Vite + React + @real-life/*, baut nach public/
 public/alt.html die ursprüngliche Seite, unverändert in Funktion
 ```
 

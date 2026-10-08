@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { bindeRegister } from "./register"
 import { inhaltstypen, mitPosition, vorbelegung } from "./composer"
-import { createComposerMapping } from "@real-life-stack/toolkit"
+import { createComposerMapping } from "@real-life/toolkit"
 
 bindeRegister()
 

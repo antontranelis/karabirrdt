@@ -1,6 +1,6 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
-import { ConnectorProvider, applyInitialColorScheme } from "@real-life-stack/toolkit"
+import { ConnectorProvider, applyInitialColorScheme } from "@real-life/toolkit"
 import { erstelleServerConnector } from "./connector/server-connector"
 import { brettAusPfad } from "./brett"
 import { bindeRegister } from "./register"

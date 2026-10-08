@@ -2,11 +2,11 @@
 @import "tw-animate-css";
 
 /* Eine Quelle für Farben, Abstände und Typografie: das Toolkit. */
-@import "@real-life-stack/toolkit/styles/globals.css";
+@import "@real-life/toolkit/styles/globals.css";
 
 /* Tailwind muss die Klassen im ausgelieferten Toolkit finden. Das Paket auf
    npm enthält nur `dist` — die Klassen stehen dort als Zeichenketten im JS. */
-@source "../node_modules/@real-life-stack/toolkit/dist/**/*.js";
+@source "../node_modules/@real-life/toolkit/dist/**/*.js";
 
 @custom-variant dark (&:is(.dark *));
 

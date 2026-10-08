@@ -1,5 +1,5 @@
-import type { Item } from "@real-life-stack/data-interface"
-import { Label, Separator, cn } from "@real-life-stack/toolkit"
+import type { Item } from "@real-life/data-interface"
+import { Label, Separator, cn } from "@real-life/toolkit"
 import { ROLLE_KANN, ROLLE_LERNT, PHASEN, type Faden, istErledigt, ohnePraefix, stufeVon, zieleSortiert, zielVonKarte, zugewiesen } from "../../../modell.mjs"
 
 interface Props {

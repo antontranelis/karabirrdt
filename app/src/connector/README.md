@@ -49,7 +49,7 @@ berührt deshalb genau eine Datei, `src/main.tsx`:
 
 ```ts
 // statt erstelleServerConnector(brett):
-import { WotConnector } from "@real-life-stack/wot-connector"
+import { WotConnector } from "@real-life/wot-connector"
 
 const connector = new WotConnector({ /* … */ })
 await connector.init()

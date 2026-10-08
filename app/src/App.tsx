@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { Group, Item, User } from "@real-life-stack/data-interface"
-import { hasGroups } from "@real-life-stack/data-interface"
+import type { Group, Item, User } from "@real-life/data-interface"
+import { hasGroups } from "@real-life/data-interface"
 import {
   AdaptivePanel,
   AppShell,
@@ -38,7 +38,7 @@ import {
   type GroupDialogMode,
   type ItemFocus,
   type Workspace,
-} from "@real-life-stack/toolkit"
+} from "@real-life/toolkit"
 import { Sparkles } from "lucide-react"
 import { KarabirrdtBoard } from "./board/karabirrdt-board"
 import { ItemDetail } from "./panels/item-detail"

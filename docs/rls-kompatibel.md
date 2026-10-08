@@ -244,7 +244,7 @@ Scrollen auf 1920 px. Was daraus im Code steht:
 Die Pakete trugen in `exports` eine `development`-Bedingung, die auf
 `./src/index.ts` zeigte; `src` lag aber nicht im Paket, und Vite wählte im
 Dev-Modus genau diese Bedingung („Failed to resolve entry for package
-@real-life-stack/toolkit"). Die veröffentlichten `exports` haben sie jetzt
+@real-life/toolkit"). Die veröffentlichten `exports` haben sie jetzt
 nicht mehr — nur noch `types` und `import`. Die Sonderregel
 `resolve.conditions` in `app/vite.config.ts` ist entfernt, `npm run dev`
 läuft ohne sie.
@@ -394,7 +394,7 @@ umgangen.
    und WoT bringen Identität mit. Diese App braucht dazwischen einen
    geteilten Raum ohne Konten — deshalb `ServerConnector`.
    *Vorschlag:* das hier gezeigte Muster (MockConnector + Proxy + Transport)
-   als `@real-life-stack/remote-connector` mit austauschbarem Transport.
+   als `@real-life/remote-connector` mit austauschbarem Transport.
 
 ### Neu mit toolkit 0.3.0 (Umzug auf das Register, 28.09.2026)
 
@@ -402,7 +402,7 @@ umgangen.
    `toolkit/dist/module-register-*.js` steckt eine eigene Kopie von
    `composeTypeManifest`, `setTypeManifest` und Co.; der MockConnector
    importiert das npm-Paket. `setTypeManifest` des Toolkits bindet nur seine
-   Kopie; `getTypeManifest()` aus `@real-life-stack/data-interface` sah danach
+   Kopie; `getTypeManifest()` aus `@real-life/data-interface` sah danach
    das Manifest ohne App-Schicht. Wir binden darum beide (`register.ts`).
    *Vorschlag:* data-interface im Toolkit-Build als `external` führen; es ist
    ohnehin Abhängigkeit.

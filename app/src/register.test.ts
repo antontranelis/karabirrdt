@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { contentTypeFromRegister, resolveTypePresentation } from "@real-life-stack/toolkit"
-import { TOOLKIT_TYPE_LAYER, composeTypeManifest, getTypeManifest } from "@real-life-stack/data-interface"
-import { setTypeManifest as setzeImToolkit } from "@real-life-stack/toolkit"
+import { contentTypeFromRegister, resolveTypePresentation } from "@real-life/toolkit"
+import { TOOLKIT_TYPE_LAYER, composeTypeManifest, getTypeManifest } from "@real-life/data-interface"
+import { setTypeManifest as setzeImToolkit } from "@real-life/toolkit"
 import { KARABIRRDT_MANIFEST_LAYER, TYPE_MANIFEST, bindeRegister } from "./register"
 
 bindeRegister()
