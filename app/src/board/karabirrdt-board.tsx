@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type PointerEvent } from "react"
-import type { Item, User } from "@real-life-stack/data-interface"
-import { ItemAssignees, ItemPreview, cn, type ItemAssigneeUser } from "@real-life-stack/toolkit"
+import type { Item, User } from "@real-life/data-interface"
+import { ItemAssignees, ItemPreview, cn, type ItemAssigneeUser } from "@real-life/toolkit"
 import {
   MASSE,
   ROLLE_KANN,

@@ -25,8 +25,8 @@
 // Dieses Modul wird genau einmal importiert, vor dem ersten Render
 // (main.tsx): Das Register liest beim Rendern, nicht beim Import.
 
-import { TOOLKIT_TYPE_LAYER, composeTypeManifest, type TypeManifestLayer } from "@real-life-stack/data-interface"
-import { registerTypePresentation, setTypeManifest, type TypePresentationLayer } from "@real-life-stack/toolkit"
+import { TOOLKIT_TYPE_LAYER, composeTypeManifest, type TypeManifestLayer } from "@real-life/data-interface"
+import { registerTypePresentation, setTypeManifest, type TypePresentationLayer } from "@real-life/toolkit"
 import { Sparkle } from "lucide-react"
 import { FADEN_PRAEDIKAT, KARTEN_TYP, STUFEN, ROLLE_KANN, ROLLE_LERNT, ZIEL_TYP, ZUGEHOERIG_PRAEDIKAT, ZUWEISUNG } from "../../modell.mjs"
 

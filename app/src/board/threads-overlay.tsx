@@ -1,4 +1,4 @@
-import type { Item } from "@real-life-stack/data-interface"
+import type { Item } from "@real-life/data-interface"
 import { MASSE, MODUL, fadenPfad, fadenStil, ohnePraefix, type Faden } from "../../../modell.mjs"
 import type { Raster } from "./raster"
 

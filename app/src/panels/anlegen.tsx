@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react"
-import type { Item } from "@real-life-stack/data-interface"
-import { ItemComposer, type ContentComposerHandle, type ContentComposerProps } from "@real-life-stack/toolkit"
+import type { Item } from "@real-life/data-interface"
+import { ItemComposer, type ContentComposerHandle, type ContentComposerProps } from "@real-life/toolkit"
 import { mitPosition, useAbbildung, vorbelegung, type Zelle } from "../composer"
 import { KARTEN_TYP } from "../../../modell.mjs"
 

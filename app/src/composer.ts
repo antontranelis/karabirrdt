@@ -11,7 +11,7 @@ import {
   type ItemEditorMapper,
   type PersonOption,
   type WidgetData,
-} from "@real-life-stack/toolkit"
+} from "@real-life/toolkit"
 import { KARTEN_TYP, ZIEL_TYP, ZUGEHOERIG_PRAEDIKAT } from "../../modell.mjs"
 
 /**

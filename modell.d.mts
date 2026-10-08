@@ -1,7 +1,7 @@
 // Typen zu `modell.mjs`. Die Datei selbst ist einfaches JavaScript, damit
 // Server (node) und App (Vite) dieselbe benutzen; die Typen stehen hier,
 // damit die App sie beim Übersetzen prüfen kann.
-import type { Group, Item, RelationRecord } from "@real-life-stack/data-interface"
+import type { Group, Item, RelationRecord } from "@real-life/data-interface"
 
 export interface Phase {
   name: string

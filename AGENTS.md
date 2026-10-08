@@ -9,7 +9,7 @@ Dieses Repo ist das erste externe Beispiel für eine App auf den veröffentlicht
 3. [Toolkit-Index](https://github.com/real-life-org/real-life-stack/blob/master/docs/toolkit-index.md) der installierten Version (siehe `app/package.json`, exakt gepinnt). Was dort nicht steht, existiert nicht.
 4. [`docs/rls-kompatibel.md`](docs/rls-kompatibel.md) in diesem Repo: die Abbildung des Bretts auf Items und Relationen, die benutzten Bausteine, und jede gefundene Lücke mit Fundstelle.
 
-Die Doku gilt in der Version, die installiert ist. Exporte gegen `app/node_modules/@real-life-stack/toolkit/dist` prüfen, nie gegen einen lokalen Checkout des Stack-Repos.
+Die Doku gilt in der Version, die installiert ist. Exporte gegen `app/node_modules/@real-life/toolkit/dist` prüfen, nie gegen einen lokalen Checkout des Stack-Repos.
 
 ## Wie diese App zusammengesetzt ist
 

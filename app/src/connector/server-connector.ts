@@ -1,4 +1,4 @@
-import { MockConnector, type MockConnectorSeed } from "@real-life-stack/mock-connector"
+import { MockConnector, type MockConnectorSeed } from "@real-life/mock-connector"
 import {
   createObservable,
   type FullConnector,
@@ -9,7 +9,7 @@ import {
   type RelationRecordUpdate,
   type ReactiveObservable,
   type User,
-} from "@real-life-stack/data-interface"
+} from "@real-life/data-interface"
 import {
   AUTOR,
   KENNUNG,

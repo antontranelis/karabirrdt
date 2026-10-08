@@ -1,6 +1,6 @@
 import { useId } from "react"
-import type { Group, Item, RelationRecord } from "@real-life-stack/data-interface"
-import { Input, Label, Textarea, type AppSpaceSection, type AppSpaceSectionContext, type GroupDialogMode } from "@real-life-stack/toolkit"
+import type { Group, Item, RelationRecord } from "@real-life/data-interface"
+import { Input, Label, Textarea, type AppSpaceSection, type AppSpaceSectionContext, type GroupDialogMode } from "@real-life/toolkit"
 import { FileJson, Sparkles } from "lucide-react"
 import { DatenPanel } from "./daten-panel"
 
